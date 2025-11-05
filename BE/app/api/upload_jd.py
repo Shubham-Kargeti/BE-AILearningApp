@@ -46,9 +46,22 @@ async def upload_jd(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     jd_id = str(uuid.uuid4())
-    memory_store[jd_id] = {"text": jd_text, "filename": file.filename}
+    
+    # Generate MCQs
     try:
         mcq_questions = generate_mcqs(jd_text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"MCQ generation failed: {str(e)}")
-    return {"message": f"JD uploaded and MCQs generated successfully", "jd_id": jd_id, "mcq_questions": mcq_questions}
+    
+    # Store JD with questions
+    memory_store[jd_id] = {
+        "text": jd_text, 
+        "filename": file.filename,
+        "questions": [q.model_dump() for q in mcq_questions]  # Convert to dict for storage
+    }
+    
+    return {
+        "message": f"JD uploaded and MCQs generated successfully", 
+        "jd_id": jd_id, 
+        "questions": mcq_questions
+    }
