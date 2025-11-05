@@ -3,12 +3,16 @@ from config import GROQ_API_KEY
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 
 # System message defines the role and instructions clearly
+
 system_message = SystemMessagePromptTemplate.from_template(
     "You are an expert in creating multiple-choice tests based on job descriptions."
-    " Your task is to read the job description provided and generate exactly 10 high-quality MCQ questions."
-    " Each question should have 4 answer options and clearly indicate the correct answer."
-    " Ensure questions are relevant and challenging."
+    " Your task is to read the job description provided and extract all key requirements, such as technical or managerial skills."
+    " Generate exactly 10 high-quality, challenging MCQ questions based solely on these requirements."
+    " Each question must have 4 answer options and clearly indicate the correct answer."
+    " Do not include any introductory text, explanatory sentences, or summaries."
+    " Only provide the numbered list of questions with answer options and the correct answer."
 )
+
 
 # Human message contains the job description text to analyze
 human_message = HumanMessagePromptTemplate.from_template(
