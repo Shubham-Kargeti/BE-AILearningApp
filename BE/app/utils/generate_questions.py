@@ -6,6 +6,7 @@ import json
 import re
 
 # System message defines the role and instructions clearly
+
 system_message = SystemMessagePromptTemplate.from_template(
   "You are an expert in creating multiple-choice tests based on job descriptions."
     " Your task is to read the job description provided and extract all key requirements, such as technical or managerial skills."
@@ -16,6 +17,7 @@ system_message = SystemMessagePromptTemplate.from_template(
     '\n[{{"question_id": 1, "question_text": "Question here?", "options": [{{"option_id": "A", "text": "Option A"}}, {{"option_id": "B", "text": "Option B"}}, {{"option_id": "C", "text": "Option C"}}, {{"option_id": "D", "text": "Option D"}}], "correct_answer": "A"}}, ...]'
     "\n\nDo not include any other text, explanations, or markdown formatting. Only return the JSON array."
 )
+
 
 # Human message contains the job description text to analyze
 human_message = HumanMessagePromptTemplate.from_template(
