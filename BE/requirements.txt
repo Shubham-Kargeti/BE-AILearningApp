@@ -3,4 +3,8 @@ uvicorn
 python-dotenv
 groq
 langchain
-langchain_groq
+langchain-groq
+python-docx
+pdfplumber
+python-multipart
+langchain_core
