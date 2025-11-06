@@ -1,5 +1,5 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException
-from app.utils.generate_questions import generate_mcqs
+from app.utils.generate_questions import generate_mcqs_for_topic
 from app.utils.text_extract import extract_text
 import uuid
 
@@ -49,7 +49,7 @@ async def upload_jd(file: UploadFile = File(...)):
     
     # Generate MCQs
     try:
-        mcq_questions = generate_mcqs(jd_text)
+        mcq_questions = generate_mcqs_for_topic(jd_text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"MCQ generation failed: {str(e)}")
     
