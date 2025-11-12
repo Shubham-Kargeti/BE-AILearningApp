@@ -61,3 +61,11 @@ faker==22.6.0
 # Development
 black==24.1.1
 ruff==0.1.14
+psycopg2-binary
+sqlalchemy
+langchain-community
+faiss-cpu
+pandas
+sentence-transformers
+openpyxl
+langchain-huggingface
