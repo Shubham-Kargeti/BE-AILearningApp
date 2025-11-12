@@ -28,12 +28,26 @@ class Settings(BaseSettings):
     RELOAD: bool = True
     
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/ai_learning_db"
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 5432
+    DB_NAME: str = "ai_learning_db"
+    DB_USER: str = "postgres"
+    DB_PASSWORD: str = "postgres"
+    DATABASE_URL: Optional[str] = None
     DB_ECHO: bool = False
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
     DB_POOL_TIMEOUT: int = 30
     DB_POOL_RECYCLE: int = 3600
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Build DATABASE_URL from components if not provided
+        if not self.DATABASE_URL:
+            self.DATABASE_URL = (
+                f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}"
+                f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+            )
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -123,7 +137,12 @@ class Settings(BaseSettings):
     @property
     def database_url_sync(self) -> str:
         """Get synchronous database URL for Alembic."""
-        return self.DATABASE_URL.replace("+asyncpg", "")
+        if self.DATABASE_URL:
+            return self.DATABASE_URL.replace("+asyncpg", "")
+        return (
+            f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        )
 
 
 @lru_cache()
