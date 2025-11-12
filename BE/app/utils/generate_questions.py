@@ -19,7 +19,10 @@ system_message = SystemMessagePromptTemplate.from_template(
     '{{"option_id": "C", "text": "Option C"}}, {{"option_id": "D", "text": "Option D"}}], "correct_answer": "A"}}]'
     "\n\nNo other text or formatting."
 )
-
+#Maintain an id on email(unique and timestamp)
+# TO DOs 
+#1) when generate questions api is hit, it should generate ques and save them to db, then questions will be sent from db to FE.
+#2) Set of questions, skill, level, created at(timestamp).
 human_message = HumanMessagePromptTemplate.from_template(
     "Topic: {topic}\nDifficulty Level (beginner, intermediate, expert): {level}"
 )
