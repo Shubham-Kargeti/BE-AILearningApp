@@ -8,3 +8,11 @@ python-docx
 pdfplumber
 python-multipart
 langchain_core
+psycopg2-binary
+sqlalchemy
+langchain-community
+faiss-cpu
+pandas
+sentence-transformers
+openpyxl
+langchain-huggingface
