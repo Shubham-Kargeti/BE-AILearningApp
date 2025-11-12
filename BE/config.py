@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     SENTRY_PROFILES_SAMPLE_RATE: float = 0.1
     
     # AI/ML
-    GROQ_API_KEY: str = ""
+    GROQ_API_KEY: str = "You actual Groq API Key"
     MAX_QUESTIONS_PER_TEST: int = 20
     QUESTION_GENERATION_TIMEOUT: int = 300  # 5 minutes
     
