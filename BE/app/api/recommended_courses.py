@@ -1,4 +1,7 @@
+"""Recommended Courses API - AI-powered course recommendations using vector search."""
 from fastapi import APIRouter, Query, HTTPException
+from pydantic import BaseModel, Field
+from typing import List, Optional
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 import math
@@ -7,6 +10,22 @@ import os
 import json
 
 router = APIRouter()
+
+
+# Response Models for Swagger Documentation
+class CourseRecommendation(BaseModel):
+    """Individual course recommendation."""
+    name: str = Field(..., description="Course pathway display name", example="Introduction to Python Programming")
+    topic: str = Field(..., description="Skill/Topic pathway category", example="Python")
+    badge: Optional[str] = Field(None, description="Levelup badge if available", example="Python Beginner")
+    url: str = Field(..., description="Course pathway URL", example="https://example.com/courses/python-intro")
+    score: Optional[float] = Field(None, description="Similarity score from vector search (lower is better)", example=0.85)
+
+
+class RecommendedCoursesResponse(BaseModel):
+    """Response containing recommended courses for a topic."""
+    topic: str = Field(..., description="The search topic/skill requested", example="Python")
+    recommended_courses: List[CourseRecommendation] = Field(..., description="List of recommended courses")
 
 # Load embedding model & FAISS index
 embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
@@ -55,9 +74,97 @@ def sanitize_for_json(data):
         return data
 
 
-@router.get("/recommended-courses/")
-async def recommended_courses(topic: str = Query(...)):
-    """Return top recommended courses for a given topic."""
+@router.get("/recommended-courses/", response_model=RecommendedCoursesResponse)
+async def recommended_courses(
+    topic: str = Query(
+        ..., 
+        description="Skill or topic to search for course recommendations",
+        min_length=2,
+        max_length=100,
+        example="Python"
+    )
+):
+    """
+    🎓 Get AI-Powered Course Recommendations
+    
+    Returns personalized course recommendations based on a skill or topic using advanced 
+    vector similarity search powered by FAISS and HuggingFace embeddings.
+    
+    **How It Works:**
+    1. 🔍 **Vector Search**: Uses semantic similarity search on course embeddings
+    2. 🎯 **Smart Matching**: Finds courses most relevant to your topic
+    3. 📊 **Scoring**: Ranks courses by similarity score (lower = better match)
+    4. 🔄 **Fallback**: If few results, uses keyword-based search as backup
+    
+    **Search Algorithm:**
+    - Primary: FAISS vector similarity search (k=10 top results)
+    - Fallback: Excel-based keyword matching (if < 3 vector results)
+    - Deduplication: Ensures no duplicate course recommendations
+    
+    **Use Cases:**
+    - 📚 Learning path discovery for specific skills
+    - 🎯 Course recommendations based on job descriptions
+    - 🚀 Skill gap analysis and training suggestions
+    - 💼 Employee upskilling and reskilling programs
+    
+    **Query Parameters:**
+    - `topic`: The skill, technology, or subject area to search for
+      - Examples: "Python", "Machine Learning", "Cloud Computing", "Data Analysis"
+      - Minimum 2 characters, maximum 100 characters
+    
+    **Response Details:**
+    Returns a list of recommended courses with:
+    - **name**: Full course pathway name
+    - **topic**: Skill/topic category
+    - **badge**: Achievement badge (if available)
+    - **url**: Direct link to the course
+    - **score**: Similarity score (lower = better match, `null` for fallback results)
+    
+    **Example Request:**
+    ```
+    GET /api/v1/recommended-courses/?topic=Python
+    ```
+    
+    **Example Response:**
+    ```json
+    {
+      "topic": "Python",
+      "recommended_courses": [
+        {
+          "name": "Introduction to Python Programming",
+          "topic": "Python",
+          "badge": "Python Beginner",
+          "url": "https://example.com/courses/python-intro",
+          "score": 0.65
+        },
+        {
+          "name": "Advanced Python Techniques",
+          "topic": "Python",
+          "badge": "Python Expert",
+          "url": "https://example.com/courses/python-advanced",
+          "score": 0.78
+        }
+      ]
+    }
+    ```
+    
+    **Features:**
+    - ⚡ Fast semantic search using FAISS vector database
+    - 🧠 AI-powered embeddings (sentence-transformers/all-MiniLM-L6-v2)
+    - 🎯 Up to 10 top-ranked course recommendations
+    - 🔄 Automatic fallback for comprehensive results
+    - 🛡️ Error handling and data sanitization
+    
+    **Error Handling:**
+    - Returns 500 if vector search fails
+    - Gracefully handles missing or malformed data
+    - Sanitizes NaN/infinity values from scores
+    
+    **Technology Stack:**
+    - 🔢 FAISS: Facebook AI Similarity Search
+    - 🤗 HuggingFace: Transformer-based embeddings
+    - 📊 Pandas: Course masterdata management
+    """
     try:
         # --- Step 1: Vector similarity search ---
         results = vectorstore.similarity_search_with_score(

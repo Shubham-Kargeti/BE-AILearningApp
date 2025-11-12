@@ -24,6 +24,13 @@ from app.api.upload_jd import router as upload_router
 from app.api import auth, users, admin, dashboard, test_sessions
 from app.api.questionset_tests import router as questionset_tests_router
 
+# Import for recommended courses if it exists
+try:
+    from app.api.recommended_courses import router as recommended_courses_router
+    has_recommended_courses = True
+except ImportError:
+    has_recommended_courses = False
+
 settings = get_settings()
 logger = get_logger(__name__)
 
@@ -72,7 +79,7 @@ app = FastAPI(
     description="""
 # AI-Powered Learning and Assessment Platform
 
-A comprehensive platform for generating AI-powered assessments and conducting skill-based tests.
+A comprehensive platform for generating AI-powered assessments, conducting skill-based tests, and providing personalized course recommendations.
 
 ## Features
 
@@ -85,6 +92,12 @@ A comprehensive platform for generating AI-powered assessments and conducting sk
 - **QuestionSet Tests**: Start tests from pre-generated question sets
 - **Immediate Feedback**: Get instant results upon test submission
 - **Detailed Analytics**: View detailed performance metrics and answer analysis
+
+### 🎓 Course Recommendations (NEW)
+- **AI-Powered Search**: Vector-based semantic search using FAISS and HuggingFace embeddings
+- **Personalized Learning Paths**: Get course recommendations based on skills and topics
+- **Smart Matching**: Advanced similarity scoring for best course fit
+- **Comprehensive Coverage**: Fallback search ensures you always get recommendations
 
 ### 👤 User Management
 - **Authentication**: Secure JWT-based authentication
@@ -139,6 +152,14 @@ Most endpoints require JWT authentication. Use the `/api/v1/auth/login` endpoint
         {
             "name": "Admin",
             "description": "Administrative operations (Admin role required)"
+        },
+        {
+            "name": "Recommended Courses",
+            "description": "AI-powered course recommendations using vector similarity search"
+        },
+        {
+            "name": "Database Testing",
+            "description": "Database testing endpoints (DEBUG mode only, not available in production)"
         },
         {
             "name": "Health",
@@ -289,6 +310,10 @@ app.include_router(upload_router, prefix=settings.API_V1_PREFIX, tags=["Job Desc
 app.include_router(mcq_generation_router, prefix=settings.API_V1_PREFIX, tags=["Questions"])
 app.include_router(admin.router, prefix=settings.API_V1_PREFIX, tags=["Admin"])
 
+# Include recommended courses router if available
+if has_recommended_courses:
+    app.include_router(recommended_courses_router, prefix=settings.API_V1_PREFIX, tags=["Recommended Courses"])
+
 
 # Metrics endpoint
 if settings.ENVIRONMENT != "testing":
@@ -302,3 +327,44 @@ if settings.ENVIRONMENT != "testing":
             content=generate_latest(),
             media_type=CONTENT_TYPE_LATEST,
         )
+
+
+# Database testing endpoints (for development/testing only)
+if settings.DEBUG:
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.orm import sessionmaker
+    
+    # Create synchronous engine for test endpoints using settings
+    test_engine = create_engine(settings.database_url_sync)
+    TestSession = sessionmaker(bind=test_engine)
+    
+    @app.post("/test-db", tags=["Database Testing"])
+    def test_db():
+        """Create and populate test table (DEBUG only)."""
+        with TestSession() as session:
+            session.execute(text("CREATE TABLE IF NOT EXISTS test_table(id SERIAL PRIMARY KEY, name VARCHAR(50));"))
+            session.execute(text("INSERT INTO test_table(name) VALUES ('Sample Entry');"))
+            session.commit()
+            result = session.execute(text("SELECT * FROM test_table;"))
+            rows = [dict(row._mapping) for row in result]
+        return {"rows": rows}
+    
+    @app.get("/view-test-table", tags=["Database Testing"])
+    def view_test_table():
+        """View test table contents (DEBUG only)."""
+        with TestSession() as session:
+            session.execute(text("CREATE TABLE IF NOT EXISTS test_table(id SERIAL PRIMARY KEY, name VARCHAR(50));"))
+            result = session.execute(text("SELECT * FROM test_table;"))
+            rows = [dict(row._mapping) for row in result]
+        return {"rows": rows}
+    
+    @app.delete("/delete-test-table", tags=["Database Testing"])
+    def delete_test_table():
+        """Delete test table and all entries (DEBUG only)."""
+        with TestSession() as session:
+            # Delete all entries
+            session.execute(text("DELETE FROM test_table;"))
+            # Drop the table
+            session.execute(text("DROP TABLE IF EXISTS test_table;"))
+            session.commit()
+        return {"message": "test_table deleted along with all entries."}
