@@ -94,15 +94,51 @@ class JobDescription(Base, TimestampMixin):
         return f"<JobDescription(id={self.id}, jd_id='{self.jd_id}', title='{self.title}')>"
 
 
+class QuestionSet(Base, TimestampMixin):
+    """Question set model for storing generated question sets."""
+    
+    __tablename__ = "question_sets"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    question_set_id: Mapped[str] = mapped_column(
+        String(100), unique=True, index=True, nullable=False,
+        default=lambda: f"qs_{uuid.uuid4().hex[:12]}"
+    )
+    skill: Mapped[str] = mapped_column(String(255), nullable=False, index=True)  # Topic/skill name
+    level: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # beginner, intermediate, expert
+    
+    # Metadata
+    total_questions: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    generation_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    
+    # Relationships
+    questions: Mapped[list["Question"]] = relationship(
+        "Question", back_populates="question_set", cascade="all, delete-orphan"
+    )
+    
+    __table_args__ = (
+        Index("ix_question_sets_skill_level", "skill", "level"),
+    )
+    
+    def __repr__(self) -> str:
+        return f"<QuestionSet(id={self.id}, question_set_id='{self.question_set_id}', skill='{self.skill}', level='{self.level}')>"
+
+
 class Question(Base, TimestampMixin):
     """MCQ question model."""
     
     __tablename__ = "questions"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    jd_id: Mapped[str] = mapped_column(
-        String(100), ForeignKey("job_descriptions.jd_id"), nullable=False, index=True
+    
+    # Link to either QuestionSet OR JobDescription
+    question_set_id: Mapped[Optional[str]] = mapped_column(
+        String(100), ForeignKey("question_sets.question_set_id"), nullable=True, index=True
     )
+    jd_id: Mapped[Optional[str]] = mapped_column(
+        String(100), ForeignKey("job_descriptions.jd_id"), nullable=True, index=True
+    )
+    
     question_text: Mapped[str] = mapped_column(Text, nullable=False)
     options: Mapped[dict] = mapped_column(JSON, nullable=False)  # {"A": "text", "B": "text", ...}
     correct_answer: Mapped[str] = mapped_column(String(10), nullable=False)  # "A", "B", "C", "D"
@@ -114,17 +150,19 @@ class Question(Base, TimestampMixin):
     generation_time: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     
     # Relationships
-    job_description: Mapped["JobDescription"] = relationship("JobDescription", back_populates="questions")
+    question_set: Mapped[Optional["QuestionSet"]] = relationship("QuestionSet", back_populates="questions")
+    job_description: Mapped[Optional["JobDescription"]] = relationship("JobDescription", back_populates="questions")
     answers: Mapped[list["Answer"]] = relationship(
         "Answer", back_populates="question", cascade="all, delete-orphan"
     )
     
     __table_args__ = (
         Index("ix_questions_jd_id_created_at", "jd_id", "created_at"),
+        Index("ix_questions_question_set_id", "question_set_id", "created_at"),
     )
     
     def __repr__(self) -> str:
-        return f"<Question(id={self.id}, jd_id='{self.jd_id}')>"
+        return f"<Question(id={self.id}, question_set_id='{self.question_set_id}', jd_id='{self.jd_id}')>"
 
 
 class TestSession(Base, TimestampMixin):
@@ -137,8 +175,13 @@ class TestSession(Base, TimestampMixin):
         String(100), unique=True, index=True, nullable=False,
         default=lambda: f"session_{uuid.uuid4().hex}"
     )
-    jd_id: Mapped[str] = mapped_column(
-        String(100), ForeignKey("job_descriptions.jd_id"), nullable=False, index=True
+    
+    # Link to either QuestionSet OR JobDescription
+    question_set_id: Mapped[Optional[str]] = mapped_column(
+        String(100), ForeignKey("question_sets.question_set_id"), nullable=True, index=True
+    )
+    jd_id: Mapped[Optional[str]] = mapped_column(
+        String(100), ForeignKey("job_descriptions.jd_id"), nullable=True, index=True
     )
     user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     
@@ -166,7 +209,8 @@ class TestSession(Base, TimestampMixin):
     user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     
     # Relationships
-    job_description: Mapped["JobDescription"] = relationship("JobDescription", back_populates="test_sessions")
+    question_set: Mapped[Optional["QuestionSet"]] = relationship("QuestionSet")
+    job_description: Mapped[Optional["JobDescription"]] = relationship("JobDescription", back_populates="test_sessions")
     user: Mapped[Optional["User"]] = relationship("User", back_populates="test_sessions")
     answers: Mapped[list["Answer"]] = relationship(
         "Answer", back_populates="test_session", cascade="all, delete-orphan"
@@ -175,6 +219,7 @@ class TestSession(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_test_sessions_jd_id_created_at", "jd_id", "created_at"),
         Index("ix_test_sessions_user_id_created_at", "user_id", "created_at"),
+        Index("ix_test_sessions_question_set_id_created_at", "question_set_id", "created_at"),
     )
     
     def __repr__(self) -> str:

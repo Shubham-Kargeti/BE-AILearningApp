@@ -22,6 +22,7 @@ from app.core.metrics import setup_metrics
 from app.api.mcq_generation import router as mcq_generation_router
 from app.api.upload_jd import router as upload_router
 from app.api import auth, users, admin, dashboard, test_sessions
+from app.api.questionset_tests import router as questionset_tests_router
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -68,10 +69,90 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="AI-powered learning and assessment platform",
+    description="""
+# AI-Powered Learning and Assessment Platform
+
+A comprehensive platform for generating AI-powered assessments and conducting skill-based tests.
+
+## Features
+
+### 🎯 Question Generation
+- **Generate MCQ Questions**: Create multiple-choice questions using AI for any topic and difficulty level
+- **Automatic Storage**: All generated questions are saved to the database with metadata
+- **Support for Multiple Levels**: Beginner, Intermediate, and Expert difficulty levels
+
+### 📝 Test Management
+- **QuestionSet Tests**: Start tests from pre-generated question sets
+- **Immediate Feedback**: Get instant results upon test submission
+- **Detailed Analytics**: View detailed performance metrics and answer analysis
+
+### 👤 User Management
+- **Authentication**: Secure JWT-based authentication
+- **Role-based Access**: Support for Candidate, Recruiter, and Admin roles
+- **Profile Management**: Complete user profile and dashboard features
+
+### 📊 Analytics & Reporting
+- **Test Results**: Comprehensive test result tracking
+- **Performance Metrics**: Detailed scoring and question-level analytics
+- **Dashboard**: User-specific dashboard with test history
+
+## API Endpoints
+
+All API endpoints are organized under `/api/v1/` prefix.
+
+## Authentication
+
+Most endpoints require JWT authentication. Use the `/api/v1/auth/login` endpoint to obtain a token.
+    """,
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
     lifespan=lifespan,
+    openapi_tags=[
+        {
+            "name": "Authentication",
+            "description": "User authentication and authorization endpoints"
+        },
+        {
+            "name": "Users",
+            "description": "User management and profile operations"
+        },
+        {
+            "name": "Questions",
+            "description": "AI-powered question generation endpoints"
+        },
+        {
+            "name": "QuestionSet Tests",
+            "description": "Test management for pre-generated question sets with immediate feedback"
+        },
+        {
+            "name": "Test Sessions",
+            "description": "General test session management and tracking"
+        },
+        {
+            "name": "Job Descriptions",
+            "description": "Upload and manage job descriptions for skill-based testing"
+        },
+        {
+            "name": "Dashboard",
+            "description": "User dashboard and analytics"
+        },
+        {
+            "name": "Admin",
+            "description": "Administrative operations (Admin role required)"
+        },
+        {
+            "name": "Health",
+            "description": "Health check and system status endpoints"
+        },
+        {
+            "name": "Root",
+            "description": "Root API information"
+        },
+        {
+            "name": "Monitoring",
+            "description": "Prometheus metrics and monitoring endpoints"
+        }
+    ],
 )
 
 # CORS middleware
@@ -203,6 +284,7 @@ app.include_router(auth.router, prefix=settings.API_V1_PREFIX, tags=["Authentica
 app.include_router(users.router, prefix=settings.API_V1_PREFIX, tags=["Users"])
 app.include_router(dashboard.router, prefix=settings.API_V1_PREFIX, tags=["Dashboard"])
 app.include_router(test_sessions.router, prefix=settings.API_V1_PREFIX, tags=["Test Sessions"])
+app.include_router(questionset_tests_router, prefix=settings.API_V1_PREFIX, tags=["QuestionSet Tests"])
 app.include_router(upload_router, prefix=settings.API_V1_PREFIX, tags=["Job Descriptions"])
 app.include_router(mcq_generation_router, prefix=settings.API_V1_PREFIX, tags=["Questions"])
 app.include_router(admin.router, prefix=settings.API_V1_PREFIX, tags=["Admin"])

@@ -17,6 +17,63 @@ class MCQResponse(BaseModel):
     message: str
     questions: List[MCQQuestion]
 
+class QuestionSetResponse(BaseModel):
+    """Response schema for generated question sets."""
+    question_set_id: str
+    skill: str
+    level: str
+    total_questions: int
+    created_at: datetime
+    message: str
+    questions: List[MCQQuestion]
+
+# QuestionSet Test Schemas
+class StartQuestionSetTestRequest(BaseModel):
+    """Request to start a test from a question set."""
+    question_set_id: str
+
+class StartQuestionSetTestResponse(BaseModel):
+    """Response when starting a QuestionSet test."""
+    session_id: str
+    question_set_id: str
+    skill: str
+    level: str
+    total_questions: int
+    started_at: datetime
+    questions: List[MCQQuestion]  # Return questions without correct answers
+
+class AnswerSubmit(BaseModel):
+    """Single answer submission."""
+    question_id: int
+    selected_answer: str  # e.g., "A", "B", "C", "D"
+
+class SubmitAllAnswersRequest(BaseModel):
+    """Submit all answers at once."""
+    session_id: str
+    answers: List[AnswerSubmit]
+
+class QuestionResultDetailed(BaseModel):
+    """Detailed result for a single question."""
+    question_id: int
+    question_text: str
+    options: List[MCQOption]
+    your_answer: str
+    correct_answer: str
+    is_correct: bool
+
+class TestResultResponse(BaseModel):
+    """Complete test results."""
+    session_id: str
+    question_set_id: str
+    skill: str
+    level: str
+    total_questions: int
+    correct_answers: int
+    score_percentage: float
+    completed_at: datetime
+    time_taken_seconds: int
+    detailed_results: List[QuestionResultDetailed]
+
 class AnswerSubmission(BaseModel):
     session_id: str
     question_id: int
