@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.db.session import get_db
 from app.db.models import User, RefreshToken
 from app.core.security import create_token_pair, decode_token
-from app.core.redis import RedisService, get_redis
+# from app.core.redis import RedisService, get_redis  # DISABLED - Redis not in use
 from app.core.tasks.email_tasks import send_otp_email, generate_otp
 from app.core.dependencies import verify_refresh_token
 from app.core.metrics import otp_requests_total, auth_attempts_total
@@ -55,31 +55,33 @@ async def request_otp(
     
     Sends OTP to email if valid.
     """
-    redis_service = RedisService(get_redis())
-    
-    # Check rate limit
-    is_allowed, _ = await redis_service.check_rate_limit(
-        f"otp_request:{request.email}",
-        limit=3,
-        window=60  # 3 requests per minute
-    )
-    
-    if not is_allowed:
-        otp_requests_total.labels(status="rate_limited").inc()
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many OTP requests. Please try again later."
-        )
+    # DISABLED - Redis not in use, skipping rate limit and OTP storage
+    # redis_service = RedisService(get_redis())
+    # 
+    # # Check rate limit
+    # is_allowed, _ = await redis_service.check_rate_limit(
+    #     f"otp_request:{request.email}",
+    #     limit=3,
+    #     window=60  # 3 requests per minute
+    # )
+    # 
+    # if not is_allowed:
+    #     otp_requests_total.labels(status="rate_limited").inc()
+    #     raise HTTPException(
+    #         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+    #         detail="Too many OTP requests. Please try again later."
+    #     )
     
     # Generate OTP
     otp = generate_otp(settings.OTP_LENGTH)
     
-    # Store OTP in Redis
-    await redis_service.set_otp(
-        request.email,
-        otp,
-        settings.OTP_EXPIRY_SECONDS
-    )
+    # Store OTP in Redis - DISABLED, storing in session/memory temporarily
+    # await redis_service.set_otp(
+    #     request.email,
+    #     otp,
+    #     settings.OTP_EXPIRY_SECONDS
+    # )
+    # WARNING: Without Redis, OTP verification won't work properly
     
     # Send OTP email (async via Celery)
     send_otp_email.delay(request.email, otp)
@@ -103,39 +105,46 @@ async def verify_otp(
     
     Returns JWT access and refresh tokens.
     """
-    redis_service = RedisService(get_redis())
+    # DISABLED - Redis not in use, OTP verification disabled
+    # WARNING: This endpoint won't work without Redis
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="OTP verification temporarily disabled (Redis not available)"
+    )
     
-    # Get OTP from Redis
-    stored_otp = await redis_service.get_otp(request.email)
-    
-    if not stored_otp:
-        auth_attempts_total.labels(status="otp_expired").inc()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OTP expired or not found"
-        )
-    
-    # Verify OTP
-    if stored_otp != request.otp:
-        # Increment attempt count
-        attempts = await redis_service.increment_otp_attempts(request.email)
-        
-        if attempts >= settings.OTP_MAX_ATTEMPTS:
-            await redis_service.delete_otp(request.email)
-            auth_attempts_total.labels(status="max_attempts").inc()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Maximum OTP attempts exceeded"
-            )
-        
-        auth_attempts_total.labels(status="invalid_otp").inc()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid OTP. {settings.OTP_MAX_ATTEMPTS - attempts} attempts remaining."
-        )
-    
-    # OTP verified - delete from Redis
-    await redis_service.delete_otp(request.email)
+    # redis_service = RedisService(get_redis())
+    # 
+    # # Get OTP from Redis
+    # stored_otp = await redis_service.get_otp(request.email)
+    # 
+    # if not stored_otp:
+    #     auth_attempts_total.labels(status="otp_expired").inc()
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail="OTP expired or not found"
+    #     )
+    # 
+    # # Verify OTP
+    # if stored_otp != request.otp:
+    #     # Increment attempt count
+    #     attempts = await redis_service.increment_otp_attempts(request.email)
+    #     
+    #     if attempts >= settings.OTP_MAX_ATTEMPTS:
+    #         await redis_service.delete_otp(request.email)
+    #         auth_attempts_total.labels(status="max_attempts").inc()
+    #         raise HTTPException(
+    #             status_code=status.HTTP_400_BAD_REQUEST,
+    #             detail="Maximum OTP attempts exceeded"
+    #         )
+    #     
+    #     auth_attempts_total.labels(status="invalid_otp").inc()
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail=f"Invalid OTP. {settings.OTP_MAX_ATTEMPTS - attempts} attempts remaining."
+    #     )
+    # 
+    # # OTP verified - delete from Redis
+    # await redis_service.delete_otp(request.email)
     
     # Get or create user
     result = await db.execute(
