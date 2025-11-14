@@ -22,6 +22,11 @@ security = HTTPBearer()
 
 
 # Request/Response models
+class LoginRequest(BaseModel):
+    """Simple login request for testing (no OTP required)."""
+    email: EmailStr
+
+
 class OTPRequest(BaseModel):
     """Request OTP for email."""
     email: EmailStr
@@ -43,6 +48,80 @@ class TokenResponse(BaseModel):
 class RefreshTokenRequest(BaseModel):
     """Refresh token request."""
     refresh_token: str
+
+
+@router.post("/auth/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
+async def simple_login(
+    request: LoginRequest,
+    db: AsyncSession = Depends(get_db)
+) -> TokenResponse:
+    """
+    Simple login endpoint for testing (no OTP required).
+    
+    ⚠️ WARNING: This endpoint is for TESTING ONLY!
+    In production, use the OTP-based authentication flow.
+    
+    This endpoint:
+    - Gets or creates a user with the provided email
+    - Returns access and refresh tokens immediately
+    - No password or OTP verification required
+    
+    Args:
+        request: Login request with email
+        db: Database session
+    
+    Returns:
+        Access and refresh tokens
+    """
+    # Get or create user
+    result = await db.execute(
+        select(User).where(User.email == request.email)
+    )
+    user = result.scalar_one_or_none()
+    
+    if user is None:
+        # Create new user if doesn't exist
+        user = User(
+            email=request.email,
+            full_name=request.email.split("@")[0].title(),
+            is_active=True,
+            is_verified=True
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive"
+        )
+    
+    # Generate token pair
+    tokens = create_token_pair(
+        user_id=user.id,
+        email=user.email
+    )
+    
+    access_token = tokens["access_token"]
+    refresh_token = tokens["refresh_token"]
+    
+    # Save refresh token to database
+    refresh_token_record = RefreshToken(
+        user_id=user.id,
+        token=refresh_token,
+        expires_at=datetime.utcnow() + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+    db.add(refresh_token_record)
+    await db.commit()
+    
+    auth_attempts_total.labels(status="success").inc()
+    
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer"
+    )
 
 
 @router.post("/auth/request-otp", status_code=status.HTTP_200_OK)
