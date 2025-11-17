@@ -1,5 +1,5 @@
 """QuestionSet Test API - Immediate feedback flow."""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -111,7 +111,7 @@ async def start_questionset_test(
         )
     
     # Create test session
-    started_at = datetime.utcnow()
+    started_at = datetime.now(timezone.utc)
     test_session = TestSession(
         question_set_id=request.question_set_id,
         user_id=current_user.id,
@@ -320,7 +320,7 @@ async def submit_questionset_answers(
     db.add_all(answer_records)
     
     # Update session with results
-    completed_at = datetime.utcnow()
+    completed_at = datetime.now(timezone.utc)
     duration_seconds = int((completed_at - session.started_at).total_seconds())
     score_percentage = (correct_count / session.total_questions * 100) if session.total_questions > 0 else 0
     
