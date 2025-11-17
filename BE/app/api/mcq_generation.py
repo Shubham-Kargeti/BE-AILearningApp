@@ -20,6 +20,7 @@ async def generate_mcqs(
     ),
     subtopics: List[str] = Query(
         [],
+        alias="subtopics",
         description="Optional subtopics to focus question generation",
         example=["LLMs", "Tool Use", "Workflows"]
     ),

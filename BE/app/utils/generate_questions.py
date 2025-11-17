@@ -7,9 +7,10 @@ import re
 
 system_message = SystemMessagePromptTemplate.from_template(
     "You are an expert in creating multiple-choice tests."
-    " Generate exactly 10 multiple-choice questions based on the main topic, selected subtopics, and difficulty level."
-    " Questions MUST heavily focus on the subtopics provided."
-    " Difficulty rules:"
+    "Generate exactly 10 multiple-choice questions based on the main topic, selected subtopics, and difficulty level."
+    "If subtopics are provided, questions MUST heavily focus on those subtopics."
+    "If no subtopics are specified, generate questions covering the main topic broadly."
+    "Difficulty rules:"
     " - Beginner: basic definitions and simple concepts."
     " - Intermediate: applied understanding, architecture, and workflows."
     " - Advanced: deep reasoning, edge cases, architecture design, optimization."
@@ -26,7 +27,6 @@ system_message = SystemMessagePromptTemplate.from_template(
 human_message = HumanMessagePromptTemplate.from_template(
     "Topic: {topic}\nSubtopics: {subtopics}\nDifficulty Level (beginner, intermediate, expert): {level}"
 )
-
 
 chat_prompt = ChatPromptTemplate.from_messages([system_message, human_message])
 
