@@ -6,7 +6,7 @@ import os
 
 # Set file paths
 EXCEL_PATH = os.path.join("data", "Courses Masterdata.xlsx")
-VECTOR_INDEX_PATH = os.path.join("data", "course_faiss_index")  # You can change output path as needed
+VECTOR_INDEX_PATH = os.path.join("data", "course_faiss_index")  
 
 # Load Excel
 df = pd.read_excel(EXCEL_PATH)
@@ -17,7 +17,7 @@ for _, row in df.iterrows():
     text_blob = "; ".join([
         str(row.get('Pathway Display Name', '')),
         str(row.get('Skill/Topic Pathways', '')),
-        str(row.get('Levelup Badge', ''))  # This is optional, add/remove fields as needed
+        str(row.get('Levelup Badge', ''))  
     ])
     documents.append(
         Document(

@@ -123,7 +123,7 @@ class Settings(BaseSettings):
     
     # MVP-1 Settings
     TOPIC_DEFAULT: str = "agentic_ai"
-    DIFFICULTY_LEVELS: list[str] = ["basic", "intermediate", "expert"]
+    DIFFICULTY_LEVELS: list[str] = ["basic", "intermediate", "advanced"]
     AUTO_PROGRESS_ENABLED: bool = True
     
     # File Upload
