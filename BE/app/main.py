@@ -23,6 +23,8 @@ from app.api.mcq_generation import router as mcq_generation_router
 from app.api.upload_jd import router as upload_router
 from app.api import auth, users, admin, dashboard, test_sessions
 from app.api.questionset_tests import router as questionset_tests_router
+from app.api.subskills import router as subskill_router
+
 
 # Import for recommended courses if it exists
 try:
@@ -308,6 +310,7 @@ app.include_router(test_sessions.router, prefix=settings.API_V1_PREFIX, tags=["T
 app.include_router(questionset_tests_router, prefix=settings.API_V1_PREFIX, tags=["QuestionSet Tests"])
 app.include_router(upload_router, prefix=settings.API_V1_PREFIX, tags=["Job Descriptions"])
 app.include_router(mcq_generation_router, prefix=settings.API_V1_PREFIX, tags=["Questions"])
+app.include_router(subskill_router, prefix=settings.API_V1_PREFIX, tags=["Subskills"])
 app.include_router(admin.router, prefix=settings.API_V1_PREFIX, tags=["Admin"])
 
 # Include recommended courses router if available

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 
@@ -103,3 +103,16 @@ class TestResult(BaseModel):
     score_percentage: float
     detailed_results: List[QuestionResult]
     completed_at: datetime
+
+class CourseRecommendation(BaseModel):
+    name: str = Field(..., description="Course pathway display name")
+    topic: str = Field(..., description="Skill/Topic Pathways")
+    collection: str = Field(..., description="Collection Name")
+    category: str = Field(..., description="Category")
+    description: str = Field(..., description="Description")
+    url: str = Field(..., description="Pathway URL")
+    score: Optional[float] = Field(None, description="Similarity score")
+
+class RecommendedCoursesResponse(BaseModel):
+    topic: str
+    recommended_courses: list[CourseRecommendation]

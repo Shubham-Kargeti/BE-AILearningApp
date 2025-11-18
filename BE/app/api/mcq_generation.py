@@ -32,6 +32,9 @@ async def generate_mcqs(
     ),
     db: AsyncSession = Depends(get_db)
 ):
+    print(f"Received topic: {topic}")
+    print(f"Received subtopics: {subtopics}")  
+    print(f"Received level: {level}")
     """
     🎯 Generate AI-Powered MCQ Questions (GET Endpoint)
 
