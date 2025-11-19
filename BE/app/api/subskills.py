@@ -12,7 +12,8 @@ TOPIC_SUBSKILLS_MAP = {
 
 @router.get("/subskills/", response_model=List[str])
 async def get_subskills(topic: str = Query(..., description="Selected main topic")):
-    subskills = TOPIC_SUBSKILLS_MAP.get(topic)
+    normalized_topic = topic.strip().lower()
+    subskills = TOPIC_SUBSKILLS_MAP.get(normalized_topic)
     if subskills is None:
         raise HTTPException(status_code=404, detail=f"No subskills found for topic '{topic}'")
     return subskills
