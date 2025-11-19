@@ -112,6 +112,7 @@ class CourseRecommendation(BaseModel):
     description: str = Field(..., description="Description")
     url: str = Field(..., description="Pathway URL")
     score: Optional[float] = Field(None, description="Similarity score")
+    course_level: Optional[str] = Field(None, description="Course Level")
 
 class RecommendedCoursesResponse(BaseModel):
     topic: str
