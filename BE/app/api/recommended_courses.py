@@ -95,8 +95,8 @@ async def recommended_courses(
         ...,
         description="Obtained marks out of 10",
         ge=0,
-        le=10,
-        example=7
+        le=100,
+        example=70
     )
 ):
     """
@@ -113,86 +113,17 @@ async def recommended_courses(
     - If level is specified, only courses matching the allowed levels for that input level are returned (case-insensitive).
     """
     
-    # try:
-    #     # Normalize and validate level input
-    #     normalized_level = None
-    #     if level:
-    #         normalized_level = level.strip().title()
-    #         if normalized_level not in ["Beginner", "Intermediate", "Advanced"]:
-    #             raise HTTPException(
-    #                 status_code=400,
-    #                 detail=f"Invalid level '{level}'. Allowed values: Beginner, Intermediate, Advanced."
-    #             )
-
-    #     # Step 1: Vector similarity search
-    #     results = vectorstore.similarity_search_with_score(
-    #         topic, k=10, filter={"type": "resource"}
-    #     )
-
-    #     recommended = []
-    #     allowed_levels = get_allowed_levels(normalized_level) if normalized_level else None
-
-    #     for doc, score in results:
-    #         try:
-    #             score_value = float(score)
-    #         except Exception:
-    #             score_value = None
-
-    #         if score_value is not None and not math.isfinite(score_value):
-    #             score_value = None
-
-    #         course_level = doc.metadata.get("course_level", "").strip()
-    #         # Skip if course level is empty
-    #         if not course_level:
-    #             continue
-
-    #         # If level is specified, check if course level is allowed
-    #         if normalized_level and course_level not in allowed_levels:
-    #             continue
-
-    #         recommended.append({
-    #             "name": doc.metadata.get("name", "") or "",
-    #             "topic": doc.metadata.get("topic", "") or "",
-    #             "collection": doc.metadata.get("collection", "") or "",
-    #             "category": doc.metadata.get("category", "") or "",
-    #             "description": doc.metadata.get("description", "") or "",
-    #             "url": doc.metadata.get("url", "") or "",
-    #             "score": score_value,
-    #             "course_level": course_level
-    #         })
-
-    #     # Step 2: Fallback for low results
-    #     if len(recommended) < 3:
-    #         fallback_results = await fallback_search(topic, normalized_level)
-    #         existing_names = {r["name"] for r in recommended}
-    #         for fr in fallback_results:
-    #             if fr["name"] not in existing_names:
-    #                 recommended.append(fr)
-
-    #     # Step 3: Sanitize results for JSON
-    #     safe_response = sanitize_for_json({
-    #         "topic": topic,
-    #         "recommended_courses": recommended
-    #     })
-
-    #     # Double-check serialization (to prevent 500 JSON errors)
-    #     json.dumps(safe_response)
-
-    #     return safe_response
-
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=f"Error: {e}")
     def marks_to_level(marks: int) -> str:
-        if 0 <= marks <= 5:
+        if 0 <= marks <= 50:
             return "Beginner"
-        elif 6 <= marks <= 8:
+        elif 60 <= marks <= 80:
             return "Intermediate"
-        elif 9 <= marks <= 10:
+        elif 90 <= marks <= 100:
             return "Advanced"
         else:
             raise HTTPException(
                 status_code=400,
-                detail="Marks must be between 0 and 10."
+                detail="Marks must be between 0 and 100."
             )
 
     try:

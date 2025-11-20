@@ -5,9 +5,9 @@ router = APIRouter()
 
 # In-memory topic to subskills mapping
 TOPIC_SUBSKILLS_MAP = {
-    "Python": ["Basics", "Data Structures", "Libraries"],
-    "Machine Learning": ["Supervised", "Unsupervised", "Deep Learning"],
-    "Agentic AI": ["LLMs", "Tool Use", "Workflows"]
+    "python": ["Basics", "Data Structures", "Libraries"],
+    "machine learning": ["Supervised", "Unsupervised", "Deep Learning"],
+    "agentic ai": ["LLMs", "Tool Use", "Workflows"]
 }
 
 @router.get("/subskills/", response_model=List[str])
