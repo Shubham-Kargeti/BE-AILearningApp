@@ -87,9 +87,16 @@ async def recommended_courses(
         max_length=100,
         example="Python"
     ),
-    level: Optional[str] = Query(
-        None,
-        description="Filter courses by level (Beginner, Intermediate, Advanced). Case-insensitive. Empty courses excluded."
+    # level: Optional[str] = Query(
+    #     None,
+    #     description="Filter courses by level (Beginner, Intermediate, Advanced). Case-insensitive. Empty courses excluded."
+    # )
+    marks: int = Query(
+        ...,
+        description="Obtained marks out of 10",
+        ge=0,
+        le=10,
+        example=7
     )
 ):
     """
@@ -105,18 +112,93 @@ async def recommended_courses(
     - Only courses with a non-empty Course Level are recommended.
     - If level is specified, only courses matching the allowed levels for that input level are returned (case-insensitive).
     """
-    try:
-        # Normalize and validate level input
-        normalized_level = None
-        if level:
-            normalized_level = level.strip().title()
-            if normalized_level not in ["Beginner", "Intermediate", "Advanced"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid level '{level}'. Allowed values: Beginner, Intermediate, Advanced."
-                )
+    
+    # try:
+    #     # Normalize and validate level input
+    #     normalized_level = None
+    #     if level:
+    #         normalized_level = level.strip().title()
+    #         if normalized_level not in ["Beginner", "Intermediate", "Advanced"]:
+    #             raise HTTPException(
+    #                 status_code=400,
+    #                 detail=f"Invalid level '{level}'. Allowed values: Beginner, Intermediate, Advanced."
+    #             )
 
-        # Step 1: Vector similarity search
+    #     # Step 1: Vector similarity search
+    #     results = vectorstore.similarity_search_with_score(
+    #         topic, k=10, filter={"type": "resource"}
+    #     )
+
+    #     recommended = []
+    #     allowed_levels = get_allowed_levels(normalized_level) if normalized_level else None
+
+    #     for doc, score in results:
+    #         try:
+    #             score_value = float(score)
+    #         except Exception:
+    #             score_value = None
+
+    #         if score_value is not None and not math.isfinite(score_value):
+    #             score_value = None
+
+    #         course_level = doc.metadata.get("course_level", "").strip()
+    #         # Skip if course level is empty
+    #         if not course_level:
+    #             continue
+
+    #         # If level is specified, check if course level is allowed
+    #         if normalized_level and course_level not in allowed_levels:
+    #             continue
+
+    #         recommended.append({
+    #             "name": doc.metadata.get("name", "") or "",
+    #             "topic": doc.metadata.get("topic", "") or "",
+    #             "collection": doc.metadata.get("collection", "") or "",
+    #             "category": doc.metadata.get("category", "") or "",
+    #             "description": doc.metadata.get("description", "") or "",
+    #             "url": doc.metadata.get("url", "") or "",
+    #             "score": score_value,
+    #             "course_level": course_level
+    #         })
+
+    #     # Step 2: Fallback for low results
+    #     if len(recommended) < 3:
+    #         fallback_results = await fallback_search(topic, normalized_level)
+    #         existing_names = {r["name"] for r in recommended}
+    #         for fr in fallback_results:
+    #             if fr["name"] not in existing_names:
+    #                 recommended.append(fr)
+
+    #     # Step 3: Sanitize results for JSON
+    #     safe_response = sanitize_for_json({
+    #         "topic": topic,
+    #         "recommended_courses": recommended
+    #     })
+
+    #     # Double-check serialization (to prevent 500 JSON errors)
+    #     json.dumps(safe_response)
+
+    #     return safe_response
+
+    # except Exception as e:
+    #     raise HTTPException(status_code=500, detail=f"Error: {e}")
+    def marks_to_level(marks: int) -> str:
+        if 0 <= marks <= 5:
+            return "Beginner"
+        elif 6 <= marks <= 8:
+            return "Intermediate"
+        elif 9 <= marks <= 10:
+            return "Advanced"
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Marks must be between 0 and 10."
+            )
+
+    try:
+        normalized_level = marks_to_level(marks)
+
+        # Original logic below, now using normalized_level.
         results = vectorstore.similarity_search_with_score(
             topic, k=10, filter={"type": "resource"}
         )
@@ -134,11 +216,8 @@ async def recommended_courses(
                 score_value = None
 
             course_level = doc.metadata.get("course_level", "").strip()
-            # Skip if course level is empty
             if not course_level:
                 continue
-
-            # If level is specified, check if course level is allowed
             if normalized_level and course_level not in allowed_levels:
                 continue
 
@@ -153,7 +232,6 @@ async def recommended_courses(
                 "course_level": course_level
             })
 
-        # Step 2: Fallback for low results
         if len(recommended) < 3:
             fallback_results = await fallback_search(topic, normalized_level)
             existing_names = {r["name"] for r in recommended}
@@ -161,15 +239,11 @@ async def recommended_courses(
                 if fr["name"] not in existing_names:
                     recommended.append(fr)
 
-        # Step 3: Sanitize results for JSON
         safe_response = sanitize_for_json({
             "topic": topic,
             "recommended_courses": recommended
         })
-
-        # Double-check serialization (to prevent 500 JSON errors)
         json.dumps(safe_response)
-
         return safe_response
 
     except Exception as e:
