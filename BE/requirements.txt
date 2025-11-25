@@ -3,12 +3,12 @@ fastapi==0.121.2
 uvicorn[standard]==0.38.0
 python-dotenv==1.2.1
 pydantic[email]==2.12.4
-pydantic-settings==2.11.0
+pydantic-settings==2.12.0
  
 # Database
 sqlalchemy[asyncio]==2.0.44
 asyncpg==0.30.0
-alembic==1.16.5
+alembic==1.17.2
 psycopg2-binary==2.9.11
  
 # Redis
@@ -30,7 +30,7 @@ python-multipart==0.0.20
 itsdangerous==2.2.0
  
 # Email
-aiosmtplib==4.0.2
+aiosmtplib==5.0.0
 email-validator==2.3.0
  
 # Logging & Monitoring
@@ -41,31 +41,31 @@ prometheus-fastapi-instrumentator==7.1.0
  
 # AI/ML (existing)
 groq==0.34.1
-langchain-core==0.3.78
-langchain==0.3.27
-langchain-groq==0.3.8
-langchain-community==0.3.31
-langchain-huggingface==0.3.1
-
+langchain==1.0.7
+langchain-groq==1.0.1
+langchain_core==1.0.5
+ 
 # Document Processing (existing)
 python-docx==1.2.0
 pdfplumber==0.11.8
-
+ 
 # HTTP Client
 httpx==0.28.1
-
+ 
 # Testing (dev)
-pytest==8.4.2
-pytest-asyncio==1.2.0
+pytest==9.0.1
+pytest-asyncio==1.3.0
 pytest-cov==7.0.0
-faker==37.12.0
-
+faker==38.0.0
+ 
 # Development
 black==25.11.0
 ruff==0.14.5
-
+ 
 # Extra / unpinned items
+langchain-community==0.4.1
 faiss-cpu==1.13.0
 pandas==2.3.3
 sentence-transformers==5.1.2
 openpyxl==3.1.5
+langchain-huggingface==1.0.1

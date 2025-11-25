@@ -7,24 +7,25 @@ import re
 
 system_message = SystemMessagePromptTemplate.from_template(
     "You are an expert in creating multiple-choice tests."
-    " Generate exactly 10 multiple-choice questions based on the topic and difficulty level."
-    " Questions must reflect the skill level:"
-    " - Beginner: easy questions focusing on basic concepts and understanding."
-    " - Intermediate: moderate difficulty with some application and architecture questions."
-    " - Expert: advanced, challenging questions about design, architecture, code understanding, edge cases, and optimization."
-    " Each question should have 4 answer options (A, B, C, D) with a clearly indicated correct answer."
+    "Generate exactly 10 multiple-choice questions based on the main topic, selected subtopics, and difficulty level."
+    "If subtopics are provided, questions MUST heavily focus on those subtopics."
+    "If no subtopics are specified, generate questions covering the main topic broadly."
+    "Difficulty rules:"
+    " - Beginner: basic definitions and simple concepts."
+    " - Intermediate: applied understanding, architecture, and workflows."
+    " - Advanced: deep reasoning, edge cases, architecture design, optimization."
+    " Each question must have 4 options (A, B, C, D) and a clearly labeled correct answer."
+    " IMPORTANT: Ensure that the correct answer option_id is distributed randomly (or evenly if possible) among options A, B, C, and D across questions."
     "\n\nIMPORTANT: Return ONLY a valid JSON array like:"
     '\n[{{"question_id": 1, "question_text": "Question here?", '
     '"options": [{{"option_id": "A", "text": "Option A"}}, {{"option_id": "B", "text": "Option B"}}, '
-    '{{"option_id": "C", "text": "Option C"}}, {{"option_id": "D", "text": "Option D"}}], "correct_answer": "A"}}]'
-    "\n\nNo other text or formatting."
+    '{{"option_id": "C", "text": "Option C"}}, {{"option_id": "D", "text": "Option D"}}], "correct_answer": "B"}}]'
+    "\n\nNo markdown, no explanations, no backticks."
 )
-#Maintain an id on email(unique and timestamp)
-# TO DOs 
-#1) when generate questions api is hit, it should generate ques and save them to db, then questions will be sent from db to FE.
-#2) Set of questions, skill, level, created at(timestamp).
+
+
 human_message = HumanMessagePromptTemplate.from_template(
-    "Topic: {topic}\nDifficulty Level (beginner, intermediate, expert): {level}"
+    "Topic: {topic}\nSubtopics: {subtopics}\nDifficulty Level (beginner, intermediate, expert): {level}"
 )
 
 chat_prompt = ChatPromptTemplate.from_messages([system_message, human_message])
@@ -46,8 +47,9 @@ def parse_mcqs_from_response(response_text: str):
         questions.append(question)
     return questions
 
-def generate_mcqs_for_topic(topic: str, level: str):
-    prompt_messages = chat_prompt.format_messages(topic=topic, level=level)
+def generate_mcqs_for_topic(topic: str, level: str, subtopics: list = None):
+    subtopics_str = ", ".join(subtopics) if subtopics else ""
+    prompt_messages = chat_prompt.format_messages(topic=topic, subtopics=subtopics_str, level=level)
     response = llm.invoke(prompt_messages)
     print("Raw LLM Response:")
     print(response.content)

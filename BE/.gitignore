@@ -49,3 +49,6 @@ coverage.xml
 Thumbs.db
 *.swp
 *.swo
+
+**/__pycache__/
+*.py[cod]
