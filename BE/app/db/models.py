@@ -22,6 +22,15 @@ class User(Base, TimestampMixin):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
+    # Streak tracking
+    login_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    login_streak_last_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    login_streak_max: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    
+    quiz_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    quiz_streak_last_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    quiz_streak_max: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    
     # Relationships
     test_sessions: Mapped[list["TestSession"]] = relationship(
         "TestSession", back_populates="user", cascade="all, delete-orphan"
@@ -278,3 +287,249 @@ class CeleryTask(Base, TimestampMixin):
     
     def __repr__(self) -> str:
         return f"<CeleryTask(id={self.id}, task_id='{self.task_id}', status='{self.status}')>"
+
+
+class Candidate(Base, TimestampMixin):
+    """Candidate profile model for assessment applicants."""
+    
+    __tablename__ = "candidates"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    candidate_id: Mapped[str] = mapped_column(
+        String(100), unique=True, index=True, nullable=False,
+        default=lambda: f"cand_{uuid.uuid4().hex[:12]}"
+    )
+    
+    # User link (optional - can be anonymous candidate)
+    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # Profile information
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    
+    # Experience and skills
+    experience_level: Mapped[str] = mapped_column(String(50), nullable=False)  # junior, mid, senior, etc.
+    skills: Mapped[dict] = mapped_column(JSON, nullable=False, default={})  # {skill_name: proficiency_level}
+    availability_percentage: Mapped[int] = mapped_column(Integer, default=100, nullable=False)  # 0-100
+    
+    # File storage references
+    jd_file_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Reference to uploaded JD
+    cv_file_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Reference to uploaded CV
+    portfolio_file_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Reference to portfolio
+    
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    
+    # Relationships
+    assessment_applications: Mapped[list["AssessmentApplication"]] = relationship(
+        "AssessmentApplication", back_populates="candidate", cascade="all, delete-orphan"
+    )
+    
+    __table_args__ = (
+        Index("ix_candidates_email", "email"),
+        Index("ix_candidates_user_id", "user_id"),
+    )
+    
+    def __repr__(self) -> str:
+        return f"<Candidate(id={self.id}, candidate_id='{self.candidate_id}', email='{self.email}')>"
+
+
+class Assessment(Base, TimestampMixin):
+    """Assessment configuration model for admin-created assessments."""
+    
+    __tablename__ = "assessments"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    assessment_id: Mapped[str] = mapped_column(
+        String(100), unique=True, index=True, nullable=False,
+        default=lambda: f"assess_{uuid.uuid4().hex[:12]}"
+    )
+    
+    # Assessment metadata
+    title: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
+    description: Mapped[str] = mapped_column(Text, nullable=True)
+    job_title: Mapped[str] = mapped_column(String(255), nullable=False)
+    
+    # Extracted from JD or admin-defined
+    jd_id: Mapped[Optional[str]] = mapped_column(
+        String(100), ForeignKey("job_descriptions.jd_id"), nullable=True
+    )
+    required_skills: Mapped[dict] = mapped_column(JSON, nullable=False, default={})  # {skill: min_proficiency}
+    required_roles: Mapped[list] = mapped_column(JSON, nullable=False, default=[])
+    
+    # Question set link
+    question_set_id: Mapped[Optional[str]] = mapped_column(
+        String(100), ForeignKey("question_sets.question_set_id"), nullable=True
+    )
+    
+    # Assessment settings
+    assessment_method: Mapped[str] = mapped_column(String(50), nullable=False)  # questionnaire, interview
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
+    is_questionnaire_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_interview_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    # Admin who created
+    created_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # Relationships
+    applications: Mapped[list["AssessmentApplication"]] = relationship(
+        "AssessmentApplication", back_populates="assessment", cascade="all, delete-orphan"
+    )
+    
+    __table_args__ = (
+        Index("ix_assessments_title", "title"),
+        Index("ix_assessments_is_published", "is_published"),
+    )
+    
+    def __repr__(self) -> str:
+        return f"<Assessment(id={self.id}, assessment_id='{self.assessment_id}', title='{self.title}')>"
+
+
+class AssessmentApplication(Base, TimestampMixin):
+    """Track candidate applications to assessments."""
+    
+    __tablename__ = "assessment_applications"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    application_id: Mapped[str] = mapped_column(
+        String(100), unique=True, index=True, nullable=False,
+        default=lambda: f"app_{uuid.uuid4().hex[:12]}"
+    )
+    
+    # Candidate and assessment link
+    candidate_id: Mapped[int] = mapped_column(Integer, ForeignKey("candidates.id"), nullable=False)
+    assessment_id: Mapped[int] = mapped_column(Integer, ForeignKey("assessments.id"), nullable=False)
+    
+    # Test session link (if started)
+    test_session_id: Mapped[Optional[str]] = mapped_column(
+        String(100), ForeignKey("test_sessions.session_id"), nullable=True
+    )
+    
+    # Application status
+    status: Mapped[str] = mapped_column(String(50), nullable=False)  # pending, in_progress, completed, shortlisted, rejected
+    applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    
+    # Submitted form data
+    candidate_availability: Mapped[int] = mapped_column(Integer, nullable=False)  # 0-100
+    submitted_skills: Mapped[dict] = mapped_column(JSON, nullable=False)  # candidate's self-assessed skills
+    role_applied_for: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    
+    # Relationships
+    candidate: Mapped["Candidate"] = relationship("Candidate", back_populates="assessment_applications")
+    assessment: Mapped["Assessment"] = relationship("Assessment", back_populates="applications")
+    test_session: Mapped[Optional["TestSession"]] = relationship("TestSession")
+    
+    __table_args__ = (
+        UniqueConstraint("candidate_id", "assessment_id", name="uq_candidate_assessment"),
+        Index("ix_assessment_applications_status", "status"),
+        Index("ix_assessment_applications_created_at", "created_at"),
+    )
+    
+    def __repr__(self) -> str:
+        return f"<AssessmentApplication(id={self.id}, application_id='{self.application_id}', status='{self.status}')>"
+
+
+class UploadedDocument(Base, TimestampMixin):
+    """Track all uploaded documents from candidates."""
+    
+    __tablename__ = "uploaded_documents"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    file_id: Mapped[str] = mapped_column(
+        String(100), unique=True, index=True, nullable=False,
+        default=lambda: f"file_{uuid.uuid4().hex[:12]}"
+    )
+    
+    # Uploader info
+    candidate_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("candidates.id"), nullable=True)
+    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # File information
+    original_filename: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_type: Mapped[str] = mapped_column(String(50), nullable=False)  # jd, cv, portfolio, requirements, specifications
+    document_category: Mapped[str] = mapped_column(String(50), nullable=False)  # jd, cv, portfolio, requirements, specifications
+    
+    # S3 storage
+    s3_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    
+    # Extracted content
+    extracted_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    extraction_preview: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    
+    # Metadata
+    is_encrypted: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    encryption_method: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # AES-256, etc.
+    
+    # Relationships
+    candidate: Mapped[Optional["Candidate"]] = relationship("Candidate")
+    user: Mapped[Optional["User"]] = relationship("User")
+    
+    __table_args__ = (
+        Index("ix_uploaded_documents_candidate_id", "candidate_id"),
+        Index("ix_uploaded_documents_document_type", "document_category"),
+    )
+    
+    def __repr__(self) -> str:
+        return f"<UploadedDocument(id={self.id}, file_id='{self.file_id}', doc_type='{self.document_category}')>"
+
+
+class Skill(Base, TimestampMixin):
+    """Master list of available skills for the platform."""
+    
+    __tablename__ = "skills"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    skill_id: Mapped[str] = mapped_column(
+        String(100), unique=True, index=True, nullable=False,
+        default=lambda: f"skill_{uuid.uuid4().hex[:12]}"
+    )
+    
+    # Skill info
+    name: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    category: Mapped[str] = mapped_column(String(100), nullable=False)  # technical, soft, language, etc.
+    
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    
+    __table_args__ = (
+        Index("ix_skills_category", "category"),
+    )
+    
+    def __repr__(self) -> str:
+        return f"<Skill(id={self.id}, name='{self.name}', category='{self.category}')>"
+
+
+class Role(Base, TimestampMixin):
+    """Master list of available job roles."""
+    
+    __tablename__ = "roles"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    role_id: Mapped[str] = mapped_column(
+        String(100), unique=True, index=True, nullable=False,
+        default=lambda: f"role_{uuid.uuid4().hex[:12]}"
+    )
+    
+    # Role info
+    name: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    department: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    
+    # Associated skills (as JSON for flexibility)
+    required_skills: Mapped[dict] = mapped_column(JSON, nullable=False, default={})  # {skill_name: required_level}
+    
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<Role(id={self.id}, name='{self.name}', department='{self.department}')>"

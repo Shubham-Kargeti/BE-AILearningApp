@@ -18,6 +18,7 @@ Production-ready FastAPI backend with SQLAlchemy 2.x (async), Alembic, PostgreSQ
 ## 📋 Features
 
 - ✅ Email-based OTP authentication
+- ✅ **Azure AD SSO authentication** (Microsoft 365 / Nagarro emails)
 - ✅ JWT access + refresh token system
 - ✅ Async database operations (SQLAlchemy 2.x)
 - ✅ S3-compatible document storage
@@ -109,6 +110,9 @@ Interactive API documentation available at:
 #### Authentication
 - `POST /api/v1/auth/request-otp` - Request OTP for email
 - `POST /api/v1/auth/verify-otp` - Verify OTP and get tokens
+- `POST /api/v1/auth/login` - Simple login (testing/development)
+- `GET /api/v1/auth/sso/azure/login` - **Azure AD SSO login** (production)
+- `GET /api/v1/auth/sso/azure/callback` - Azure AD callback (internal)
 - `POST /api/v1/auth/refresh` - Refresh access token
 - `POST /api/v1/auth/logout` - Logout and revoke token
 
@@ -226,18 +230,42 @@ pytest --cov=app --cov-report=html
 
 ## 🚀 Deployment
 
+### Azure AD SSO Configuration
+
+For production with Azure AD SSO (Nagarro emails):
+
+1. **Register Azure AD Application**
+   - See `AZURE_AD_SSO_SETUP.md` for detailed steps
+   - Configure redirect URI for production domain
+
+2. **Set Azure AD Environment Variables**
+   ```bash
+   AZURE_CLIENT_ID=your-production-client-id
+   AZURE_CLIENT_SECRET=your-production-secret
+   AZURE_TENANT_ID=your-tenant-id
+   AZURE_REDIRECT_URI=https://api.yourdomain.com/api/v1/auth/sso/azure/callback
+   ```
+
+3. **Verify Configuration**
+   ```bash
+   python scripts/check_sso_config.py
+   ```
+
 ### Environment Variables
 Set all required environment variables in production:
 - Change `JWT_SECRET_KEY`
 - Configure production database URL
 - Set up SMTP credentials
 - Configure Sentry DSN
+- **Set Azure AD credentials** (see above)
 - Set `ENVIRONMENT=production`
 - Set `DEBUG=False`
 
 ### Production Checklist
 - [ ] Configure production database
 - [ ] Set strong JWT secret
+- [ ] **Register and configure Azure AD app**
+- [ ] **Set Azure AD environment variables**
 - [ ] Configure email SMTP
 - [ ] Set up Sentry monitoring
 - [ ] Configure CORS origins
@@ -246,6 +274,13 @@ Set all required environment variables in production:
 - [ ] Configure rate limiting
 - [ ] Set up log aggregation
 - [ ] Configure auto-scaling
+
+## 📖 Documentation
+
+- **[AZURE_AD_SSO_SETUP.md](AZURE_AD_SSO_SETUP.md)** - Complete Azure AD SSO setup guide
+- **[SSO_IMPLEMENTATION_SUMMARY.md](SSO_IMPLEMENTATION_SUMMARY.md)** - SSO implementation overview
+- **[TESTING_MODE.md](TESTING_MODE.md)** - Authentication testing guide
+- **[HLD.md](HLD.md)** - High-Level Design document
 
 ## 📝 License
 

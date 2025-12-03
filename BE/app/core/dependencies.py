@@ -164,3 +164,40 @@ class OptionalAuth:
 
 
 optional_auth = OptionalAuth()
+
+
+async def optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+    db: AsyncSession = Depends(get_db)
+) -> Optional[User]:
+    """
+    Get current user if authenticated, None otherwise.
+    
+    This is useful for endpoints that work both with and without authentication.
+    """
+    if credentials is None:
+        return None
+    
+    try:
+        token = credentials.credentials
+        payload = decode_token(token)
+        
+        if payload is None:
+            return None
+        
+        user_id = payload.get("sub")
+        if user_id is None:
+            return None
+        
+        result = await db.execute(
+            select(User).where(User.id == int(user_id))
+        )
+        user = result.scalar_one_or_none()
+        
+        if user and user.is_active:
+            return user
+        
+    except Exception:
+        pass
+    
+    return None
