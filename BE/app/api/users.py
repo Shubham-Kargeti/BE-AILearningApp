@@ -7,6 +7,7 @@ from sqlalchemy import select
 from app.db.session import get_db
 from app.db.models import User
 from app.core.dependencies import get_current_user, get_current_verified_user
+from app.utils.streak_manager import get_streak_status
 
 router = APIRouter()
 
@@ -51,3 +52,20 @@ async def update_current_user(
     await db.refresh(current_user)
     
     return UserResponse.from_orm(current_user)
+
+
+@router.get("/users/me/streaks")
+async def get_user_streaks(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get current user's streak information.
+    
+    Returns login and quiz completion streaks including:
+    - Current streak count
+    - Maximum streak achieved
+    - Last activity date
+    - Active status
+    - Days until streak breaks
+    """
+    return get_streak_status(current_user)

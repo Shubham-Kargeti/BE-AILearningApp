@@ -8,6 +8,7 @@ from sqlalchemy import select, and_
 from app.db.session import get_db
 from app.db.models import User, TestSession, Question, Answer, QuestionSet
 from app.core.dependencies import get_current_user
+from app.utils.streak_manager import check_and_update_quiz_completion
 from app.models.schemas import (
     StartQuestionSetTestRequest,
     StartQuestionSetTestResponse,
@@ -333,6 +334,9 @@ async def submit_questionset_answers(
     session.score_released_at = completed_at
     
     await db.commit()
+    
+    # Update quiz streak
+    quiz_streak_info = await check_and_update_quiz_completion(current_user, db, test_completed=True)
     
     # Build detailed results
     detailed_results = []

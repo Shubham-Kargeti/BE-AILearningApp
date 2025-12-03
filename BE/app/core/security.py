@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from fastapi import HTTPException, status
 from config import get_settings
 
 settings = get_settings()
@@ -127,3 +128,23 @@ def create_token_pair(user_id: int, email: str) -> Dict[str, str]:
         "refresh_token": refresh_token,
         "token_type": "bearer"
     }
+
+
+async def check_admin(user):
+    """
+    Check if user has admin role.
+    
+    Args:
+        user: User object to check
+    
+    Raises:
+        HTTPException: If user is not admin
+    """
+    # TODO: Implement role-based access control
+    # For now, check if user.role == "admin" or similar
+    # This is a placeholder - update with actual RBAC implementation
+    if not hasattr(user, 'is_admin') or not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
