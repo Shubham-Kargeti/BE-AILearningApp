@@ -2,6 +2,32 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 
+# ============ VALIDATION ERROR SCHEMAS ============
+
+class FieldError(BaseModel):
+    """Validation error for a specific field."""
+    field: str
+    error_code: str
+    message: str
+    value: Optional[str] = None
+
+class ValidationErrorResponse(BaseModel):
+    """Standard validation error response for frontend."""
+    success: bool = False
+    error_type: str = "VALIDATION_ERROR"
+    message: str
+    field_errors: List[FieldError]
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class OperationResponse(BaseModel):
+    """Generic operation response with status."""
+    success: bool
+    message: str
+    data: Optional[dict] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+# ============ MCQ & TEST SCHEMAS ============
+
 class MCQOption(BaseModel):
     option_id: str  # e.g., "A", "B", "C", "D"
     text: str
@@ -117,3 +143,186 @@ class CourseRecommendation(BaseModel):
 class RecommendedCoursesResponse(BaseModel):
     topic: str
     recommended_courses: list[CourseRecommendation]
+66
+
+# ============ CANDIDATE & ASSESSMENT SCHEMAS ============
+
+class CandidateCreate(BaseModel):
+    """Request to create a new candidate."""
+    full_name: str
+    email: str
+    phone: Optional[str] = None
+    experience_level: str  # junior, mid, senior, etc.
+    skills: dict = {}  # {skill_name: proficiency_level}
+    availability_percentage: int = 100
+
+class CandidateUpdate(BaseModel):
+    """Request to update candidate profile."""
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    experience_level: Optional[str] = None
+    skills: Optional[dict] = None
+    availability_percentage: Optional[int] = None
+
+class CandidateResponse(BaseModel):
+    """Response with candidate details."""
+    id: int
+    candidate_id: str
+    full_name: str
+    email: str
+    phone: Optional[str]
+    experience_level: str
+    skills: dict
+    availability_percentage: int
+    jd_file_id: Optional[str]
+    cv_file_id: Optional[str]
+    portfolio_file_id: Optional[str]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class SkillResponse(BaseModel):
+    """Response with skill details."""
+    id: int
+    skill_id: str
+    name: str
+    description: Optional[str]
+    category: str
+    is_active: bool
+
+
+class RoleResponse(BaseModel):
+    """Response with role details."""
+    id: int
+    role_id: str
+    name: str
+    description: Optional[str]
+    department: Optional[str]
+    required_skills: dict
+    is_active: bool
+
+
+class AssessmentCreate(BaseModel):
+    """Request to create a new assessment."""
+    title: str
+    description: Optional[str] = None
+    job_title: str
+    jd_id: Optional[str] = None
+    required_skills: dict = {}
+    required_roles: list = []
+    question_set_id: Optional[str] = None
+    duration_minutes: int = 30
+    is_questionnaire_enabled: bool = True
+    is_interview_enabled: bool = False
+
+
+class AssessmentUpdate(BaseModel):
+    """Request to update assessment."""
+    title: Optional[str] = None
+    description: Optional[str] = None
+    job_title: Optional[str] = None
+    required_skills: Optional[dict] = None
+    required_roles: Optional[list] = None
+    duration_minutes: Optional[int] = None
+    is_questionnaire_enabled: Optional[bool] = None
+    is_interview_enabled: Optional[bool] = None
+    is_active: Optional[bool] = None
+    is_published: Optional[bool] = None
+
+
+class AssessmentResponse(BaseModel):
+    """Response with assessment details."""
+    id: int
+    assessment_id: str
+    title: str
+    description: Optional[str]
+    job_title: str
+    jd_id: Optional[str]
+    required_skills: dict
+    required_roles: list
+    question_set_id: Optional[str]
+    assessment_method: str
+    duration_minutes: int
+    is_questionnaire_enabled: bool
+    is_interview_enabled: bool
+    is_active: bool
+    is_published: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssessmentApplicationRequest(BaseModel):
+    """Request to apply for an assessment."""
+    candidate_availability: int  # 0-100
+    submitted_skills: dict  # {skill_name: proficiency_level}
+    role_applied_for: Optional[str] = None
+
+
+class AssessmentApplicationResponse(BaseModel):
+    """Response with application details."""
+    id: int
+    application_id: str
+    candidate_id: int
+    assessment_id: int
+    status: str  # pending, in_progress, completed, shortlisted, rejected
+    candidate_availability: int
+    submitted_skills: dict
+    role_applied_for: Optional[str]
+    applied_at: datetime
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+
+
+class UploadedDocumentResponse(BaseModel):
+    """Response with uploaded document details."""
+    id: int
+    file_id: str
+    original_filename: str
+    file_type: str
+    document_category: str
+    file_size: int
+    mime_type: str
+    extraction_preview: Optional[str]
+    is_encrypted: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+# ============ ADMIN SKILL EXTRACTION SCHEMAS ============
+
+class ExtractedSkill(BaseModel):
+    """Extracted skill with proficiency level."""
+    skill_name: str
+    proficiency_level: str  # e.g., "beginner", "intermediate", "advanced", "expert"
+    category: str  # e.g., "technical", "soft", "language"
+    frequency: int = 1  # How many times mentioned in documents
+    confidence: float = Field(default=0.8, ge=0.0, le=1.0)  # Confidence score 0-1
+
+
+class DocumentSkillExtractionResponse(BaseModel):
+    """Skills extracted from a single document."""
+    file_id: str
+    original_filename: str
+    document_category: str
+    extracted_skills: List[ExtractedSkill]
+    total_skills_found: int
+    extraction_preview: str  # First 500 chars of extracted text
+
+
+class AdminBulkSkillExtractionResponse(BaseModel):
+    """Response for bulk skill extraction from multiple documents."""
+    success: bool = True
+    message: str
+    documents_processed: int
+    total_unique_skills: int
+    extracted_skills: List[ExtractedSkill]  # Aggregated unique skills across all documents
+    documents: List[DocumentSkillExtractionResponse]  # Skills per document
+    extraction_summary: dict = Field(
+        default_factory=dict,
+        description="Summary stats: skills_by_category, proficiency_distribution"
+    )
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
