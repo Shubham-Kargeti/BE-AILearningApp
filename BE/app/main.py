@@ -17,6 +17,7 @@ from app.db.session import init_db, close_db
 from app.core.logging import configure_logging, get_logger
 from app.core.sentry import init_sentry
 from app.core.metrics import setup_metrics
+from app.core.error_handlers import validation_error_handler, ERROR_CODES
 
 # API routers
 from app.api.mcq_generation import router as mcq_generation_router
@@ -24,6 +25,10 @@ from app.api.upload_jd import router as upload_router
 from app.api import auth, users, admin, dashboard, test_sessions
 from app.api.questionset_tests import router as questionset_tests_router
 from app.api.subskills import router as subskill_router
+from app.api.candidates import router as candidates_router
+from app.api.assessments import router as assessments_router
+from app.api.skills import router as skills_router
+from app.api.admin_skill_extraction import router as admin_skill_extraction_router
 
 
 # Import for recommended courses if it exists
@@ -152,6 +157,18 @@ Most endpoints require JWT authentication. Use the `/api/v1/auth/login` endpoint
             "description": "User dashboard and analytics"
         },
         {
+            "name": "Candidates",
+            "description": "Candidate profile management"
+        },
+        {
+            "name": "Assessments",
+            "description": "Assessment configuration and applications"
+        },
+        {
+            "name": "skills-roles",
+            "description": "Skills and roles management for auto-suggestions"
+        },
+        {
             "name": "Admin",
             "description": "Administrative operations (Admin role required)"
         },
@@ -250,16 +267,8 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Handle validation errors."""
-    logger.error("validation_error", errors=exc.errors())
-    
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={
-            "error": "Validation error",
-            "details": exc.errors(),
-        },
-    )
+    """Handle validation errors with standardized response format."""
+    return await validation_error_handler(request, exc)
 
 
 @app.exception_handler(Exception)
@@ -311,7 +320,11 @@ app.include_router(questionset_tests_router, prefix=settings.API_V1_PREFIX, tags
 app.include_router(upload_router, prefix=settings.API_V1_PREFIX, tags=["Job Descriptions"])
 app.include_router(mcq_generation_router, prefix=settings.API_V1_PREFIX, tags=["Questions"])
 app.include_router(subskill_router, prefix=settings.API_V1_PREFIX, tags=["Subskills"])
+app.include_router(candidates_router, tags=["Candidates"])
+app.include_router(assessments_router, tags=["Assessments"])
+app.include_router(skills_router, tags=["skills-roles"])
 app.include_router(admin.router, prefix=settings.API_V1_PREFIX, tags=["Admin"])
+app.include_router(admin_skill_extraction_router, tags=["Admin Skill Extraction"])
 
 # Include recommended courses router if available
 if has_recommended_courses:
