@@ -1,0 +1,66 @@
+.features-section {
+  padding: 80px 60px;
+  background: #121022;
+  color: #ffffff;
+  text-align: center;
+}
+
+.features-title {
+  font-weight: 700;
+  margin-bottom: 50px;
+}
+
+.features-wrapper {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 22px;
+}
+
+/* ✅ ensures all 4 cards stay in one row on desktop */
+.feature-card {
+  flex: 1 1 calc(25% - 22px);
+  max-width: calc(25% - 22px);
+  background: rgba(27, 25, 51, 0.6);
+  padding: 35px 22px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.feature-icon {
+  font-size: 48px !important;
+  color: #3b2bee;
+  margin-bottom: 16px;
+}
+
+.feature-title {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.feature-description {
+  color: #d0d0e3;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  .feature-card {
+    flex: 1 1 calc(50% - 22px);
+    max-width: calc(50% - 22px);
+  }
+}
+
+@media (max-width: 600px) {
+  .feature-card {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+}

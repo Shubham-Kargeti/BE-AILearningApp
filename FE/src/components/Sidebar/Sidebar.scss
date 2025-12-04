@@ -1,0 +1,127 @@
+.sidebar-drawer {
+  width: 250px;
+  flex-shrink: 0;
+  border-right: none;
+
+  .MuiDrawer-paper {
+    width: 250px;
+    box-sizing: border-box;
+    transition: width 0.3s ease;
+    background-color: #0b0a17;
+    color: #fff;
+    border-right: none;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+  }
+
+  &.collapsed {
+    width: 60px;
+
+    .MuiDrawer-paper {
+      width: 60px;
+    }
+
+    /* COLLAPSED: Center Icons & Remove Text Spacing */
+    .sidebar-item {
+      justify-content: center;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+
+    .sidebar-icon {
+      min-width: 0 !important;
+      width: 100%;
+      justify-content: center;
+      color: #fff !important;
+    }
+  }
+}
+
+.sidebar-toggle-btn {
+  color: #fff !important;
+  margin: 10px auto !important;
+  display: block !important;
+}
+
+.sidebar-list {
+  padding-top: 10px;
+}
+
+/* expand */
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  margin: 6px 8px;
+  transition: background-color 0.3s ease;
+
+  &:hover {
+    background-color: #1d4ed8;
+  }
+
+  &.active {
+    background-color: #1e3a8a;
+  }
+}
+
+/* ✅ Default icon spacing (expanded mode) */
+.sidebar-icon {
+  color: #fff;
+  min-width: 40px;
+  display: flex;
+  justify-content: flex-start;
+
+  &.active {
+    color: #90caf9;
+  }
+}
+
+.sidebar-text {
+  color: #fff;
+
+  &.active {
+    color: #90caf9;
+    font-weight: 600;
+  }
+}
+
+.sidebar-icon svg {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+/* Fix Logout button — prevent full red panel */
+.logout-item {
+  margin-top: auto !important;
+  border-radius: 8px !important;
+  margin: 10px 8px !important;
+  transition: background-color 0.25s ease;
+
+  &:hover {
+    background-color: #b91c1c !important;
+    /* nicer red */
+  }
+}
+
+/* Logout icon style */
+.logout-item .MuiSvgIcon-root {
+  color: #ffb3b3 !important;
+}
+
+.logout-item:hover .MuiSvgIcon-root {
+  color: #ffffff !important;
+}
+
+.logout-text {
+  color: #ffb3b3 !important;
+
+  &:hover {
+    color: #fff !important;
+  }
+}
+
+.sidebar-list {
+  padding-top: 10px;
+  flex-grow: 1;
+}
