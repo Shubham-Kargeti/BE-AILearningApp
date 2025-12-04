@@ -6,15 +6,22 @@ import "./AdminLayout.scss";
 const AdminLayout = () => {
   return (
     <div className="admin-layout">
-      <AdminSidebar />
 
+      {/* FIXED SIDEBAR */}
+      <aside className="admin-sidebar-fixed">
+        <AdminSidebar />
+      </aside>
+
+      {/* MAIN RIGHT SECTION */}
       <div className="admin-content">
         <AdminNavbar />
 
+        {/* ONLY THIS SCROLLS */}
         <div className="admin-page">
           <Outlet />
         </div>
       </div>
+
     </div>
   );
 };

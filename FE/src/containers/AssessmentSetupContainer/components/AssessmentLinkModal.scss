@@ -1,41 +1,38 @@
 .assessment-modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.45);
+  inset: 0;
+  background: rgba(2,6,23,0.35);
   display: flex;
-  justify-content: center;
   align-items: center;
-  z-index: 3000;
+  justify-content: center;
+  z-index: 4000;
 }
 
 .assessment-modal {
-  background: white;
-  width: 360px;
-  padding: 26px;
-  border-radius: 14px;
+  width: 420px;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 22px;
+  box-shadow: 0 14px 30px rgba(16,24,40,0.08);
   text-align: center;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.18);
-  animation: fadeIn 0.25s ease-out;
 }
 
 .modal-title {
-  font-size: 20px;
-  font-weight: 600;
+  margin: 0;
+  font-size: 18px;
+  color: #0f172a;
 }
 
 .modal-description {
-  margin-top: 6px;
-  font-size: 14px;
-  color: #555;
+  color: #6b7280;
+  margin-top: 8px;
+  font-size: 13px;
 }
 
 .link-box {
-  margin-top: 14px;
-  background: #f1f5ff;
-  border: 1px solid #cfe0ff;
+  margin-top: 12px;
+  background: #f8fafc;
+  border: 1px solid #e6eefc;
   padding: 10px;
   border-radius: 8px;
   font-size: 13px;
@@ -51,36 +48,29 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  cursor: pointer;
+  gap: 10px;
   border: none;
+  cursor: pointer;
+}
 
-  &.primary {
-    background: #2563eb;
-    color: white;
-    &:hover {
-      background: #1d4ed8;
-    }
-  }
+.modal-btn.primary {
+  background: #2563EB;
+  color: white;
+}
 
-  &.secondary {
-    background: #9ca3af;
-    color: white;
+.modal-btn.secondary {
+  background: #eef2ff;
+  color: #0f172a;
+  border: 1px solid #e6eefc;
+}
 
-    &.disabled:hover {
-      background: #9ca3af;
-      cursor: not-allowed;
-    }
-  }
+.modal-btn.disabled {
+  opacity: 0.9;
+  cursor: not-allowed;
 }
 
 .soon-note {
+  margin-top: 8px;
+  color: #6b7280;
   font-size: 12px;
-  margin-top: 6px;
-  color: #666;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.94); }
-  to   { opacity: 1; transform: scale(1); }
 }
