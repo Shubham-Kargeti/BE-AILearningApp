@@ -1,0 +1,9 @@
+@import "../LoginContainer/LoginContainer.scss";
+
+.signup-page {
+  @extend .login-page;
+}
+
+.signup-card {
+  @extend .login-card;
+}

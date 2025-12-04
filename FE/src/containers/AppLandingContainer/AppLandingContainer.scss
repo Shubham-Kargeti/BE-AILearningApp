@@ -1,0 +1,39 @@
+.sidebar-layout {
+  display: flex;
+  min-height: 100vh;
+  height: 0;
+  overflow: hidden;
+}
+.topics-sidebar {
+  border-right: 1px solid #e0e0e0;
+}
+
+.topics-sidebar,
+.main-content {
+  flex-grow: 0;
+  background-color: transparent;
+  height: 100vh;
+  scrollbar-width: auto;
+  -ms-overflow-style: none;
+  overflow-x: hidden !important;
+}
+
+.main-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
+  scrollbar-width: auto !important;
+
+  .content {
+    flex-grow: 1;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    ::-webkit-scrollbar {
+      width: 0px;
+    }
+  }
+}

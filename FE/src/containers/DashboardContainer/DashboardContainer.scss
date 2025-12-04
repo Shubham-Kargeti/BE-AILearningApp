@@ -1,0 +1,235 @@
+.dashboard-container {
+  flex: 1;
+  padding: 40px;
+  background: #121022;
+  color: #fff;
+  font-family: "Space Grotesk", sans-serif;
+  overflow-y: auto;
+}
+
+.dashboard-header {
+  margin-bottom: 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dashboard-title {
+  font-weight: 900;
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.dashboard-subtitle {
+  color: #9692c9;
+  font-size: 15px;
+}
+
+.section {
+  margin-top: 40px;
+}
+
+.section-title {
+  font-weight: 700;
+  font-size: 22px;
+  margin-bottom: 20px;
+}
+
+/* --- quiz --- */
+.quiz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+  max-width: 900px;
+}
+
+.quiz-card {
+  width: 260px;
+  justify-self: start;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 22px;
+  border-radius: 14px;
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 0 10px rgba(59, 43, 238, 0.5);
+    transform: translateY(-4px);
+  }
+}
+
+.quiz-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.quiz-title {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.quiz-medal {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+
+  &.gold {
+    background: rgba(255, 215, 0, 0.1);
+    color: gold;
+  }
+  &.silver {
+    background: rgba(192, 192, 192, 0.1);
+    color: #c0c0c0;
+  }
+  &.bronze {
+    background: rgba(205, 127, 50, 0.1);
+    color: #cd7f32;
+  }
+}
+
+.quiz-score {
+  margin-top: 10px;
+}
+
+.score-value {
+  font-size: 30px;
+  font-weight: 700;
+
+  .score-max {
+    font-size: 16px;
+    color: #bbb;
+  }
+}
+
+.score-label {
+  font-size: 13px;
+  color: #9692c9;
+}
+
+/* --- course --- */
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.course-card {
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  min-height: 320px;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0 10px rgba(59, 43, 238, 0.4);
+  }
+}
+
+.course-info {
+  flex-grow: 1;
+}
+
+.course-image {
+  width: 100%;
+  height: 160px;
+  border-radius: 10px;
+  background-size: cover;
+  background-position: center;
+}
+
+.course-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.course-title {
+  font-weight: 600;
+  font-size: 14px !important;
+  margin-top: 8px !important;
+}
+
+.course-desc {
+  color: #9692c9;
+  font-size: 12px !important;
+  margin-top: 4px !important;
+}
+
+.start-btn {
+  margin-top: 10px !important;
+  margin-bottom: 8px !important;
+  background: #3b2bee !important;
+  text-transform: none !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+}
+
+.info-icon {
+  color: #90caf9;
+  cursor: pointer;
+  margin-left: 6px;
+  transition: 0.2s ease;
+  margin-top: 8px !important;
+  font-size: 16px !important;
+
+  &:hover {
+    color: #ffffff;
+    transform: scale(1.1);
+  }
+}
+
+/* ---------- streak card  ---------- */
+.streak-card {
+  top: 40px;
+  right: 40px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 14px 20px;
+  border-radius: 14px;
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition: 0.25s ease;
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0 12px rgba(59, 43, 238, 0.5);
+  }
+}
+
+.streak-icon {
+  font-size: 32px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 12px;
+  border-radius: 50%;
+}
+
+.streak-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.streak-number {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 22px;
+  color: #fff;
+}
+
+.streak-label {
+  font-size: 13px;
+  color: #a199d1;
+}
