@@ -16,7 +16,8 @@ alembic==1.17.2
 psycopg2-binary==2.9.11
 
 # --- Caching & Message Queue ---
-redis[hiredis]==7.1.0
+#redis[hiredis]==7.1.0
+redis[hiredis]==5.2.1
 celery[redis]==5.5.3
 flower==2.0.1
 

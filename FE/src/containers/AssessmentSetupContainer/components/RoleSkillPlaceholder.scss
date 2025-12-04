@@ -1,0 +1,89 @@
+/* ===============================
+   ROLE & SKILL SECTION
+   =============================== */
+
+.role-skill-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Shared label styling for all forms (Role, Skill, Email, Portfolio, Availability) */
+.form-label,
+.form-field label {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 6px;
+  display: block;
+}
+
+/* Shared input styling (Role, Skill input, Email, Portfolio) */
+.form-input,
+.form-field input[type="text"],
+.form-field input[type="email"],
+.form-field input[type="url"] {
+  width: 100%;
+  max-width: 460px;
+  padding: 10px 12px;
+  border: 1px solid #d4d8e3;
+  border-radius: 8px;
+  font-size: 15px;
+  background: #fff;
+  transition: 0.2s;
+}
+
+.form-input:focus,
+.form-field input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+/* ===============================
+   SKILL CHIPS
+   =============================== */
+
+.skills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.skill-chip {
+  background: #eef3ff;
+  border: 1px solid #cbd7ff;
+  padding: 6px 10px;
+  border-radius: 20px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.remove-skill {
+  cursor: pointer;
+  color: #444;
+  transition: 0.2s;
+
+  &:hover {
+    color: #e11d48;
+  }
+}
+
+/* ===============================
+   RANGE SLIDER (Candidate Availability)
+   =============================== */
+
+.form-field input[type="range"] {
+  width: 100%;
+  max-width: 460px;
+  margin-top: 10px;
+  cursor: pointer;
+}

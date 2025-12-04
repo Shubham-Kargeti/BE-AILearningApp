@@ -13,9 +13,8 @@ import AssessmentSetupSubmitButton from "./components/AssessmentSetupSubmitButto
 import AssessmentLinkModal from "./components/AssessmentLinkModal";
 
 const AssessmentSetupContainer: React.FC = () => {
-
   // -----------------------------
-  // File Upload State
+  // File Uploads
   // -----------------------------
   const [jdFile, setJdFile] = useState<File | null>(null);
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -23,52 +22,50 @@ const AssessmentSetupContainer: React.FC = () => {
   const [clientDoc, setClientDoc] = useState<File | null>(null);
 
   // -----------------------------
-  // Candidate Info State
+  // Candidate Info
   // -----------------------------
   const [email, setEmail] = useState("");
   const [emailValid, setEmailValid] = useState(false);
-
   const [portfolio, setPortfolio] = useState("");
   const [availability, setAvailability] = useState(50);
 
   // -----------------------------
-  // Role + Skills State (DEFAULTS)
+  // Role & Skills (defaults)
   // -----------------------------
   const [role, setRole] = useState("Developer");
   const [skills, setSkills] = useState<string[]>(["Agentic AI"]);
 
   // -----------------------------
-  // UI & Submit Validation
+  // UI & Validation
   // -----------------------------
-  const [loading, setLoading] = useState(false);
   const [processLoading, setProcessLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [formValid, setFormValid] = useState(false);
 
   // -----------------------------
-  // After Assessment Modal
+  // Modal
   // -----------------------------
   const [showAssessmentLinkModal, setShowAssessmentLinkModal] = useState(false);
   const [assessmentLink, setAssessmentLink] = useState("");
 
-  // Validation → CV mandatory, role+skills must exist, email must be valid
+  // Validate form
   useEffect(() => {
     const valid =
-      cvFile &&
+      Boolean(cvFile) &&
       emailValid &&
       role.trim() !== "" &&
       skills.length > 0;
 
-    setFormValid(Boolean(valid));
+    setFormValid(valid);
   }, [cvFile, emailValid, role, skills]);
 
-  // --------------------------------------------
-  // PROCESS FILE → Extract Skills from Resume
-  // --------------------------------------------
+  // -----------------------------
+  // Process Resume
+  // -----------------------------
   const handleProcessFile = async () => {
     if (!cvFile) return;
 
     setProcessLoading(true);
-
     const formData = new FormData();
     formData.append("resume", cvFile);
 
@@ -78,115 +75,141 @@ const AssessmentSetupContainer: React.FC = () => {
 
     try {
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/extract-skills`,
+        `${import.meta.env.VITE_API_BASE_URL}/extract-skills`,
         formData,
         { headers: { "Content-Type": "multipart/form-data" } }
       );
 
-      const extractedSkills = res.data.skills || [];
-      const extractedRole = res.data.role || "";
+      const extractedRole = res?.data?.role ?? "";
+      const extractedSkills = Array.isArray(res?.data?.skills) ? res.data.skills : [];
 
       if (extractedRole) setRole(extractedRole);
-
       if (extractedSkills.length > 0) setSkills(extractedSkills);
 
-      alert("Resume processed successfully!");
-    } catch (error) {
-      console.error(error);
-      alert("Failed to process resume");
+      window.alert("Resume processed successfully.");
+    } catch (err) {
+      console.error("Error processing resume:", err);
+      window.alert("Failed to process resume.");
     } finally {
       setProcessLoading(false);
     }
   };
 
-  // --------------------------------------------
-  // FINAL SUBMIT → Show Modal with Link
-  // --------------------------------------------
+  // -----------------------------
+  // Submit Assessment → Show link modal
+  // -----------------------------
   const handleSubmit = () => {
-    setLoading(true);
+    setSubmitLoading(true);
 
     setTimeout(() => {
-      setLoading(false);
+      setSubmitLoading(false);
 
-      // Generate candidate link from email
-      const sanitized = email.replace(/[@.]/g, "");
+      const sanitized = email.trim()
+        ? email.replace(/[@.]/g, "")
+        : "candidate";
+
       const generatedLink = `${window.location.origin}/candidate-assessment/${sanitized}`;
 
       setAssessmentLink(generatedLink);
       setShowAssessmentLinkModal(true);
-    }, 900);
+    }, 700);
   };
 
-  // --------------------------------------------
-  // RENDER UI
-  // --------------------------------------------
+  // -----------------------------
+  // UI
+  // -----------------------------
   return (
-    <div className="assessment-container">
+    <div className="assessment-page">
 
       {/* HEADER */}
-      <div className="admin-page-header">
-        <h1>Assessment Creation</h1>
-        <p className="page-subtitle">
-          Upload required documents and configure the assessment for the candidate.
+      <header className="page-header">
+        <h1>Assessment Setup</h1>
+        <p className="subtitle">
+          Upload documents, review role & skills, and generate assessment link.
         </p>
-      </div>
+      </header>
 
-      <div className="assessment-form-card">
+      {/* UPLOAD DOCS CARD */}
+      <section className="card upload-card">
+        <div className="card-header">
+          <h2>Upload Documents</h2>
+          <p className="hint">Candidate CV is required. Other documents are optional.</p>
+        </div>
 
-        {/* =============== SECTION 1: FILE UPLOADS =============== */}
-        <div className="section">
-          <h3 className="section-title">Required Documents</h3>
+        <div className="upload-grid">
+          <FileUpload label="Job Description (Optional)" onFileSelect={setJdFile} />
+          <FileUpload label="Candidate CV *" onFileSelect={setCvFile} />
+          <FileUpload label="Requirement Doc (Optional)" onFileSelect={setReqDoc} />
+          <FileUpload label="Client-Specific (Optional)" onFileSelect={setClientDoc} />
+        </div>
 
-          <FileUpload label="Upload JD Document (Optional)" onFileSelect={setJdFile} />
-          <FileUpload label="Upload Candidate CV *" onFileSelect={setCvFile} />
-          <FileUpload label="Upload Requirement Document (Optional)" onFileSelect={setReqDoc} />
-          <FileUpload label="Upload Client-Specific Document (Optional)" onFileSelect={setClientDoc} />
-
+        <div className="card-actions">
           <button
-            className="process-file-btn"
-            disabled={!cvFile || processLoading}
+            className="btn primary"
             onClick={handleProcessFile}
+            disabled={!cvFile || processLoading}
           >
             {processLoading ? "Processing..." : "Process File"}
           </button>
         </div>
+      </section>
 
-        {/* =============== SECTION 2: CANDIDATE INFO =============== */}
-        <div className="section">
-          <h3 className="section-title">Candidate Information</h3>
+      {/* ASSESSMENT DETAILS */}
+      <section className="card details-card">
+        <div className="card-header">
+          <h2>Assessment Details</h2>
+        </div>
 
+        {/* Role + Skills */}
+        <RoleSkillPlaceholder
+          role={role}
+          setRole={setRole}
+          skills={skills}
+          setSkills={setSkills}
+        />
+      </section>
+
+      {/* CANDIDATE INFORMATION */}
+      <section className="card candidate-card">
+        <div className="card-header">
+          <h2>Candidate Information</h2>
+        </div>
+
+        <div className="field">
           <EmailField value={email} setValue={setEmail} setValid={setEmailValid} />
+        </div>
+
+        <div className="field">
           <PortfolioField value={portfolio} setValue={setPortfolio} />
+        </div>
+
+
+        {/* AvailabilitySelector already contains its own label */}
+        <div className="field">
           <AvailabilitySelector value={availability} setValue={setAvailability} />
         </div>
 
-        {/* =============== SECTION 3: ROLE & SKILLS =============== */}
-        <div className="section">
-          <h3 className="section-title">Role & Skills</h3>
+      </section>
 
-          <RoleSkillPlaceholder
-            role={role}
-            setRole={setRole}
-            skills={skills}
-            setSkills={setSkills}
-          />
+      {/* METHOD CARD */}
+      <section className="card method-card">
+        <div className="card-header">
+          <h2>Assessment Method</h2>
         </div>
 
-        {/* =============== SECTION 4: METHOD =============== */}
-        <div className="section">
-          <h3 className="section-title">Assessment Method</h3>
-          <AssessmentMethodSelector />
-        </div>
+        <AssessmentMethodSelector />
+      </section>
 
-        {/* =============== FINAL SET ASSESSMENT BUTTON =============== */}
+      {/* SUBMIT */}
+      <div className="footer-actions">
         <AssessmentSetupSubmitButton
           disabled={!formValid}
-          loading={loading}
+          loading={submitLoading}
           onClick={handleSubmit}
         />
       </div>
 
-      {/* ===================== RESULT MODAL ===================== */}
+      {/* MODAL */}
       <AssessmentLinkModal
         open={showAssessmentLinkModal}
         link={assessmentLink}
