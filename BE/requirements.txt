@@ -16,7 +16,6 @@ alembic==1.17.2
 psycopg2-binary==2.9.11
 
 # --- Caching & Message Queue ---
-#redis[hiredis]==7.1.0
 redis[hiredis]==5.2.1
 celery[redis]==5.5.3
 flower==2.0.1
@@ -47,11 +46,12 @@ prometheus-fastapi-instrumentator==7.1.0
 
 # --- AI/ML & LLM Integration ---
 groq==0.34.1
-langchain==1.0.7
-langchain-groq==1.0.1
-langchain-core==1.0.5
+langchain==1.1.0
+langchain-groq==1.1.0
+langchain-core==1.1.0
 langchain-community==0.4.1
-langchain-huggingface==1.0.1
+langchain-huggingface==1.1.0
+langsmith==0.4.53
 
 # --- Document Processing ---
 python-docx==1.2.0
@@ -86,12 +86,14 @@ mypy==1.19.0
 # ============================================================================
 # - All core libraries pinned to stable/latest versions as of December 2025
 # - SQLAlchemy maintained at 2.0.44 (latest in 2.0 branch)
-# - Redis updated to 7.1.0 (latest stable)
+# - Redis kept at 5.2.1 (latest compatible with celery[redis]==5.5.3)
+#   Note: Redis 7.1.0 has dependency conflict with kombu[redis] (max 5.2.1)
 # - boto3/botocore kept in sync at 1.42.2 for S3 compatibility
 # - cryptography updated to 46.0.3 (latest)
 # - numpy updated to 2.3.5 (latest)
 # - mypy updated to 1.19.0 (latest)
-# - LangChain kept at 1.0.7 (stable) - evaluate 0.3.x migration in future
+# - LangChain ecosystem updated to 1.1.0 (latest stable, compatible versions)
+# - Added langsmith==0.4.53 for LangChain observability
 # - Development dependencies included for local testing/development
 # - All versions verified against PyPI on December 4, 2025
 # ============================================================================

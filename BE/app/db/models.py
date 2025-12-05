@@ -308,7 +308,18 @@ class Candidate(Base, TimestampMixin):
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     
+    # Professional information
+    current_role: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Current job title
+    location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # City, Country
+    education: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # Highest education
+    
+    # Social/Professional links
+    linkedin_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    github_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    portfolio_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    
     # Experience and skills
+    experience_years: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # e.g., "5 years"
     experience_level: Mapped[str] = mapped_column(String(50), nullable=False)  # junior, mid, senior, etc.
     skills: Mapped[dict] = mapped_column(JSON, nullable=False, default={})  # {skill_name: proficiency_level}
     availability_percentage: Mapped[int] = mapped_column(Integer, default=100, nullable=False)  # 0-100

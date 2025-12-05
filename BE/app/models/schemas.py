@@ -147,11 +147,31 @@ class RecommendedCoursesResponse(BaseModel):
 
 # ============ CANDIDATE & ASSESSMENT SCHEMAS ============
 
+class CandidateInfoSchema(BaseModel):
+    """Candidate information extracted from resume or entered manually."""
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    experience: Optional[str] = None  # e.g., "5 years"
+    current_role: Optional[str] = None
+    location: Optional[str] = None
+    linkedin: Optional[str] = None
+    github: Optional[str] = None
+    portfolio: Optional[str] = None
+    education: Optional[str] = None
+
 class CandidateCreate(BaseModel):
     """Request to create a new candidate."""
     full_name: str
     email: str
     phone: Optional[str] = None
+    current_role: Optional[str] = None
+    location: Optional[str] = None
+    education: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    github_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    experience_years: Optional[str] = None  # e.g., "5 years"
     experience_level: str  # junior, mid, senior, etc.
     skills: dict = {}  # {skill_name: proficiency_level}
     availability_percentage: int = 100
@@ -160,6 +180,13 @@ class CandidateUpdate(BaseModel):
     """Request to update candidate profile."""
     full_name: Optional[str] = None
     phone: Optional[str] = None
+    current_role: Optional[str] = None
+    location: Optional[str] = None
+    education: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    github_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    experience_years: Optional[str] = None
     experience_level: Optional[str] = None
     skills: Optional[dict] = None
     availability_percentage: Optional[int] = None
@@ -171,6 +198,13 @@ class CandidateResponse(BaseModel):
     full_name: str
     email: str
     phone: Optional[str]
+    current_role: Optional[str]
+    location: Optional[str]
+    education: Optional[str]
+    linkedin_url: Optional[str]
+    github_url: Optional[str]
+    portfolio_url: Optional[str]
+    experience_years: Optional[str]
     experience_level: str
     skills: dict
     availability_percentage: int
@@ -215,6 +249,7 @@ class AssessmentCreate(BaseModel):
     duration_minutes: int = 30
     is_questionnaire_enabled: bool = True
     is_interview_enabled: bool = False
+    candidate_info: Optional[CandidateInfoSchema] = None  # Auto-extracted candidate info
 
 
 class AssessmentUpdate(BaseModel):

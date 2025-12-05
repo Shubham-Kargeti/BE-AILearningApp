@@ -130,6 +130,21 @@ def create_token_pair(user_id: int, email: str) -> Dict[str, str]:
     }
 
 
+def is_admin_user(email: str) -> bool:
+    """
+    Check if an email belongs to an admin user.
+    
+    Args:
+        email: User email to check
+    
+    Returns:
+        bool: True if user is admin
+    """
+    from config import get_settings
+    settings = get_settings()
+    return email.lower() in [e.lower() for e in settings.ADMIN_EMAILS]
+
+
 async def check_admin(user):
     """
     Check if user has admin role.
@@ -140,10 +155,8 @@ async def check_admin(user):
     Raises:
         HTTPException: If user is not admin
     """
-    # TODO: Implement role-based access control
-    # For now, check if user.role == "admin" or similar
-    # This is a placeholder - update with actual RBAC implementation
-    if not hasattr(user, 'is_admin') or not user.is_admin:
+    # Check admin status by email
+    if not hasattr(user, 'email') or not is_admin_user(user.email):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin privileges required"

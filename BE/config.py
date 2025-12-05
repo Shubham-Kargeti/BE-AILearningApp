@@ -136,6 +136,18 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 10
     ALLOWED_EXTENSIONS: list[str] = [".pdf", ".docx", ".txt"]
     
+    # Admin Users (email-based for MVP)
+    ADMIN_EMAILS: list[str] = [
+        "admin@nagarro.com",
+        "shubham.kargeti@nagarro.com",
+        "monesh.sanvaliya@nagarro.com",
+        "arjun.singha@nagarro.com",
+        "pintoo.kumar@nagarro.com",
+        "puneet.banga@nagarro.com",
+        "shailja.tyagi@nagarro.com",
+        "devinder.kumar@nagarro.com",
+    ]
+    
     # Logging
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"  # json or console

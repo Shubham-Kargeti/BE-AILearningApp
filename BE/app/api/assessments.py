@@ -24,18 +24,25 @@ async def list_assessments(
     is_published: Optional[bool] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
+    show_all: bool = Query(False, description="Show all assessments including unpublished (admin only)"),
 ) -> List[AssessmentResponse]:
     """
-    List all published assessments.
+    List all assessments.
     
     Query Parameters:
-    - is_published: Filter by published status (default: only published)
+    - is_published: Filter by published status
     - skip: Number of records to skip
     - limit: Number of records to return
+    - show_all: If true, shows all assessments (for admin dashboard)
     """
     query = select(Assessment).where(Assessment.is_active == True)
     
-    if is_published is not None:
+    if show_all:
+        # Admin wants to see all assessments
+        if is_published is not None:
+            query = query.where(Assessment.is_published == is_published)
+        # Otherwise show all (published + unpublished)
+    elif is_published is not None:
         query = query.where(Assessment.is_published == is_published)
     else:
         # Default: only show published assessments to candidates
@@ -159,6 +166,7 @@ async def create_assessment(
     - Title must be unique
     - If jd_id provided, verify JD exists
     - Questionnaire method must be enabled
+    - If candidate_info provided, creates or updates candidate record
     """
     # Check admin role
     await check_admin(current_user)
@@ -172,6 +180,70 @@ async def create_assessment(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Job description {request.jd_id} not found"
             )
+    
+    # Handle candidate info if provided
+    candidate_db = None
+    if request.candidate_info and request.candidate_info.email:
+        # Check if candidate already exists
+        cand_stmt = select(Candidate).where(Candidate.email == request.candidate_info.email)
+        cand_result = await db.execute(cand_stmt)
+        candidate_db = cand_result.scalars().first()
+        
+        # Infer experience level from years
+        experience_level = "mid"  # default
+        if request.candidate_info.experience:
+            try:
+                years = int(''.join(filter(str.isdigit, request.candidate_info.experience)) or 0)
+                if years < 2:
+                    experience_level = "junior"
+                elif years < 5:
+                    experience_level = "mid"
+                elif years < 8:
+                    experience_level = "senior"
+                else:
+                    experience_level = "lead"
+            except:
+                pass
+        
+        if candidate_db:
+            # Update existing candidate with new info
+            if request.candidate_info.name:
+                candidate_db.full_name = request.candidate_info.name
+            if request.candidate_info.phone:
+                candidate_db.phone = request.candidate_info.phone
+            if request.candidate_info.current_role:
+                candidate_db.current_role = request.candidate_info.current_role
+            if request.candidate_info.location:
+                candidate_db.location = request.candidate_info.location
+            if request.candidate_info.education:
+                candidate_db.education = request.candidate_info.education
+            if request.candidate_info.linkedin:
+                candidate_db.linkedin_url = request.candidate_info.linkedin
+            if request.candidate_info.github:
+                candidate_db.github_url = request.candidate_info.github
+            if request.candidate_info.portfolio:
+                candidate_db.portfolio_url = request.candidate_info.portfolio
+            if request.candidate_info.experience:
+                candidate_db.experience_years = request.candidate_info.experience
+                candidate_db.experience_level = experience_level
+        else:
+            # Create new candidate
+            candidate_db = Candidate(
+                full_name=request.candidate_info.name or "Unknown",
+                email=request.candidate_info.email,
+                phone=request.candidate_info.phone,
+                current_role=request.candidate_info.current_role,
+                location=request.candidate_info.location,
+                education=request.candidate_info.education,
+                linkedin_url=request.candidate_info.linkedin,
+                github_url=request.candidate_info.github,
+                portfolio_url=request.candidate_info.portfolio,
+                experience_years=request.candidate_info.experience,
+                experience_level=experience_level,
+                skills=request.required_skills or {},
+            )
+            db.add(candidate_db)
+            await db.flush()  # Get candidate ID without committing
     
     # Create assessment
     assessment = Assessment(
