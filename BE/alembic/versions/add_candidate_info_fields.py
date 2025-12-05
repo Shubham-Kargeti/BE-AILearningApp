@@ -1,7 +1,7 @@
 """Add candidate professional info fields
 
 Revision ID: add_candidate_info_fields
-Revises: 
+Revises: 004_cand_assess
 Create Date: 2025-12-04
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'add_candidate_info_fields'
-down_revision: Union[str, None] = None  # Update this to your latest revision
+down_revision: Union[str, None] = '004_cand_assess'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
