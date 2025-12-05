@@ -11,6 +11,7 @@ const AvailabilitySelector: React.FC<Props> = ({ value, setValue }) => {
         type="range"
         min="0"
         max="100"
+        step={25}     
         value={value}
         onChange={(e) => setValue(Number(e.target.value))}
       />

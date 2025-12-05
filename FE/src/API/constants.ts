@@ -19,4 +19,5 @@ export const allowedUsers = [
   "puneet.banga@nagarro.com",
   "shailja.tyagi@nagarro.com",
   "devinder.kumar@nagarro.com",
+  "admin@nagarro.com"
 ];

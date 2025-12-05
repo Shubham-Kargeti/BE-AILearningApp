@@ -62,33 +62,86 @@ const AssessmentSetupContainer: React.FC = () => {
   // -----------------------------
   // Process Resume
   // -----------------------------
+  // const handleProcessFile = async () => {
+  //   if (!cvFile) return;
+
+  //   setProcessLoading(true);
+  //   const formData = new FormData();
+  //   formData.append("resume", cvFile);
+
+  //   if (jdFile) formData.append("jd", jdFile);
+  //   if (reqDoc) formData.append("requirement", reqDoc);
+  //   if (clientDoc) formData.append("client_doc", clientDoc);
+
+  //   try {
+  //     const res = await axios.post(
+  //       `${import.meta.env.VITE_API_BASE_URL}/extract-skills`,
+  //       formData,
+  //       { headers: { "Content-Type": "multipart/form-data" } }
+  //     );
+
+  //     const extractedRole = res?.data?.role ?? "";
+  //     const extractedSkills = Array.isArray(res?.data?.skills) ? res.data.skills : [];
+
+  //     if (extractedRole) setRole(extractedRole);
+  //     if (extractedSkills.length > 0) setSkills(extractedSkills);
+
+  //     window.alert("Resume processed successfully.");
+  //   } catch (err) {
+  //     console.error("Error processing resume:", err);
+  //     window.alert("Failed to process resume.");
+  //   } finally {
+  //     setProcessLoading(false);
+  //   }
+  // };
   const handleProcessFile = async () => {
-    if (!cvFile) return;
+    if (!cvFile) {
+      window.alert("Please upload a CV before processing.");
+      return;
+    }
+
+    const token = localStorage.getItem("authToken"); // ✅ correct key
+
+    if (!token) {
+      window.alert("No auth token found. Please login again.");
+      return;
+    }
 
     setProcessLoading(true);
-    const formData = new FormData();
-    formData.append("resume", cvFile);
 
-    if (jdFile) formData.append("jd", jdFile);
-    if (reqDoc) formData.append("requirement", reqDoc);
-    if (clientDoc) formData.append("client_doc", clientDoc);
+    const formData = new FormData();
+    formData.append("file", cvFile);
 
     try {
+      console.log("DEBUG: Sending token:", token);
+
       const res = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/extract-skills`,
+        `${import.meta.env.VITE_API_BASE_URL}admin/extract-skills?doc_type=cv`,
         formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,   // ✅ correct token sent
+            "Content-Type": "multipart/form-data",
+          },
+        }
       );
 
-      const extractedRole = res?.data?.role ?? "";
-      const extractedSkills = Array.isArray(res?.data?.skills) ? res.data.skills : [];
+      console.log("API Response:", res.data);
 
-      if (extractedRole) setRole(extractedRole);
-      if (extractedSkills.length > 0) setSkills(extractedSkills);
+      const extractedSkills =
+        res.data?.extracted_skills?.map((s: any) => s.skill_name) || [];
 
-      window.alert("Resume processed successfully.");
+      if (extractedSkills.length > 0) {
+        setSkills(extractedSkills);
+      } else {
+        window.alert("No skills detected in CV.");
+      }
+
+      setRole("Developer");
+
+      window.alert("CV processed successfully!");
     } catch (err) {
-      console.error("Error processing resume:", err);
+      console.error("Error extracting skills:", err);
       window.alert("Failed to process resume.");
     } finally {
       setProcessLoading(false);
@@ -98,22 +151,97 @@ const AssessmentSetupContainer: React.FC = () => {
   // -----------------------------
   // Submit Assessment → Show link modal
   // -----------------------------
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!formValid) {
+      window.alert("Please complete all required fields.");
+      return;
+    }
+
     setSubmitLoading(true);
 
-    setTimeout(() => {
-      setSubmitLoading(false);
+    try {
+      const token = localStorage.getItem("authToken");
+      if (!token) {
+        window.alert("Authentication missing. Please login again.");
+        return;
+      }
 
-      const sanitized = email.trim()
-        ? email.replace(/[@.]/g, "")
-        : "candidate";
+      // Convert skills array → object for BE
+      const requiredSkillsObj: Record<string, string> = {};
+      skills.forEach((skill) => {
+        requiredSkillsObj[skill] = "";
+      });
 
+      // Build FE → BE request payload
+      const payload = {
+        title: `Assessment for ${email}`,         // must be unique
+        description: "Auto-generated assessment", // string required
+        job_title: role,                          // your role: default Developer
+        jd_id: "",                                // empty (BE will fetch automatically if JD uploaded)
+        required_skills: requiredSkillsObj,       // mapped object
+        required_roles: [role],                   // ["Developer"]
+        question_set_id: "",                      // BE auto-handles
+        duration_minutes: 30,                     // fixed default
+        is_questionnaire_enabled: true,
+        is_interview_enabled: false,
+
+        candidate_info: {
+          name: "string",
+          email: email,
+          phone: "string",
+          experience: "string",
+          current_role: role,
+          location: "string",
+          linkedin: "string",
+          github: "string",
+          portfolio: portfolio || "",
+          education: "string",
+        }
+      };
+
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}assessments`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log("Assessment created:", res.data);
+
+      // Generate the assessment link
+      const sanitized = email.replace(/[@.]/g, "");
       const generatedLink = `${window.location.origin}/candidate-assessment/${sanitized}`;
 
       setAssessmentLink(generatedLink);
       setShowAssessmentLinkModal(true);
-    }, 700);
+
+    } catch (err) {
+      console.error("Error creating assessment:", err);
+      window.alert("Failed to create assessment. Check logs.");
+    } finally {
+      setSubmitLoading(false);
+    }
   };
+
+  // const handleSubmit = () => {
+  //   setSubmitLoading(true);
+
+  //   setTimeout(() => {
+  //     setSubmitLoading(false);
+
+  //     const sanitized = email.trim()
+  //       ? email.replace(/[@.]/g, "")
+  //       : "candidate";
+
+  //     const generatedLink = `${window.location.origin}/candidate-assessment/${sanitized}`;
+
+  //     setAssessmentLink(generatedLink);
+  //     setShowAssessmentLinkModal(true);
+  //   }, 700);
+  // };
 
   // -----------------------------
   // UI
