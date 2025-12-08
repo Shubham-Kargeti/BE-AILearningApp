@@ -249,7 +249,8 @@ class AssessmentCreate(BaseModel):
     duration_minutes: int = 30
     is_questionnaire_enabled: bool = True
     is_interview_enabled: bool = False
-    candidate_info: Optional[CandidateInfoSchema] = None  # Auto-extracted candidate info
+    expires_at: Optional[datetime] = None
+    candidate_info: Optional[CandidateInfoSchema] = None
 
 
 class AssessmentUpdate(BaseModel):
@@ -264,10 +265,13 @@ class AssessmentUpdate(BaseModel):
     is_interview_enabled: Optional[bool] = None
     is_active: Optional[bool] = None
     is_published: Optional[bool] = None
+    expires_at: Optional[datetime] = None
 
 
 class AssessmentResponse(BaseModel):
     """Response with assessment details."""
+    model_config = {"from_attributes": True}
+    
     id: int
     assessment_id: str
     title: str
@@ -283,6 +287,8 @@ class AssessmentResponse(BaseModel):
     is_interview_enabled: bool
     is_active: bool
     is_published: bool
+    is_expired: bool = False
+    expires_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
