@@ -38,6 +38,38 @@
   }
 }
 
+/* Edit Mode Loading State */
+.edit-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  background: var(--card);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  margin-bottom: 26px;
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  p {
+    margin-top: 16px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* =========================================
    CARD BASE
 ========================================= */
@@ -71,6 +103,12 @@
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-top: 14px;
+  
+  // Ensure grid items don't overflow
+  > * {
+    min-width: 0;
+    max-width: 100%;
+  }
 }
 
 @media (max-width: 1200px) {
@@ -265,4 +303,61 @@
 
 .skill-chip .remove-skill:hover {
   color: #e11d48;
+}
+
+/* =========================================
+   EXPIRY DATE SECTION
+========================================= */
+.expiry-card {
+  .expiry-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 400px;
+
+    label {
+      font-weight: 600;
+      font-size: 14px;
+      color: #374151;
+    }
+
+    .expiry-input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 2px solid #e6eefc;
+      border-radius: 8px;
+      font-size: 15px;
+      background: white;
+      transition: all 0.2s ease;
+      cursor: pointer;
+
+      &:focus {
+        border-color: var(--primary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+
+      &:hover {
+        border-color: #cbd5e1;
+      }
+    }
+
+    .expiry-preview {
+      margin: 0;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      border: 1px solid #f59e0b;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #92400e;
+    }
+
+    .expiry-note {
+      margin: 0;
+      font-size: 12px;
+      color: #6b7280;
+      font-style: italic;
+    }
+  }
 }

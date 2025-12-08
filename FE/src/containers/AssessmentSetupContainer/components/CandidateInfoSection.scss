@@ -1,0 +1,150 @@
+.candidate-info-section {
+  width: 100%;
+
+  .auto-fill-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border: 1px solid #a5d6a7;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: #2e7d32;
+    animation: slideIn 0.3s ease;
+
+    .badge-icon {
+      font-size: 16px;
+    }
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+
+    @media (max-width: 1024px) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .info-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    &.full-width {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #555;
+
+      .field-icon {
+        font-size: 14px;
+        color: #667;
+
+        &.linkedin {
+          color: #0077b5;
+        }
+
+        &.github {
+          color: #333;
+        }
+      }
+    }
+
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #fafafa;
+      transition: all 0.2s ease;
+      box-sizing: border-box;
+
+      &::placeholder {
+        color: #aaa;
+        font-size: 13px;
+      }
+
+      &:hover {
+        border-color: #bbb;
+        background: #fff;
+      }
+
+      &:focus {
+        outline: none;
+        border-color: #1a73e8;
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+      }
+
+      &.has-value {
+        background: #fff;
+        border-color: #c0c0c0;
+      }
+
+      &.valid {
+        border-color: #34a853;
+        background: linear-gradient(to right, #fff, #f0fdf4);
+
+        &:focus {
+          box-shadow: 0 0 0 3px rgba(52, 168, 83, 0.1);
+        }
+      }
+
+      &.error {
+        border-color: #ea4335;
+        background: linear-gradient(to right, #fff, #fef7f7);
+
+        &:focus {
+          box-shadow: 0 0 0 3px rgba(234, 67, 53, 0.1);
+        }
+      }
+    }
+
+    .error-text {
+      font-size: 12px;
+      color: #ea4335;
+      margin-top: 2px;
+    }
+  }
+}
+
+/* Animation for auto-filled fields */
+@keyframes highlightField {
+  0% {
+    background-color: #fff9c4;
+  }
+  100% {
+    background-color: #fafafa;
+  }
+}
+
+.candidate-info-section.auto-filled .info-field input.has-value {
+  animation: highlightField 1s ease-out;
+}
