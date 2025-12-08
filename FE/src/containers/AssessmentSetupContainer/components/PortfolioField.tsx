@@ -6,7 +6,7 @@ interface Props {
 const PortfolioField: React.FC<Props> = ({ value, setValue }) => {
   return (
     <div className="form-field">
-      <label>Portfolio (Optional)</label>
+      <label>Client Portfolio (Optional)</label>
       <input
         type="text"
         value={value}

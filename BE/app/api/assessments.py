@@ -7,8 +7,8 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
 
-from app.core.dependencies import get_db, get_current_user
-from app.core.security import check_admin
+from app.core.dependencies import get_db, get_current_user, optional_auth
+from app.core.security import check_admin, is_admin_user
 from app.db.models import Assessment, AssessmentApplication, Candidate, User, JobDescription
 from app.models.schemas import (
     AssessmentCreate, AssessmentUpdate, AssessmentResponse,
@@ -38,14 +38,11 @@ async def list_assessments(
     query = select(Assessment).where(Assessment.is_active == True)
     
     if show_all:
-        # Admin wants to see all assessments
         if is_published is not None:
             query = query.where(Assessment.is_published == is_published)
-        # Otherwise show all (published + unpublished)
     elif is_published is not None:
         query = query.where(Assessment.is_published == is_published)
     else:
-        # Default: only show published assessments to candidates
         query = query.where(Assessment.is_published == True)
     
     query = query.order_by(desc(Assessment.created_at))
@@ -71,6 +68,8 @@ async def list_assessments(
             is_interview_enabled=a.is_interview_enabled,
             is_active=a.is_active,
             is_published=a.is_published,
+            is_expired=a.is_expired,
+            expires_at=a.expires_at,
             created_at=a.created_at,
             updated_at=a.updated_at,
         )
@@ -82,9 +81,15 @@ async def list_assessments(
 async def get_assessment(
     assessment_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> dict:
     """
     Get assessment details by ID with enriched data.
+    
+    Access Control:
+    - Admins can access all assessments (published and drafts)
+    - Candidates can only access published assessments
+    - Returns appropriate error for draft/expired assessments
     
     Returns:
     - Assessment metadata
@@ -103,7 +108,23 @@ async def get_assessment(
             detail="Assessment not found"
         )
     
-    # Build base response
+    is_admin = False
+    if current_user and hasattr(current_user, 'email'):
+        is_admin = is_admin_user(current_user.email)
+    
+    if not is_admin:
+        if not assessment.is_published:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="This assessment is not available yet. Please contact the administrator."
+            )
+        
+        if not assessment.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="This assessment is no longer active."
+            )
+    
     response = {
         "id": assessment.id,
         "assessment_id": assessment.assessment_id,
@@ -120,18 +141,18 @@ async def get_assessment(
         "is_interview_enabled": assessment.is_interview_enabled,
         "is_active": assessment.is_active,
         "is_published": assessment.is_published,
+        "is_expired": assessment.is_expired,
+        "expires_at": assessment.expires_at,
         "created_at": assessment.created_at,
         "updated_at": assessment.updated_at,
     }
     
-    # Enrich with JD data if available
     if assessment.jd_id:
         jd_stmt = select(JobDescription).where(JobDescription.jd_id == assessment.jd_id)
         jd_result = await db.execute(jd_stmt)
         jd = jd_result.scalars().first()
         
         if jd:
-            # Extract skills and roles from JD for display
             from app.api.skills import extract_skills_from_text, extract_roles_from_text
             
             extracted_text = jd.extracted_text or jd.description or ""
@@ -168,10 +189,8 @@ async def create_assessment(
     - Questionnaire method must be enabled
     - If candidate_info provided, creates or updates candidate record
     """
-    # Check admin role
     await check_admin(current_user)
     
-    # Verify JD exists if provided
     if request.jd_id:
         jd_stmt = select(JobDescription).where(JobDescription.jd_id == request.jd_id)
         jd_result = await db.execute(jd_stmt)
@@ -181,16 +200,13 @@ async def create_assessment(
                 detail=f"Job description {request.jd_id} not found"
             )
     
-    # Handle candidate info if provided
     candidate_db = None
     if request.candidate_info and request.candidate_info.email:
-        # Check if candidate already exists
         cand_stmt = select(Candidate).where(Candidate.email == request.candidate_info.email)
         cand_result = await db.execute(cand_stmt)
         candidate_db = cand_result.scalars().first()
         
-        # Infer experience level from years
-        experience_level = "mid"  # default
+        experience_level = "mid"
         if request.candidate_info.experience:
             try:
                 years = int(''.join(filter(str.isdigit, request.candidate_info.experience)) or 0)
@@ -206,7 +222,6 @@ async def create_assessment(
                 pass
         
         if candidate_db:
-            # Update existing candidate with new info
             if request.candidate_info.name:
                 candidate_db.full_name = request.candidate_info.name
             if request.candidate_info.phone:
@@ -227,7 +242,6 @@ async def create_assessment(
                 candidate_db.experience_years = request.candidate_info.experience
                 candidate_db.experience_level = experience_level
         else:
-            # Create new candidate
             candidate_db = Candidate(
                 full_name=request.candidate_info.name or "Unknown",
                 email=request.candidate_info.email,
@@ -243,9 +257,8 @@ async def create_assessment(
                 skills=request.required_skills or {},
             )
             db.add(candidate_db)
-            await db.flush()  # Get candidate ID without committing
+            await db.flush()
     
-    # Create assessment
     assessment = Assessment(
         title=request.title,
         description=request.description,
@@ -258,10 +271,84 @@ async def create_assessment(
         duration_minutes=request.duration_minutes,
         is_questionnaire_enabled=request.is_questionnaire_enabled,
         is_interview_enabled=request.is_interview_enabled,
+        expires_at=request.expires_at,
         created_by=current_user.id,
     )
     
     db.add(assessment)
+    await db.commit()
+    await db.refresh(assessment)
+    
+    return AssessmentResponse(
+        id=assessment.id,
+        assessment_id=assessment.assessment_id,
+        title=assessment.title,
+        description=assessment.description,
+        job_title=assessment.job_title,
+        jd_id=assessment.jd_id,
+        required_skills=assessment.required_skills,
+        required_roles=assessment.required_roles,
+        question_set_id=assessment.question_set_id,
+        assessment_method=assessment.assessment_method,
+        duration_minutes=assessment.duration_minutes,
+        is_questionnaire_enabled=assessment.is_questionnaire_enabled,
+        is_interview_enabled=assessment.is_interview_enabled,
+        is_active=assessment.is_active,
+        is_published=assessment.is_published,
+        is_expired=assessment.is_expired,
+        expires_at=assessment.expires_at,
+        created_at=assessment.created_at,
+        updated_at=assessment.updated_at,
+    )
+
+
+@router.delete("/{assessment_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_assessment(
+    assessment_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete assessment (Admin only). Soft delete by setting is_active to False."""
+    await check_admin(current_user)
+    
+    stmt = select(Assessment).where(Assessment.assessment_id == assessment_id)
+    result = await db.execute(stmt)
+    assessment = result.scalars().first()
+    
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assessment not found"
+        )
+    
+    assessment.is_active = False
+    assessment.updated_at = datetime.utcnow()
+    await db.commit()
+    
+    return None
+
+
+@router.post("/{assessment_id}/publish", response_model=AssessmentResponse)
+async def publish_assessment(
+    assessment_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Publish or unpublish an assessment (Admin only). Toggles is_published status."""
+    await check_admin(current_user)
+    
+    stmt = select(Assessment).where(Assessment.assessment_id == assessment_id)
+    result = await db.execute(stmt)
+    assessment = result.scalars().first()
+    
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assessment not found"
+        )
+    
+    assessment.is_published = not assessment.is_published
+    assessment.updated_at = datetime.utcnow()
     await db.commit()
     await db.refresh(assessment)
     
@@ -306,7 +393,6 @@ async def update_assessment(
             detail="Assessment not found"
         )
     
-    # Update fields if provided
     if request.title is not None:
         assessment.title = request.title
     if request.description is not None:
@@ -327,6 +413,8 @@ async def update_assessment(
         assessment.is_active = request.is_active
     if request.is_published is not None:
         assessment.is_published = request.is_published
+    if request.expires_at is not None:
+        assessment.expires_at = request.expires_at
     
     assessment.updated_at = datetime.utcnow()
     await db.commit()
@@ -348,6 +436,8 @@ async def update_assessment(
         is_interview_enabled=assessment.is_interview_enabled,
         is_active=assessment.is_active,
         is_published=assessment.is_published,
+        is_expired=assessment.is_expired,
+        expires_at=assessment.expires_at,
         created_at=assessment.created_at,
         updated_at=assessment.updated_at,
     )
@@ -368,7 +458,6 @@ async def apply_for_assessment(
     - Prevents duplicate applications
     - Stores form data (availability, skills, role preference)
     """
-    # Get assessment
     assess_stmt = select(Assessment).where(Assessment.assessment_id == assessment_id)
     assess_result = await db.execute(assess_stmt)
     assessment = assess_result.scalars().first()
@@ -379,7 +468,6 @@ async def apply_for_assessment(
             detail="Assessment not found or not published"
         )
     
-    # Get candidate
     cand_stmt = select(Candidate).where(Candidate.candidate_id == candidate_id)
     cand_result = await db.execute(cand_stmt)
     candidate = cand_result.scalars().first()
@@ -390,7 +478,6 @@ async def apply_for_assessment(
             detail="Candidate not found"
         )
     
-    # Check for existing application
     exist_stmt = select(AssessmentApplication).where(
         (AssessmentApplication.candidate_id == candidate.id) &
         (AssessmentApplication.assessment_id == assessment.id)
@@ -402,7 +489,6 @@ async def apply_for_assessment(
             detail="Candidate has already applied for this assessment"
         )
     
-    # Create application
     application = AssessmentApplication(
         candidate_id=candidate.id,
         assessment_id=assessment.id,
