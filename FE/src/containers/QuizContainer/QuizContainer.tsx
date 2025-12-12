@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Box,
   Button,
@@ -35,12 +35,23 @@ interface LocationState {
   fromCandidateLink?: boolean;
 }
 
+const QUESTION_TIME_DEFAULT = 30;
+
 const QuizContainer = () => {
   const [showModal, setShowModal] = useState(true);
   const [current, setCurrent] = useState(0);
   const [selectedOption, setSelected] = useState("");
-  const [quizTimer] = useState(300); // 5mins
-  const [questionTimer, setQuestionTimer] = useState(30);
+  // make quizTimer writable and prefer assessment.duration if provided
+  const [quizTimer, setQuizTimer] = useState<number>(() => {
+    try {
+      // prefer duration from location state or localStorage
+      // we'll override this at quiz start to lock the initial duration
+      return 300;
+    } catch {
+      return 300;
+    }
+  });
+  const [questionTimer, setQuestionTimer] = useState(QUESTION_TIME_DEFAULT);
   const [leftFullscreenCount, setLeftFullscreenCount] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -78,6 +89,11 @@ const QuizContainer = () => {
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requiresLoginToStart, setRequiresLoginToStart] = useState(false);
+
+  // ref for initialDuration to compute snap buckets
+  const initialQuizDurationRef = useRef<number>(quizTimer);
+  // ref to hold per-question duration (computed when quiz starts)
+  const questionTimeRef = useRef<number>(QUESTION_TIME_DEFAULT);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -155,6 +171,7 @@ const QuizContainer = () => {
 
   useEffect(() => {
     getMCQsBasedOnProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getQuizSessionId = async () => {
@@ -187,6 +204,25 @@ const QuizContainer = () => {
 
       const res = await quizService.startQuiz(mcqQuestions.question_set_id, candidateInfo);
       setSessionId(res.session_id);
+
+      // === LOCK initial duration when quiz starts ===
+      // Prefer passed assessment.duration_minutes if available; otherwise default 300
+      const durationMinutes =
+        (locationState?.assessment?.duration_minutes as number | undefined) ??
+        (assessmentData?.duration_minutes as number | undefined);
+      const initialDuration = durationMinutes && typeof durationMinutes === "number"
+        ? durationMinutes * 60
+        : 300;
+      initialQuizDurationRef.current = initialDuration;
+      setQuizTimer(initialDuration);
+
+      // compute per-question time based on number of questions.
+      const totalQuestions = mcqQuestions.questions?.length || 10;
+      const computedPerQuestion = Math.max(1, Math.floor(initialDuration / totalQuestions));
+      questionTimeRef.current = computedPerQuestion;
+      setQuestionTimer(questionTimeRef.current);
+      // === end lock ===
+
       setShowModal(false);
       document.documentElement.requestFullscreen();
       document.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -304,17 +340,40 @@ const QuizContainer = () => {
     }
   }, [leftFullscreenCount]);
 
+  // Unified timers effect: ticks both quizTimer and questionTimer each second while quizStarted
   useEffect(() => {
     if (!quizStarted) return;
-    if (questionTimer === 0) {
-      goNext();
-      return;
-    }
 
-    const t = setInterval(() => setQuestionTimer((prev) => prev - 1), 1000);
+    const interval = setInterval(() => {
+      // decrement global timer
+      setQuizTimer((prevQuiz) => {
+        if (prevQuiz <= 1) {
+          setSubmitted(true);
+          return 0;
+        }
+        return prevQuiz - 1;
+      });
 
-    return () => clearInterval(t);
-  }, [quizStarted, questionTimer]);
+      // decrement per-question timer and advance when it reaches 0
+      setQuestionTimer((prevQuestion) => {
+        if (prevQuestion <= 1) {
+          // advance to next question due to timeout
+          try {
+            // Calling goNext resets questionTimer and snaps global timer in goNext implementation below
+            goNext();
+          } catch (err) {
+            console.error("Error advancing to next question from timer:", err);
+          }
+          // return per-question time after goNext sets appropriate question state
+          return questionTimeRef.current;
+        }
+        return prevQuestion - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+    // we only want to (re)create the timer when quizStarted toggles
+  }, [quizStarted]);
 
   const submitQuizAnswers = async (
     answers: { question_id: number; selected_answer: string }[]
@@ -358,8 +417,11 @@ const QuizContainer = () => {
     }
   };
 
+  // goNext now snaps the global timer to the bucket: initial - (questionsCompleted * perQuestionTime)
   const goNext = () => {
+    // Defensive: if questions not loaded, do nothing
     const currentQuestion = mcqQuestions.questions[current];
+    if (!currentQuestion) return;
 
     setAnswers((prev) => [
       ...prev,
@@ -370,12 +432,23 @@ const QuizContainer = () => {
     ]);
 
     if (current < mcqQuestions.questions.length - 1) {
-      const question = mcqQuestions.questions[current + 1];
-      setQuestion(question);
-      setCurrent((prev) => prev + 1);
-      setQuestionTimer(30);
+      const nextIndex = current + 1;
+      const nextQuestion = mcqQuestions.questions[nextIndex];
+      setQuestion(nextQuestion);
+      setCurrent(nextIndex);
+      // reset per-question timer to computed per-question value
+      setQuestionTimer(questionTimeRef.current);
       setSelected("");
+
+      // Snap global timer to the bucketed value:
+      // after completing question index `current`, we've completed nextIndex questionsCompleted = nextIndex
+      const snapped = Math.max(
+        0,
+        initialQuizDurationRef.current - nextIndex * questionTimeRef.current
+      );
+      setQuizTimer(snapped);
     } else {
+      // last question -> submit
       setSubmitted(true);
     }
   };
@@ -492,9 +565,41 @@ const QuizContainer = () => {
     );
   }
 
+  // if (showModal) {
+  //   return <QuizInstructionsModal open={showModal} onStart={startQuiz} />;
+  // }
   if (showModal) {
-    return <QuizInstructionsModal open={showModal} onStart={startQuiz} />;
+  // compute previewDuration from location/assessment or fallback to 5 minutes
+  const durationMinutesPreview =
+    (locationState?.assessment?.duration_minutes as number | undefined) ??
+    (assessmentData?.duration_minutes as number | undefined) ??
+    5; // default 5 minutes
+
+  const previewDuration = Math.max(1, Math.floor(durationMinutesPreview * 60)); // seconds
+
+  // preview per-question time:
+  // - if classic 5min → 30s
+  // - if classic 30min → 180s
+  // - otherwise distribute evenly
+  const totalQuestionsCount = mcqQuestions.questions?.length || 10;
+
+  let previewPerQuestion = 30;
+  if (previewDuration === 300) previewPerQuestion = 30;
+  else if (previewDuration === 1800) previewPerQuestion = 180;
+  else {
+    previewPerQuestion = Math.max(1, Math.floor(previewDuration / totalQuestionsCount));
   }
+
+  return (
+    <QuizInstructionsModal
+      open={showModal}
+      onStart={startQuiz}
+      duration={previewDuration}
+      perQuestion={previewPerQuestion}
+    />
+  );
+}
+
 
   return (
     <>
@@ -533,17 +638,17 @@ const QuizContainer = () => {
         )}
 
         <Box className="quiz-header">
-                    {requiresLoginToStart && (
-                      <Box sx={{ my: 2 }}>
-                        <Alert severity="warning" action={
-                          <Button color="inherit" size="small" onClick={loginAsCandidateAndStart}>
-                            Login and Retry
-                          </Button>
-                        }>
-                          This assessment requires you to login as the candidate to start. Please login and retry.
-                        </Alert>
-                      </Box>
-                    )}
+          {requiresLoginToStart && (
+            <Box sx={{ my: 2 }}>
+              <Alert severity="warning" action={
+                <Button color="inherit" size="small" onClick={loginAsCandidateAndStart}>
+                  Login and Retry
+                </Button>
+              }>
+                This assessment requires you to login as the candidate to start. Please login and retry.
+              </Alert>
+            </Box>
+          )}
           <Typography className="timer">Quiz Time: {quizTimer}s</Typography>
           <Typography className="timer">
             Question Time: {questionTimer}s

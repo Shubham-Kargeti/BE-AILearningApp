@@ -9,6 +9,7 @@ const AdminAddCandidate = () => {
     role: "",
     experience: "",
     skills: "",
+    team: "", 
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,16 +35,18 @@ const AdminAddCandidate = () => {
         skillsRecord[skill] = "intermediate";
       });
       
+      // include team in payload. cast to any to avoid strict TS typing issues if your types don't include `team` yet
       await candidateService.createCandidate({
         full_name: formData.name,
         email: formData.email,
         phone: "",
         experience_level: formData.experience || "junior",
         skills: skillsRecord,
-      });
+        team: formData.team || undefined,
+      } as any);
       
       setSuccess(true);
-      setFormData({ name: "", email: "", role: "", experience: "", skills: "" });
+      setFormData({ name: "", email: "", role: "", experience: "", skills: "", team: "" });
     } catch (err: any) {
       console.error("Failed to add candidate:", err);
       setError(err?.response?.data?.detail || "Failed to add candidate. Please try again.");
@@ -95,6 +98,19 @@ const AdminAddCandidate = () => {
               onChange={handleChange}
               placeholder="e.g., Software Engineer, Data Analyst"
               required
+            />
+          </div>
+
+          {/* NEW: Candidate Team Name */}
+          <div className="form-group">
+            <label htmlFor="team">Candidate Team Name</label>
+            <input
+              type="text"
+              id="team"
+              name="team"
+              value={formData.team}
+              onChange={handleChange}
+              placeholder="e.g., Platform Team, Data Science"
             />
           </div>
 
