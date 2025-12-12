@@ -10,15 +10,12 @@ settings = get_settings()
 
 def configure_logging() -> None:
     """Configure structured logging."""
-    
-    # Configure standard logging
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,
         level=getattr(logging, settings.LOG_LEVEL.upper()),
     )
     
-    # Structlog processors
     processors = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_logger_name,
@@ -36,7 +33,6 @@ def configure_logging() -> None:
     else:
         processors.append(structlog.dev.ConsoleRenderer())
     
-    # Configure structlog
     structlog.configure(
         processors=processors,
         wrapper_class=structlog.stdlib.BoundLogger,

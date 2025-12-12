@@ -1,4 +1,4 @@
-.login-page {
+@mixin login-page-styles {
   height: 100vh;
   background: #121022;
   display: flex;
@@ -6,6 +6,10 @@
   align-items: center;
   padding: 16px;
   font-family: "Space Grotesk", sans-serif;
+}
+
+.login-page {
+  @include login-page-styles;
 }
 
 .login-card {

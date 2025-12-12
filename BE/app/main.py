@@ -45,23 +45,18 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
-    # Startup
     logger.info("starting_application", environment=settings.ENVIRONMENT)
     
-    # Initialize logging
     configure_logging()
-    
-    # Initialize Sentry
     init_sentry()
     
-    # Initialize Redis - DISABLED
+    # Redis - DISABLED
     # try:
     #     await init_redis()
     #     logger.info("redis_initialized")
     # except Exception as e:
     #     logger.error("redis_initialization_failed", error=str(e))
     
-    # Initialize database (in production, use Alembic migrations)
     try:
         await init_db()
         logger.info("database_initialized")
@@ -70,16 +65,14 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    # Shutdown
     logger.info("shutting_down_application")
     
-    # await close_redis()  # DISABLED - Redis not in use
+    # await close_redis()  # Redis not in use
     await close_db()
     
     logger.info("application_shutdown_complete")
 
 
-# Create FastAPI app
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
@@ -285,7 +278,6 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Setup Prometheus metrics
 if settings.ENVIRONMENT != "testing":
     instrumentator = setup_metrics(app)
 
@@ -350,7 +342,6 @@ if settings.DEBUG:
     from sqlalchemy import create_engine, text
     from sqlalchemy.orm import sessionmaker
     
-    # Create synchronous engine for test endpoints using settings
     test_engine = create_engine(settings.database_url_sync)
     TestSession = sessionmaker(bind=test_engine)
     
@@ -378,9 +369,7 @@ if settings.DEBUG:
     def delete_test_table():
         """Delete test table and all entries (DEBUG only)."""
         with TestSession() as session:
-            # Delete all entries
             session.execute(text("DELETE FROM test_table;"))
-            # Drop the table
             session.execute(text("DROP TABLE IF EXISTS test_table;"))
             session.commit()
         return {"message": "test_table deleted along with all entries."}

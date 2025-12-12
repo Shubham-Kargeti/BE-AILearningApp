@@ -1,7 +1,7 @@
-@import "../LoginContainer/LoginContainer.scss";
+@use "../LoginContainer/LoginContainer.scss" as login;
 
 .signup-page {
-  @extend .login-page;
+  @include login.login-page-styles;
 }
 
 .signup-card {

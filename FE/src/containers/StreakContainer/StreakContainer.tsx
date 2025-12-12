@@ -53,7 +53,6 @@ const StreakContainer: React.FC = () => {
 
       <Box className="streak-grid">
         <Box className="left-section">
-          {/* Current Streak */}
           <Box className="card streak-card">
             <Box className="row">
               <Typography className="card-title">Current Streak</Typography>
@@ -67,7 +66,6 @@ const StreakContainer: React.FC = () => {
             </Typography>
           </Box>
 
-          {/* Streak Rewards */}
           <Box className="card rewards-card">
             <Typography className="section-title">Streak Rewards</Typography>
             <Typography className="section-sub">
@@ -93,7 +91,6 @@ const StreakContainer: React.FC = () => {
             </Box>
           </Box>
 
-          {/* FAQs */}
           <details className="faq">
             <summary>
               <p>How It Works</p>
@@ -128,7 +125,6 @@ const StreakContainer: React.FC = () => {
             </Typography>
           </Box>
 
-          {/* Milestones */}
           <Box className="card">
             <Typography className="section-title">Streak Milestones</Typography>
             <Typography className="section-sub">

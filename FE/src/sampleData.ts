@@ -35,7 +35,6 @@ export const mcqQuestions = {
   ],
 };
 
-// This will come from API later
 export const apiRecommended = {
   topic: "Python",
   recommended_courses: [

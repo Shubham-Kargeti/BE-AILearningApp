@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Box,
   Typography,
@@ -9,7 +8,6 @@ import {
   Button,
 } from "@mui/material";
 import "./FeaturedSection.scss";
-import Image1 from "../../../assets/games/home-1.jpg";
 import Image2 from "../../../assets/games/home-2.avif";
 import Image3 from "../../../assets/games/home-3.avif";
 import Image4 from "../../../assets/games/home-4.avif";
@@ -17,19 +15,19 @@ import Image4 from "../../../assets/games/home-4.avif";
 const featuredGames = [
   {
     title: "Python Adventures",
-    image: Image1,
-  },
-  {
-    title: "JavaScript Legends",
     image: Image2,
   },
   {
-    title: "GenAI Quest",
+    title: "JavaScript Legends",
     image: Image3,
   },
   {
-    title: "Java Warriors",
+    title: "GenAI Quest",
     image: Image4,
+  },
+  {
+    title: "Java Warriors",
+    image: Image2,
   },
 ];
 
@@ -42,7 +40,7 @@ const FeaturedSection = () => {
 
       <Grid container spacing={3} className="featured-grid">
         {featuredGames.map((game) => (
-          <Grid item xs={12} sm={6} md={4} lg={3} key={game.title}>
+          <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={game.title}>
             <Card className="game-card">
               <div className="image-wrapper">
                 <CardMedia

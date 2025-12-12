@@ -1,52 +1,7 @@
-// import React from "react";
-// import { Box, Button, Typography } from "@mui/material";
-// import { useNavigate } from "react-router-dom";
-// import "./Navbar.scss";
-// import { isAdmin } from "../../../utils/adminUsers";
-
-// const Navbar = () => {
-//   const navigate = useNavigate();
-//   const token = localStorage.getItem("authToken");
-
-//   const scrollToSection = (id: string) => {
-//     const el = document.getElementById(id);
-//     if (!el) return;
-//     el.scrollIntoView({ behavior: "smooth", block: "start" });
-//   };
-
-//   return (
-//     <Box className="navbar">
-//       <Box className="navbar-left">
-//         <Box className="navbar-logo" />
-//         <Typography variant="h6" className="navbar-title">
-//           Learning Platform
-//         </Typography>
-//       </Box>
-
-//       <Box className="navbar-links">
-//         <span onClick={() => scrollToSection("hero")}>Home</span>
-//         {/* <span onClick={() => scrollToSection("featured")}>Courses</span> */}
-//         <span onClick={() => scrollToSection("community")}>Community</span>
-//         <span onClick={() => scrollToSection("features")}>Features</span>
-//       </Box>
-
-//       <Button
-//         variant="contained"
-//         className="navbar-btn"
-//         onClick={() => navigate(token ? "/app/profile-setup" : "/login")}
-//       >
-//         {token ? "Explore App" : "Login"}
-//       </Button>
-//     </Box>
-//   );
-// };
-
-// export default Navbar;
-import React from "react";
 import { Box, Button, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import "./Navbar.scss";
-import { isAdmin } from "../../../utils/adminUsers"; // <-- add this!
+import { isAdmin } from "../../../utils/adminUsers";
 
 const Navbar = () => {
   const navigate = useNavigate();

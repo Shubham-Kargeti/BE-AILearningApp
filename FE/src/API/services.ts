@@ -72,6 +72,12 @@ export interface Assessment {
   is_published: boolean;
   is_expired: boolean;
   expires_at?: string;
+  candidate_info?: {
+    name?: string;
+    email?: string;
+    current_role?: string;
+    experience?: string;
+  };
   created_at: string;
   updated_at: string;
 }
@@ -219,26 +225,72 @@ export const quizService = {
     return response.data;
   },
 
-  startQuiz: async (questionSetId: string): Promise<QuizStartResponse> => {
-    const response = await apiClient.post<QuizStartResponse>("/questionset-tests/start", {
-      question_set_id: questionSetId,
-    });
-    return response.data;
+  startQuiz: async (questionSetId: string, candidateInfo?: { candidate_name?: string; candidate_email?: string }): Promise<QuizStartResponse> => {
+    const token = localStorage.getItem("authToken");
+    if (token) {
+      const response = await apiClient.post<QuizStartResponse>("/questionset-tests/start", {
+        question_set_id: questionSetId,
+      });
+      return response.data;
+    } else {
+      const payload: any = { question_set_id: questionSetId };
+      if (candidateInfo?.candidate_name) payload.candidate_name = candidateInfo.candidate_name;
+      if (candidateInfo?.candidate_email) payload.candidate_email = candidateInfo.candidate_email;
+      const response = await apiClient.post<QuizStartResponse>("/questionset-tests/start/anonymous", payload);
+      return response.data;
+    }
   },
 
   submitQuiz: async (
     sessionId: string,
-    answers: { question_id: number; selected_answer: string }[]
+    answers: { question_id: number; selected_answer: string }[],
+    forceAnonymous: boolean = false
   ): Promise<QuizResultResponse> => {
-    const response = await apiClient.post<QuizResultResponse>("/questionset-tests/submit", {
-      session_id: sessionId,
-      answers,
-    });
+    const token = localStorage.getItem("authToken");
+    const payload = { session_id: sessionId, answers };
+    const response = (!token || forceAnonymous)
+      ? await apiClient.post<QuizResultResponse>("/questionset-tests/submit/anonymous", payload)
+      : await apiClient.post<QuizResultResponse>("/questionset-tests/submit", payload);
     return response.data;
   },
 
   getSubSkills: async (topic: string): Promise<string[]> => {
     const response = await apiClient.get<string[]>(`/subskills/?topic=${topic}`);
+    return response.data;
+  },
+
+  getTestResults: async (sessionId: string): Promise<{
+    session_id: string;
+    score_percentage: number;
+    correct_answers: number;
+    total_questions: number;
+    completed_at: string;
+    score_released_at: string;
+    detailed_results: Array<{
+      question_id: number;
+      question_text: string;
+      your_answer: string;
+      correct_answer: string;
+      is_correct: boolean;
+      options: Record<string, string>;
+    }>;
+  }> => {
+    const response = await apiClient.get(`/test-sessions/${sessionId}/results`);
+    return response.data;
+  },
+
+  listTestSessions: async (skip = 0, limit = 50): Promise<Array<{
+    session_id: string;
+    question_set_id: string;
+    user_id: number | null;
+    status: string;
+    score_percentage: number | null;
+    correct_answers: number | null;
+    total_questions: number;
+    started_at: string;
+    completed_at: string | null;
+  }>> => {
+    const response = await apiClient.get(`/test-sessions?skip=${skip}&limit=${limit}`);
     return response.data;
   },
 };

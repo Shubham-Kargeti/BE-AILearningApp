@@ -15,7 +15,7 @@ from app.models.schemas import UploadedDocumentResponse
 router = APIRouter()
 
 # Allowed extensions
-ALLOWED_EXTENSIONS = {"pdf", "docx"}
+ALLOWED_EXTENSIONS = {"pdf", "docx", "ppt", "pptx"}
 ALLOWED_DOC_TYPES = {"jd", "cv", "portfolio", "requirements", "specifications"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
@@ -31,22 +31,19 @@ def allowed_file(filename: str) -> bool:
 async def upload_jd(file: UploadFile = File(...)):
     """Legacy JD upload endpoint - kept for backward compatibility."""
     if not file.filename or not allowed_file(file.filename):
-        raise HTTPException(status_code=400, detail="Only .docx and .pdf files are allowed")
+        raise HTTPException(status_code=400, detail="Only .pdf, .docx, .ppt and .pptx files are allowed")
     file_bytes = await file.read()
-    # Extract text
     try:
         jd_text = extract_text(file_bytes, file.filename)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     jd_id = str(uuid.uuid4())
     
-    # Generate MCQs
     try:
         mcq_questions = generate_mcqs_for_topic(jd_text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"MCQ generation failed: {str(e)}")
     
-    # Store JD with questions
     memory_store[jd_id] = {
         "text": jd_text, 
         "filename": file.filename,
@@ -89,31 +86,26 @@ async def upload_document(
     - file_id: Unique file identifier
     - extraction_preview: Preview of extracted text
     """
-    # Validate doc_type
     if doc_type not in ALLOWED_DOC_TYPES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid doc_type. Must be one of: {', '.join(ALLOWED_DOC_TYPES)}"
         )
     
-    # Validate file extension
     if not file.filename or not allowed_file(file.filename):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Only .pdf, .docx, and .txt files are allowed"
         )
     
-    # Read file bytes
     file_bytes = await file.read()
     
-    # Validate file size
     if len(file_bytes) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=f"File size exceeds maximum allowed size of {MAX_FILE_SIZE // (1024*1024)} MB"
         )
     
-    # Extract text if requested
     extracted_text = None
     extraction_preview = None
     try:
@@ -121,19 +113,15 @@ async def upload_document(
             extracted_text = extract_text(file_bytes, file.filename)
             extraction_preview = extracted_text[:500] if extracted_text else None
     except Exception as e:
-        # Log but don't fail - extraction is optional
         print(f"Text extraction failed: {str(e)}")
     
-    # Upload to S3
     s3_service = get_s3_service()
     try:
-        # Generate unique S3 key
         user_id = current_user.id if current_user else candidate_id or "anonymous"
         timestamp = datetime.utcnow().isoformat()
         file_id = f"file_{uuid.uuid4().hex[:12]}"
         s3_key = f"documents/{doc_type}/{user_id}/{timestamp}/{file_id}/{file.filename}"
         
-        # Upload file
         await s3_service.upload_file(
             file_obj=file_bytes,
             object_name=s3_key,
@@ -151,7 +139,6 @@ async def upload_document(
             detail=f"Failed to upload file to storage: {str(e)}"
         )
     
-    # Get or create candidate if candidate_id provided
     candidate_db = None
     if candidate_id:
         cand_stmt = select(Candidate).where(Candidate.candidate_id == candidate_id)
@@ -164,7 +151,6 @@ async def upload_document(
                 detail=f"Candidate {candidate_id} not found"
             )
     
-    # Store document metadata in database
     document = UploadedDocument(
         file_id=file_id,
         candidate_id=candidate_db.id if candidate_db else None,
@@ -185,7 +171,6 @@ async def upload_document(
     await db.commit()
     await db.refresh(document)
     
-    # If this is a JD upload, also create/update JobDescription record
     if doc_type == "jd":
         jd = JobDescription(
             title=f"JD from {file.filename}",
@@ -252,7 +237,6 @@ async def download_document(
     db: AsyncSession = Depends(get_db),
 ):
     """Download document from storage."""
-    # Get document metadata
     stmt = select(UploadedDocument).where(UploadedDocument.file_id == file_id)
     result = await db.execute(stmt)
     document = result.scalars().first()
@@ -263,7 +247,6 @@ async def download_document(
             detail="Document not found"
         )
     
-    # Download from S3
     s3_service = get_s3_service()
     try:
         file_bytes = await s3_service.download_file(document.s3_key)

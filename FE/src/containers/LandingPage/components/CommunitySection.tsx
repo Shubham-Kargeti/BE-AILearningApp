@@ -1,4 +1,3 @@
-import React from "react";
 import { Box, Typography, Grid, Avatar } from "@mui/material";
 import StarIcon from "@mui/icons-material/Star";
 import StarHalfIcon from "@mui/icons-material/StarHalf";
@@ -34,7 +33,7 @@ const CommunitySection = () => {
 
       <Grid container spacing={4} className="testimonial-grid">
         {testimonials.map((t) => (
-          <Grid item xs={12} sm={6} md={4} key={t.name}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={t.name}>
             <Box className="testimonial-card">
               <Box className="testimonial-header">
                 <Avatar src={t.image} className="testimonial-avatar" />

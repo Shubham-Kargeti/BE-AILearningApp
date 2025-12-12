@@ -4,7 +4,6 @@ from config import get_settings
 
 settings = get_settings()
 
-# Create Celery app
 celery_app = Celery(
     "ai_learning_app",
     broker=settings.CELERY_BROKER_URL,

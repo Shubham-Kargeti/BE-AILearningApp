@@ -161,10 +161,7 @@ def extract_skills_from_text_advanced(text: str, filename: str = "") -> Dict[str
         "hindi": ("intermediate", "language", 0.90),
     }
     
-    # Extract technical skills
     for skill, (proficiency, category, confidence) in technical_skills.items():
-        # Create regex patterns to avoid partial matches
-        # E.g., "Docker" should not match in "Dockyard"
         patterns = [
             rf'\b{re.escape(skill)}\b',  # Whole word match
             rf'\b{re.escape(skill)}\s+',  # Word followed by space
@@ -174,12 +171,10 @@ def extract_skills_from_text_advanced(text: str, filename: str = "") -> Dict[str
                 extracted_skills[skill.title()] = (proficiency, category, confidence)
                 break
     
-    # Extract soft skills
     for skill, (proficiency, category, confidence) in soft_skills.items():
         if re.search(rf'\b{re.escape(skill)}\b', text_lower, re.IGNORECASE):
             extracted_skills[skill.title()] = (proficiency, category, confidence)
     
-    # Extract language skills
     for skill, (proficiency, category, confidence) in language_skills.items():
         if re.search(rf'\b{re.escape(skill)}\b', text_lower, re.IGNORECASE):
             extracted_skills[skill.title()] = (proficiency, category, confidence)
@@ -264,7 +259,6 @@ async def extract_skills_from_documents(
             detail="At least one file must be uploaded"
         )
     
-    # Validate doc_type
     if doc_type not in ALLOWED_DOC_TYPES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -278,17 +272,14 @@ async def extract_skills_from_documents(
     proficiency_distribution = {}
     
     for file in files:
-        # Validate file
         if not file.filename or not allowed_file(file.filename):
-            continue  # Skip invalid files, don't fail entire operation
+            continue
         
         file_bytes = await file.read()
         
-        # Validate file size
         if len(file_bytes) > MAX_FILE_SIZE:
-            continue  # Skip oversized files
+            continue
         
-        # Extract text
         extracted_text = None
         try:
             extracted_text = extract_text(file_bytes, file.filename)
@@ -296,10 +287,8 @@ async def extract_skills_from_documents(
             print(f"Text extraction failed for {file.filename}: {str(e)}")
             continue
         
-        # Extract skills from text
         extracted_skills_dict = extract_skills_from_text_advanced(extracted_text, file.filename)
         
-        # Convert to ExtractedSkill objects
         document_skills = []
         for skill_name, (proficiency, category, confidence) in extracted_skills_dict.items():
             skill_obj = ExtractedSkill(
@@ -310,12 +299,9 @@ async def extract_skills_from_documents(
             )
             document_skills.append(skill_obj)
             
-            # Aggregate into all_extracted_skills
             if skill_name in all_extracted_skills:
-                # Increase frequency if skill already found
                 existing = all_extracted_skills[skill_name]
                 existing.frequency += 1
-                # Keep highest confidence
                 existing.confidence = max(existing.confidence, confidence)
             else:
                 all_extracted_skills[skill_name] = ExtractedSkill(
@@ -326,11 +312,9 @@ async def extract_skills_from_documents(
                     confidence=confidence,
                 )
             
-            # Track statistics
             skills_by_category[category] = skills_by_category.get(category, 0) + 1
             proficiency_distribution[proficiency] = proficiency_distribution.get(proficiency, 0) + 1
         
-        # Upload to S3
         try:
             file_id = f"file_{uuid.uuid4().hex[:12]}"
             timestamp = datetime.utcnow().isoformat()
@@ -348,7 +332,6 @@ async def extract_skills_from_documents(
                 }
             )
             
-            # Store in database
             document = UploadedDocument(
                 file_id=file_id,
                 user_id=current_user.id,
@@ -369,7 +352,6 @@ async def extract_skills_from_documents(
             print(f"Failed to upload {file.filename}: {str(e)}")
             continue
         
-        # Add to document results
         document_results.append(
             DocumentSkillExtractionResponse(
                 file_id=file_id,
@@ -381,7 +363,6 @@ async def extract_skills_from_documents(
             )
         )
     
-    # Commit all database changes
     try:
         await db.commit()
     except Exception as e:
