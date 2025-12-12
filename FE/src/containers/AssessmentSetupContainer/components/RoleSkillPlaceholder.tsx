@@ -68,8 +68,8 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
       .map(skill => ({
         name: skill,
         duration: skillDurations[skill.toLowerCase()] || 0,
-        isMatched: jdSkills.some(jd => 
-          jd.toLowerCase() === skill.toLowerCase() || 
+        isMatched: jdSkills.some(jd =>
+          jd.toLowerCase() === skill.toLowerCase() ||
           skill.toLowerCase().includes(jd.toLowerCase()) ||
           jd.toLowerCase().includes(skill.toLowerCase())
         )
@@ -251,6 +251,19 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
           </div>
         )}
 
+        {/* Strong Skills label — show only when we actually have top skills to display */}
+        {topSkills.length > 0 && (
+          <div
+            className="collapse-toggle strong-skills-label"
+            style={{ cursor: "default", display: "flex", alignItems: "center", gap: 8 }}
+          >
+            <FiStar size={16} />
+            <span style={{ fontWeight: 600 }}>Strong Skills</span>
+          </div>
+        )}
+
+
+
         <div className="skills-list">
           {topSkills.map((skillData, index) => {
             const isExtracted = extractedSkills?.includes(skillData.name);
@@ -288,9 +301,9 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
               onClick={() => setShowAllSkills(!showAllSkills)}
             >
               {showAllSkills ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
-              {showAllSkills ? "Show less" : `Show ${remainingSkills.length} more skills`}
+              {showAllSkills ? "Show less (Other Skills)" : `Show ${remainingSkills.length} more (Other Skills)`}
             </button>
-            
+
             {showAllSkills && (
               <div className="skills-list collapsed-skills">
                 {remainingSkills.map((skillData, index) => {
