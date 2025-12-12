@@ -13,7 +13,7 @@ const SignUpContainer = () => {
 
   const handleSubmit = () => {
     if (!values.email || !values.password) return;
-    navigate("/profile-setup");
+    navigate("/app/profile-setup");
   };
 
   return (

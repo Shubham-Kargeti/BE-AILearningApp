@@ -38,7 +38,6 @@ async def send_email(
     from_email = from_email or settings.SMTP_FROM_EMAIL
     from_name = from_name or settings.SMTP_FROM_NAME
     
-    # Create message
     message = MIMEMultipart('alternative')
     message['Subject'] = subject
     message['From'] = f"{from_name} <{from_email}>"

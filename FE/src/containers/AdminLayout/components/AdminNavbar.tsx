@@ -9,23 +9,19 @@ const AdminNavbar = () => {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const navigate = useNavigate();
 
-  // Open dropdown on clicking user icon
   const handleMenuOpen = (event: React.MouseEvent<HTMLDivElement>) => {
     setMenuAnchor(event.currentTarget);
   };
 
-  // Close dropdown
   const handleMenuClose = () => {
     setMenuAnchor(null);
   };
 
-  // Show logout popup
   const openLogoutDialog = () => {
     setShowLogoutDialog(true);
     handleMenuClose();
   };
 
-  // Logout action
   const handleLogout = () => {
     localStorage.clear();
     navigate("/");

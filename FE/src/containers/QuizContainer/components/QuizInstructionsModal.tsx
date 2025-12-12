@@ -1,7 +1,5 @@
 import { Modal, Box, Typography, Button } from "@mui/material";
 import "../QuizContainer.scss";
-import { apiCall } from "../../../API";
-import { START_QUIZ } from "../../../API/constants";
 
 interface QuizInstructionsModalProps {
   open: boolean;

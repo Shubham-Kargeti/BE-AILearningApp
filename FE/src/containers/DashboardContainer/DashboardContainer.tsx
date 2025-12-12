@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Box, Typography, Button, Snackbar, Alert, Grid } from "@mui/material";
 import "./DashboardContainer.scss";
-import { apiCall } from "../../API";
-import { HTTP_GET, RECOMMENDED_COURSES } from "../../API/constants";
+import { coursesService } from "../../API/services";
+import type { RecommendedCourse as ServiceRecommendedCourse } from "../../API/services";
 import { getBadge, isValidUrl } from "./helper";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import Tooltip from "@mui/material/Tooltip";
@@ -26,6 +26,11 @@ type RecommendedCourse = {
   category: string;
   description: string;
 };
+
+const getRandomTechImage = () => {
+  return techImages[Math.floor(Math.random() * techImages.length)];
+};
+
 const DashboardContainer = () => {
   const [recommendedCoursesData, setRecommendedCoursesData] = useState<
     RecommendedCourse[]
@@ -35,29 +40,23 @@ const DashboardContainer = () => {
 
   const navigate = useNavigate();
   const score = localStorage.getItem("latestScore");
+  const scoreNum = score ? Number(score) : 0;
   console.log("Monesh Latest score on dashboard:", score);
   const getRecommendedCourses = async () => {
     try {
-      const response = await apiCall(
-        `${RECOMMENDED_COURSES}&marks=7`,
-        HTTP_GET
-      );
+      const response = await coursesService.getRecommendedCourses("AgenticAI", 7);
 
       const coursesWithImages = response.recommended_courses.map(
-        (course: RecommendedCourse) => ({
+        (course: ServiceRecommendedCourse) => ({
           ...course,
-          image: getRandomTechImage(),
+          image: course.image || getRandomTechImage(),
         })
       );
 
-      setRecommendedCoursesData(coursesWithImages);
+      setRecommendedCoursesData(coursesWithImages as RecommendedCourse[]);
     } catch (error) {
       console.error("Error fetching recommended courses:", error);
     }
-  };
-
-  const getRandomTechImage = () => {
-    return techImages[Math.floor(Math.random() * techImages.length)];
   };
 
   useEffect(() => {
@@ -95,13 +94,13 @@ const DashboardContainer = () => {
               <Box className="quiz-card">
                 <Box className="quiz-card-header">
                   <Typography className="quiz-title">Agentic AI</Typography>
-                  {score > 50 && (
+                  {scoreNum > 50 && (
                     <Box
                       className={`quiz-medal ${getBadge(
-                        Number(score)
+                        scoreNum
                       ).toLowerCase()}`}
                     >
-                      🏅 <span>{getBadge(Number(score))}</span>
+                      🏅 <span>{getBadge(scoreNum)}</span>
                     </Box>
                   )}
                 </Box>

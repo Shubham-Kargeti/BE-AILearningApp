@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import {
@@ -12,8 +12,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import "./ProfileSetupContainer.scss";
 import { convertProficiency } from "./helper";
-import { apiCall } from "../../API";
-import { GET_SUB_TOPICS } from "../../API/constants";
+import { quizService } from "../../API/services";
 import Loader from "../../components/Loader";
 
 const skillOptions = ["Agentic AI"];
@@ -64,7 +63,7 @@ const ProfileSetupContainer = () => {
   const getSubTopicsBasedOnSkills = async (skills: string[]) => {
     try {
       setLoading(true);
-      const res = await apiCall(`${GET_SUB_TOPICS}${skills[0]}`, "GET");
+      const res = await quizService.getSubSkills(skills[0]);
       setSubSkillsOptions(res || []);
       setLoading(false);
     } catch (error) {
@@ -108,7 +107,7 @@ const ProfileSetupContainer = () => {
             id="skills"
             options={skillOptions}
             value={formik.values.skills}
-            onChange={(event, value) => handleChange("skills", value)}
+            onChange={(_event, value) => handleChange("skills", value)}
             renderValue={(value: readonly string[]) =>
               value.map((option: string, index: number) => (
                 <Chip
@@ -140,7 +139,7 @@ const ProfileSetupContainer = () => {
             id="subSkills"
             options={subSkillsOptions}
             value={formik.values.subSkills}
-            onChange={(event, value) => handleChange("subSkills", value)}
+            onChange={(_event, value) => handleChange("subSkills", value)}
             renderValue={(value: readonly string[]) =>
               value.map((option: string, index: number) => (
                 <Chip
@@ -173,7 +172,7 @@ const ProfileSetupContainer = () => {
             id="expertise"
             options={profeciencyOptions}
             value={formik.values.expertise}
-            onChange={(event, value) =>
+            onChange={(_event, value) =>
               formik.setFieldValue("expertise", value)
             }
             renderInput={(params) => (

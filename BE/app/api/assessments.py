@@ -271,6 +271,7 @@ async def create_assessment(
         duration_minutes=request.duration_minutes,
         is_questionnaire_enabled=request.is_questionnaire_enabled,
         is_interview_enabled=request.is_interview_enabled,
+        is_published=True,
         expires_at=request.expires_at,
         created_by=current_user.id,
     )

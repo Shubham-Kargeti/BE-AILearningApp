@@ -91,14 +91,12 @@ async def simple_login(
     Returns:
         Access and refresh tokens
     """
-    # Get or create user
     result = await db.execute(
         select(User).where(User.email == request.email)
     )
     user = result.scalar_one_or_none()
     
     if user is None:
-        # Create new user if doesn't exist
         user = User(
             email=request.email,
             full_name=request.email.split("@")[0].title(),
@@ -115,10 +113,8 @@ async def simple_login(
             detail="User account is inactive"
         )
     
-    # Update login streak
     streak_info = await update_login_streak(user, db)
     
-    # Generate token pair
     tokens = create_token_pair(
         user_id=user.id,
         email=user.email
@@ -127,7 +123,6 @@ async def simple_login(
     access_token = tokens["access_token"]
     refresh_token = tokens["refresh_token"]
     
-    # Save refresh token to database
     refresh_token_record = RefreshToken(
         user_id=user.id,
         token=refresh_token,
@@ -138,7 +133,6 @@ async def simple_login(
     
     auth_attempts_total.labels(status="success").inc()
     
-    # Return tokens with streak information
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -160,12 +154,7 @@ async def azure_sso_login(
     Args:
         redirect_uri: Optional frontend URL to redirect to after successful authentication
     """
-    # Generate a state parameter for CSRF protection
     state = secrets.token_urlsafe(32)
-    
-    # Store the frontend redirect_uri in the state if provided
-    # In production, you'd store this in Redis or a session store
-    # For now, we'll just pass the state to Azure
     
     redirect_url = await oauth.azure.authorize_redirect(
         redirect_uri=settings.AZURE_REDIRECT_URI,
@@ -191,16 +180,12 @@ async def azure_sso_callback(
     Returns JWT tokens for our application.
     """
     try:
-        # Exchange authorization code for access token
         token = await oauth.azure.authorize_access_token()
         
-        # Get user info from Azure AD
         user_info = token.get('userinfo')
         if not user_info:
-            # If userinfo not in token, fetch it
             user_info = await oauth.azure.userinfo(token=token)
         
-        # Extract email and name from user info
         email = user_info.get('email') or user_info.get('preferred_username')
         full_name = user_info.get('name', email.split('@')[0].title())
         azure_user_id = user_info.get('sub') or user_info.get('oid')
@@ -211,9 +196,8 @@ async def azure_sso_callback(
                 detail="Email not provided by Azure AD"
             )
         
-        # Check if email is from allowed domain (Nagarro)
         email_domain = email.split('@')[1].lower()
-        allowed_domains = ['nagarro.com']  # Add more domains if needed
+        allowed_domains = ['nagarro.com']
         
         if email_domain not in allowed_domains:
             raise HTTPException(
@@ -221,14 +205,12 @@ async def azure_sso_callback(
                 detail=f"Only {', '.join(allowed_domains)} email addresses are allowed"
             )
         
-        # Find or create user in database
         result = await db.execute(
             select(User).where(User.email == email)
         )
         user = result.scalar_one_or_none()
         
         if user is None:
-            # Create new user
             user = User(
                 email=email,
                 full_name=full_name,
@@ -242,7 +224,6 @@ async def azure_sso_callback(
             await db.commit()
             await db.refresh(user)
         else:
-            # Update user info if changed
             if user.full_name != full_name:
                 user.full_name = full_name
             user.is_verified = True  # SSO users are auto-verified
@@ -254,10 +235,8 @@ async def azure_sso_callback(
                 detail="User account is inactive"
             )
         
-        # Update login streak
         streak_info = await update_login_streak(user, db)
         
-        # Generate JWT token pair for our application
         tokens = create_token_pair(
             user_id=user.id,
             email=user.email
@@ -266,7 +245,6 @@ async def azure_sso_callback(
         access_token = tokens["access_token"]
         refresh_token = tokens["refresh_token"]
         
-        # Save refresh token to database
         refresh_token_record = RefreshToken(
             user_id=user.id,
             token=refresh_token,
@@ -276,8 +254,6 @@ async def azure_sso_callback(
         await db.commit()
         
         auth_attempts_total.labels(status="sso_success").inc()
-        
-        # In production, redirect to frontend with tokens
         # For now, return tokens as JSON with streak information
         return {
             "access_token": access_token,
@@ -338,7 +314,6 @@ async def request_otp(
     # )
     # WARNING: Without Redis, OTP verification won't work properly
     
-    # Send OTP email (async via Celery)
     send_otp_email.delay(request.email, otp)
     
     otp_requests_total.labels(status="success").inc()
@@ -418,17 +393,14 @@ async def verify_otp(
         db.add(user)
         await db.flush()
     else:
-        # Update last login
         user.last_login = datetime.utcnow()
         user.is_verified = True
     
     await db.commit()
     await db.refresh(user)
     
-    # Create JWT tokens
     tokens = create_token_pair(user.id, user.email)
     
-    # Store refresh token in database
     refresh_token_record = RefreshToken(
         token=tokens["refresh_token"],
         user_id=user.id,
@@ -452,7 +424,6 @@ async def refresh_access_token(
     
     Returns new access and refresh tokens.
     """
-    # Verify refresh token
     user = await verify_refresh_token(request.refresh_token, db)
     
     if not user:
@@ -461,7 +432,6 @@ async def refresh_access_token(
             detail="Invalid or expired refresh token"
         )
     
-    # Revoke old refresh token
     result = await db.execute(
         select(RefreshToken).where(RefreshToken.token == request.refresh_token)
     )
@@ -470,10 +440,8 @@ async def refresh_access_token(
     if old_token:
         old_token.is_revoked = True
     
-    # Create new tokens
     tokens = create_token_pair(user.id, user.email)
     
-    # Store new refresh token
     new_refresh_token = RefreshToken(
         token=tokens["refresh_token"],
         user_id=user.id,
@@ -494,7 +462,6 @@ async def logout(
     """
     Logout user by revoking refresh token.
     """
-    # Revoke refresh token
     result = await db.execute(
         select(RefreshToken).where(RefreshToken.token == request.refresh_token)
     )

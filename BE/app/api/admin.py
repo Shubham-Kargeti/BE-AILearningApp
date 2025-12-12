@@ -30,31 +30,23 @@ async def get_system_stats(
     db: AsyncSession = Depends(get_db)
 ) -> StatsResponse:
     """Get system statistics (admin only)."""
-    # TODO: Add admin role check
-    
-    # Count users
     user_count = await db.execute(select(func.count(User.id)))
     total_users = user_count.scalar() or 0
     
-    # Count job descriptions
     jd_count = await db.execute(select(func.count(JobDescription.id)))
     total_jds = jd_count.scalar() or 0
     
-    # Count questions
     q_count = await db.execute(select(func.count(Question.id)))
     total_questions = q_count.scalar() or 0
     
-    # Count test sessions
     ts_count = await db.execute(select(func.count(TestSession.id)))
     total_sessions = ts_count.scalar() or 0
     
-    # Count completed tests
     completed_count = await db.execute(
         select(func.count(TestSession.id)).where(TestSession.is_completed == True)
     )
     completed_tests = completed_count.scalar() or 0
     
-    # Calculate average score
     avg_score = await db.execute(
         select(func.avg(TestSession.score_percentage)).where(
             and_(

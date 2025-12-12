@@ -17,7 +17,6 @@ const LoginContainer = () => {
     setValues((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  // If already logged in → go to dashboard
   useEffect(() => {
     const token = localStorage.getItem("authToken");
     if (token) {
@@ -25,7 +24,6 @@ const LoginContainer = () => {
     }
   }, []);
 
-  // Clear previous session on load
   useEffect(() => {
     localStorage.clear();
   }, []);
@@ -54,24 +52,17 @@ const LoginContainer = () => {
   const handleSubmit = async () => {
     if (!values.email) return;
 
-    // 1️⃣ Check if allowed user (existing logic)
     if (!allowedUsers.includes(values.email)) {
       alert("Unauthorized user. Please use a valid email.");
       return;
     }
 
-    // 2️⃣ Generate auth token
     await generateAuthToken();
-
-    // 3️⃣ Save email for role checking later (VERY IMPORTANT)
     localStorage.setItem("loggedInUser", values.email);
 
-    // 4️⃣ Role-based redirection
     if (isAdmin(values.email)) {
-      // ADMIN → Admin Dashboard
       navigate("/admin/dashboard");
     } else {
-      // NORMAL USER → Existing profile setup flow
       navigate("/app/profile-setup");
     }
   };

@@ -1,6 +1,11 @@
 import { Navigate } from "react-router-dom";
+import React from "react";
 
-const ProtectedAuthRoute = ({ children }) => {
+interface ProtectedAuthRouteProps {
+  children: React.ReactNode;
+}
+
+const ProtectedAuthRoute = ({ children }: ProtectedAuthRouteProps) => {
   const token = localStorage.getItem("authToken");
 
   if (token) {

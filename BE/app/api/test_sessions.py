@@ -86,14 +86,12 @@ async def start_test_session(
     Backend creates session, initializes timer in Redis, returns session data.
     Frontend is responsible for displaying timer and navigation.
     """
-    # Validate difficulty level
     if request.difficulty_level not in settings.DIFFICULTY_LEVELS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid difficulty level. Must be one of: {', '.join(settings.DIFFICULTY_LEVELS)}"
         )
     
-    # Get or create topic-based job description
     topic_jd_id = f"topic_{request.topic}"
     result = await db.execute(
         select(JobDescription).where(JobDescription.jd_id == topic_jd_id)
@@ -106,7 +104,6 @@ async def start_test_session(
             detail=f"No content available for topic '{request.topic}'. Contact administrator."
         )
     
-    # Verify questions exist
     questions_count = await db.execute(
         select(func.count(Question.id)).where(Question.jd_id == topic_jd_id)
     )
@@ -116,7 +113,6 @@ async def start_test_session(
             detail=f"Not enough questions available. Requested: {request.num_questions}"
         )
     
-    # Create test session
     started_at = datetime.utcnow()
     duration_seconds = settings.TEST_DURATION_MINUTES * 60
     expires_at = started_at + timedelta(seconds=duration_seconds)
@@ -135,11 +131,9 @@ async def start_test_session(
     await db.commit()
     await db.refresh(test_session)
     
-    # Initialize session state in Redis
     redis_service = RedisService(get_redis())
     session_key = f"session:{test_session.session_id}"
     
-    # Store session metadata
     await redis_service.cache_set(
         f"{session_key}:metadata",
         {
@@ -152,10 +146,8 @@ async def start_test_session(
         expiry=duration_seconds + 300
     )
     
-    # Set session expiry timer
     await redis_service.set_test_timer(test_session.session_id, duration_seconds)
     
-    # Metrics
     test_sessions_total.labels(status="started").inc()
     active_test_sessions.inc()
     
@@ -182,7 +174,6 @@ async def get_session_status(
     Returns time remaining, question progress, etc.
     Frontend uses this to display timer and determine if session expired.
     """
-    # Get session from database
     result = await db.execute(
         select(TestSession).where(
             and_(
@@ -199,15 +190,12 @@ async def get_session_status(
             detail="Session not found"
         )
     
-    # Get time remaining from Redis
     redis_service = RedisService(get_redis())
     time_remaining = await redis_service.get_test_remaining_time(session_id)
     
-    # Get current question index
     metadata = await redis_service.cache_get(f"session:{session_id}:metadata")
     current_index = metadata.get("current_question_index", 0) if metadata else 0
     
-    # Count answered questions
     answers_result = await db.execute(
         select(func.count(Answer.id)).where(Answer.session_id == session_id)
     )
@@ -238,7 +226,6 @@ async def get_question(
     Backend returns question data.
     Frontend handles display, timing, and navigation.
     """
-    # Verify session ownership
     result = await db.execute(
         select(TestSession).where(
             and_(
@@ -261,14 +248,12 @@ async def get_question(
             detail="Session already completed"
         )
     
-    # Validate question number
     if question_number < 1 or question_number > session.total_questions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid question number. Must be between 1 and {session.total_questions}"
         )
     
-    # Get questions for this session (ordered by ID)
     questions_result = await db.execute(
         select(Question)
         .where(Question.jd_id == session.jd_id)
@@ -283,10 +268,8 @@ async def get_question(
             detail="Question not found"
         )
     
-    # Get the specific question (convert to 0-indexed)
     question = questions[question_number - 1]
     
-    # Update current question index in Redis
     redis_service = RedisService(get_redis())
     metadata = await redis_service.cache_get(f"session:{session_id}:metadata") or {}
     metadata["current_question_index"] = question_number - 1
@@ -320,7 +303,6 @@ async def submit_answer(
     Does NOT return if answer is correct (to prevent cheating).
     Frontend moves to next question after successful submission.
     """
-    # Verify session
     result = await db.execute(
         select(TestSession).where(
             and_(
@@ -343,7 +325,6 @@ async def submit_answer(
             detail="Session already completed"
         )
     
-    # Check if already answered
     existing = await db.execute(
         select(Answer).where(
             and_(
@@ -358,7 +339,6 @@ async def submit_answer(
             detail="Question already answered"
         )
     
-    # Get question to validate answer
     question_result = await db.execute(
         select(Question).where(Question.id == answer.question_id)
     )
@@ -370,17 +350,14 @@ async def submit_answer(
             detail="Question not found"
         )
     
-    # Validate answer format
     if answer.selected_answer not in question.options:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid answer. Must be one of: {', '.join(question.options.keys())}"
         )
     
-    # Check correctness (don't return to frontend)
     is_correct = answer.selected_answer == question.correct_answer
     
-    # Save answer
     answer_record = Answer(
         session_id=session_id,
         question_id=answer.question_id,
@@ -391,7 +368,6 @@ async def submit_answer(
     db.add(answer_record)
     await db.commit()
     
-    # Return success WITHOUT revealing correctness
     return {
         "status": "success",
         "message": "Answer submitted successfully",
@@ -411,7 +387,6 @@ async def complete_test_session(
     Backend calculates score (hidden), schedules release via Celery.
     Returns when score will be available.
     """
-    # Get session
     result = await db.execute(
         select(TestSession).where(
             and_(
@@ -434,17 +409,14 @@ async def complete_test_session(
             detail="Session already completed"
         )
     
-    # Get all answers
     answers_result = await db.execute(
         select(Answer).where(Answer.session_id == session_id)
     )
     answers = answers_result.scalars().all()
     
-    # Calculate score (store but don't reveal)
     correct_count = sum(1 for a in answers if a.is_correct)
     score_percentage = (correct_count / session.total_questions * 100) if session.total_questions > 0 else 0
     
-    # Update session
     completed_at = datetime.utcnow()
     session.is_completed = True
     session.completed_at = completed_at
@@ -454,18 +426,15 @@ async def complete_test_session(
     
     await db.commit()
     
-    # Schedule score release (Celery task)
     score_release_time = completed_at + timedelta(hours=settings.SCORE_RELEASE_DELAY_HOURS)
     schedule_score_release.delay(
         session_id=session_id,
         delay_hours=settings.SCORE_RELEASE_DELAY_HOURS
     )
     
-    # Clean up Redis
     redis_service = RedisService(get_redis())
     await redis_service.delete_session(session_id)
     
-    # Metrics
     active_test_sessions.dec()
     test_sessions_total.labels(status="completed").inc()
     test_scores.observe(score_percentage)
@@ -491,7 +460,6 @@ async def get_test_results(
     Backend checks if score has been released.
     Returns full results with correct/incorrect answers.
     """
-    # Get session
     result = await db.execute(
         select(TestSession).where(
             and_(
@@ -514,9 +482,7 @@ async def get_test_results(
             detail="Test not yet completed"
         )
     
-    # Check if score has been released
     if not session.is_scored:
-        # Calculate when it will be released
         estimated_release = session.completed_at + timedelta(hours=settings.SCORE_RELEASE_DELAY_HOURS)
         
         raise HTTPException(
@@ -529,7 +495,6 @@ async def get_test_results(
             }
         )
     
-    # Score has been released - return full results
     answers_result = await db.execute(
         select(Answer, Question)
         .join(Question, Answer.question_id == Question.id)

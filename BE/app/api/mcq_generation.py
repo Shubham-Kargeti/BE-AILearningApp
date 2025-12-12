@@ -28,7 +28,7 @@ async def generate_mcqs(
         ...,
         description="Difficulty level for question generation",
         example="Basic",
-        pattern="^(Basic|Intermediate|Advanced)$"
+        pattern="^(Basic|Intermediate|Advanced|basic|intermediate|advanced)$"
     ),
     db: AsyncSession = Depends(get_db)
 ):

@@ -12,13 +12,16 @@ import ProtectedProfileQuizRoute from "./components/ProtectedProfileQuizRoute";
 import ProtectedAuthRoute from "./components/ProtectedAuthRoute";
 import StreakContainer from "./containers/StreakContainer";
 import AssessmentSetupContainer from "./containers/AssessmentSetupContainer";
+import AssessmentViewContainer from "./containers/AssessmentViewContainer/AssessmentViewContainer";
+import CandidateAssessmentContainer from "./containers/CandidateAssessmentContainer";
 
-// Admin imports
 import AdminProtectedRoute from "./components/adminProtectedRoute/AdminProtectedRoute";
 import AdminDashboard from "./containers/AdminDashboard";
 import AdminLayout from "./containers/AdminLayout";
+import AdminAddCandidate from "./containers/AdminAddCandidate/AdminAddCandidate";
+import AdminRequirement from "./containers/AdminRequirement/AdminRequirement";
+import AdminSettings from "./containers/AdminSettings/AdminSettings";
 
-// Logout
 import Logout from "./components/Logout";
 
 function App() {
@@ -26,7 +29,6 @@ function App() {
     <BrowserRouter>
       <Routes>
 
-        {/* Public Routes */}
         <Route path={client.HOME} element={<LandingPage />} />
 
         <Route
@@ -47,7 +49,6 @@ function App() {
           }
         />
 
-        {/* User Dashboard Routes */}
         <Route
           path="app"
           element={
@@ -62,7 +63,6 @@ function App() {
           <Route path={client.SETTINGS} element={<DashboardContainer />} />
         </Route>
 
-        {/* Quiz */}
         <Route
           path={client.QUIZ}
           element={
@@ -72,7 +72,6 @@ function App() {
           }
         />
 
-        {/* Admin Routes */}
         <Route
           path="/admin"
           element={
@@ -83,10 +82,16 @@ function App() {
         >
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="assessment" element={<AssessmentSetupContainer />} />
+          <Route path="assessment/:id/view" element={<AssessmentViewContainer />} />
+          <Route path="assessment/:id/edit" element={<AssessmentSetupContainer />} />
+          <Route path="add-candidate" element={<AdminAddCandidate />} />
+          <Route path="requirement" element={<AdminRequirement />} />
+          <Route path="settings" element={<AdminSettings />} />
         </Route>
 
-        {/* Logout */}
         <Route path="/logout" element={<Logout />} />
+        <Route path="/candidate-assessment/:assessmentId" element={<CandidateAssessmentContainer />} />
+        <Route path="/candidate-quiz" element={<QuizContainer />} />
 
       </Routes>
     </BrowserRouter>

@@ -40,7 +40,6 @@ async def get_current_user(
     if user_id is None or token_type != "access":
         raise credentials_exception
     
-    # Get user from database
     result = await db.execute(
         select(User).where(User.id == int(user_id))
     )
@@ -101,7 +100,6 @@ async def verify_refresh_token(
     if payload is None or payload.get("type") != "refresh":
         return None
     
-    # Check if token exists in database and is not revoked
     result = await db.execute(
         select(RefreshToken).where(
             RefreshToken.token == token,
@@ -115,7 +113,6 @@ async def verify_refresh_token(
     if refresh_token_record is None:
         return None
     
-    # Get associated user
     result = await db.execute(
         select(User).where(User.id == refresh_token_record.user_id)
     )
@@ -123,29 +120,36 @@ async def verify_refresh_token(
     return result.scalar_one_or_none()
 
 
+optional_security = HTTPBearer(auto_error=False)
+
+
 class OptionalAuth:
     """Optional authentication dependency."""
     
-    def __init__(self):
-        self.security = HTTPBearer(auto_error=False)
-    
     async def __call__(
         self,
-        credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+        credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
         db: AsyncSession = Depends(get_db)
     ) -> Optional[User]:
         """Get current user if authenticated, None otherwise."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         if credentials is None:
+            logger.info("OptionalAuth: No credentials provided")
             return None
         
         try:
             token = credentials.credentials
+            logger.info(f"OptionalAuth: Token received (first 20 chars): {token[:20] if token else 'None'}...")
             payload = decode_token(token)
             
             if payload is None:
+                logger.info("OptionalAuth: Token decode returned None")
                 return None
             
             user_id = payload.get("sub")
+            logger.info(f"OptionalAuth: user_id from token: {user_id}")
             if user_id is None:
                 return None
             
@@ -155,9 +159,13 @@ class OptionalAuth:
             user = result.scalar_one_or_none()
             
             if user and user.is_active:
+                logger.info(f"OptionalAuth: Found active user: {user.email}")
                 return user
+            else:
+                logger.info(f"OptionalAuth: User not found or inactive")
             
-        except Exception:
+        except Exception as e:
+            logger.error(f"OptionalAuth: Exception: {e}")
             pass
         
         return None

@@ -1,4 +1,3 @@
-import React from "react";
 import { Box, Typography } from "@mui/material";
 import WhatshotIcon from "@mui/icons-material/Whatshot";
 import WifiIcon from "@mui/icons-material/Wifi";
