@@ -458,6 +458,13 @@ async def extract_skills_single_file(
     
     # Extract skills from text
     extracted_skills_dict = extract_skills_from_text_advanced(extracted_text, file.filename)
+
+# Debug: Print raw extracted skills before model conversion
+    print("\n=== RAW EXTRACTED SKILLS (Before Model Conversion) ===")
+    for skill, (proficiency, category, confidence) in extracted_skills_dict.items():
+        print(f"Skill: {skill} | Level: {proficiency} | Category: {category} | Confidence: {confidence}")
+    print("========================================================\n")
+# End Debug
     
     # Convert to ExtractedSkill objects
     document_skills = []
@@ -491,17 +498,42 @@ async def extract_skills_single_file(
         extraction_preview=extracted_text[:500] if extracted_text else "",
     )
     
-    return AdminBulkSkillExtractionResponse(
-        success=True,
-        message=f"Successfully extracted {len(document_skills)} skills from {file.filename}",
-        documents_processed=1,
-        total_unique_skills=len(document_skills),
-        extracted_skills=document_skills,
-        documents=[document_result],
-        extraction_summary={
-            "skills_by_category": skills_by_category,
-            "proficiency_distribution": proficiency_distribution,
-            "total_skills_found": len(document_skills),
-        },
-    )
+    # return AdminBulkSkillExtractionResponse(
+    #     success=True,
+    #     message=f"Successfully extracted {len(document_skills)} skills from {file.filename}",
+    #     documents_processed=1,
+    #     total_unique_skills=len(document_skills),
+    #     extracted_skills=document_skills,
+    #     documents=[document_result],
+    #     extraction_summary={
+    #         "skills_by_category": skills_by_category,
+    #         "proficiency_distribution": proficiency_distribution,
+    #         "total_skills_found": len(document_skills),
+    #     },
+    # )
+
+
+
+    
+    # Create the response object
+    response_payload = AdminBulkSkillExtractionResponse(
+    success=True,
+    message=f"Successfully extracted {len(document_skills)} skills from {file.filename}",
+    documents_processed=1,
+    total_unique_skills=len(document_skills),
+    extracted_skills=document_skills,
+    documents=[document_result],
+    extraction_summary={
+        "skills_by_category": skills_by_category,
+        "proficiency_distribution": proficiency_distribution,
+        "total_skills_found": len(document_skills),
+    },
+)
+
+# 🔥 Debug: print exact JSON response (Pydantic v2)
+    print("\n===== FINAL JSON RESPONSE SENT TO FRONTEND =====")
+    print(response_payload.model_dump())  # Pydantic v2
+    print("================================================\n")
+
+    return response_payload
 

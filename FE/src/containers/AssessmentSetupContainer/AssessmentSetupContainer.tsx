@@ -24,7 +24,7 @@ const AssessmentSetupContainer: React.FC = () => {
   const navigate = useNavigate();
   const { id: assessmentId } = useParams<{ id: string }>();
   const isEditMode = Boolean(assessmentId);
-  
+
   const [, setUserRole] = useState<string>("admin");
   const [rbacError, setRbacError] = useState("");
   const [editLoading, setEditLoading] = useState(false);
@@ -105,15 +105,15 @@ const AssessmentSetupContainer: React.FC = () => {
       setEditLoading(true);
       try {
         const assessment = await assessmentService.getAssessment(assessmentId);
-        
+
         if (assessment.job_title) {
           setRole(assessment.job_title);
         }
-        
+
         if (assessment.required_skills) {
           setSkills(Object.keys(assessment.required_skills));
         }
-        
+
         if (assessment.assessment_method) {
           setAssessmentMethod(assessment.assessment_method);
         } else {
@@ -218,7 +218,7 @@ const AssessmentSetupContainer: React.FC = () => {
 
       const extractedSkillsList = res.skills || (res as any).extracted_skills || [];
       const skillNames = extractedSkillsList.map((s: any) => typeof s === 'string' ? s : (s.skill_name || s));
-      
+
       const extractedRole = res.role || (res as any).extracted_role || "";
 
       if (extractedRole) {
@@ -263,7 +263,14 @@ const AssessmentSetupContainer: React.FC = () => {
         title: `Assessment for ${role}`,
         description: `Assessment created for candidate ${candidateInfo.name || candidateInfo.email}`,
         job_title: role.trim(),
-        required_skills: skills.reduce((acc, skill) => ({ ...acc, [skill]: "intermediate" }), {}),
+        //required_skills: skills.reduce((acc, skill) => ({ ...acc, [skill]: "intermediate" }), {}),
+        required_skills: skills.reduce((acc, skill) => {
+          const level = skillDurations?.[skill.toLowerCase()]
+            ? skillDurations[skill.toLowerCase()] >= 3 ? "advanced" : "intermediate"
+            : "intermediate";
+            
+          return { ...acc, [skill]: level };
+        }, {}),
         required_roles: [role.trim()],
         duration_minutes: 30,
         is_questionnaire_enabled: assessmentMethod === "questionnaire",
@@ -280,10 +287,10 @@ const AssessmentSetupContainer: React.FC = () => {
         assessmentPayload.expires_at = new Date(expiresAt).toISOString();
       }
 
-      const response = isEditMode 
+      const response = isEditMode
         ? await assessmentService.updateAssessment(assessmentId!, assessmentPayload)
         : await assessmentService.createAssessment(assessmentPayload);
-      
+
       const resultAssessmentId = response?.assessment_id;
       const generatedLink = `${window.location.origin}/candidate-assessment/${resultAssessmentId}`;
 
@@ -324,7 +331,7 @@ const AssessmentSetupContainer: React.FC = () => {
       <header className="page-header">
         <h1>{isEditMode ? "Edit Assessment" : "Assessment Setup"}</h1>
         <p className="subtitle">
-          {isEditMode 
+          {isEditMode
             ? "Update assessment details, role, skills, and settings."
             : "Upload documents, review role & skills, and generate assessment link."
           }
@@ -346,11 +353,11 @@ const AssessmentSetupContainer: React.FC = () => {
 
         <div className="upload-grid">
           <FileUpload label="Job Description (Optional)" onFileSelect={setJdFile} />
-          <FileUpload 
-            label="Candidate CV *" 
-            onFileSelect={setCvFile} 
+          <FileUpload
+            label="Candidate CV *"
+            onFileSelect={setCvFile}
             onTextExtracted={handleResumeTextExtracted}
-            isRequired 
+            isRequired
           />
           <FileUpload label="Requirement Doc (Optional)" onFileSelect={setReqDoc} />
           <FileUpload label="Client Portfolio (Optional)" onFileSelect={setClientDoc} />

@@ -4,6 +4,7 @@ from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplat
 from app.models.schemas import MCQQuestion, MCQOption
 import json
 import re
+import asyncio
 
 system_message = SystemMessagePromptTemplate.from_template(
     "You are an expert in creating multiple-choice tests."
@@ -47,10 +48,11 @@ def parse_mcqs_from_response(response_text: str):
         questions.append(question)
     return questions
 
-def generate_mcqs_for_topic(topic: str, level: str, subtopics: list = None):
+async def generate_mcqs_for_topic(topic: str, level: str, subtopics: list = None):
     subtopics_str = ", ".join(subtopics) if subtopics else ""
     prompt_messages = chat_prompt.format_messages(topic=topic, subtopics=subtopics_str, level=level)
-    response = llm.invoke(prompt_messages)
+    #response = llm.invoke(prompt_messages)
+    response = await asyncio.to_thread(llm.invoke, prompt_messages)
     print("Raw LLM Response:")
     print(response.content)
     questions = parse_mcqs_from_response(response.content)
