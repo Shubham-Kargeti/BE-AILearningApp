@@ -60,7 +60,7 @@ async def generate_mcqs(
 
     try:
         # Step 1: Generate MCQs using LLM with subtopics
-        mcqs = generate_mcqs_for_topic(
+        mcqs = await generate_mcqs_for_topic(
             topic=topic,
             subtopics=subtopics,
             level=level

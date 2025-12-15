@@ -22,6 +22,7 @@ import ErrorMessage from "../../components/ErrorMessage/ErrorMessage";
 interface LocationState {
   assessmentId?: string;
   assessment?: {
+    question_set_id?: string;
     required_skills?: Record<string, string>;
     duration_minutes?: number;
     title?: string;
@@ -98,7 +99,7 @@ const QuizContainer = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = location.state as LocationState | null;
-  
+
   // Try to get assessment data from location state first, then localStorage
   const getAssessmentData = () => {
     if (locationState?.fromCandidateLink && locationState?.assessment) {
@@ -116,8 +117,9 @@ const QuizContainer = () => {
     }
     return { assessment: null, fromCandidateLink: false };
   };
-  
+
   const { assessment: assessmentData, fromCandidateLink: isFromCandidateLink } = getAssessmentData();
+  console.log("Assessment Data Received in FE:", assessmentData);
 
   const getMCQsBasedOnProfile = async () => {
     try {
@@ -126,14 +128,14 @@ const QuizContainer = () => {
       setSessionStartedAnonymous(isAnonymousStart);
       setLoading(true);
       setError(null);
-      
+
       let topic = "";
       let level = "intermediate";
       let subtopics: string[] = [];
-      
+
       console.log("Assessment data:", assessmentData);
       console.log("Is from candidate link:", isFromCandidateLink);
-      
+
       if (isFromCandidateLink && assessmentData?.required_skills) {
         const skills = Object.keys(assessmentData.required_skills);
         console.log("Skills from assessment:", skills);
@@ -148,15 +150,15 @@ const QuizContainer = () => {
         level = profileData.level || "intermediate";
         subtopics = profileData.subtopics || [];
       }
-      
+
       console.log("Topic:", topic, "Level:", level, "Subtopics:", subtopics);
-      
+
       if (!topic) {
         setError("No topic specified for the quiz. Please set up your profile or use a valid assessment link.");
         setLoading(false);
         return;
       }
-      
+
       const res = await quizService.generateMCQs(topic, level, subtopics);
       setMcqQuestions(res);
       const questionData = res.questions[current];
@@ -169,8 +171,63 @@ const QuizContainer = () => {
     }
   };
 
+  // useEffect(() => {
+  //   getMCQsBasedOnProfile();
+  //   // eslint-disable-next-line react-hooks/exhaustive-depsF
+  // }, []);
+
+
+
+  // NEW: Load pre-generated QuestionSet for candidate-assessment flow
+  const loadPreGeneratedQuestionSet = async () => {
+    try {
+      console.log("Loading existing QuestionSet for candidate link");
+
+      if (!assessmentData?.question_set_id) {
+        setError("Invalid assessment link. No QuestionSet ID found.");
+        setLoading(false);
+        return;
+      }
+
+      const res = await quizService.startQuiz(
+        assessmentData.question_set_id,
+        {
+          candidate_name: assessmentData?.candidate_info?.name,
+          candidate_email: assessmentData?.candidate_info?.email,
+        }
+      );
+
+      //setSessionId(res.session_id);
+
+      const questionSet: QuestionSet = {
+        question_set_id: res.question_set_id,
+        skill: res.skill,
+        level: res.level,
+        total_questions: res.total_questions,
+        created_at: res.started_at,
+        questions: res.questions,
+      };
+
+      setMcqQuestions(questionSet);
+      setQuestion(res.questions[0]);
+      setLoading(false);
+    } catch (err) {
+      console.error("Error loading candidate QuestionSet:", err);
+      setError("Unable to load assessment. Please contact admin.");
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    getMCQsBasedOnProfile();
+    console.log("Init Quiz — isFromCandidateLink =", isFromCandidateLink);
+
+    if (isFromCandidateLink) {
+      // Candidate link → load existing QuestionSet
+      loadPreGeneratedQuestionSet();
+    } else {
+      // Normal quick test flow
+      getMCQsBasedOnProfile();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -181,7 +238,7 @@ const QuizContainer = () => {
       setShowToast(true);
       return;
     }
-    
+
     try {
       // If this assessment is candidate-specific but a different user is logged-in, prompt login
       const candidateEmail = locationState?.assessment?.candidate_info?.email;
@@ -383,7 +440,7 @@ const QuizContainer = () => {
       const res = await quizService.submitQuiz(sessionId, answers, sessionStartedAnonymous);
       const score = res.score_percentage;
       const correctCount = res.correct_answers || Math.round((score / 100) * answers.length);
-      
+
       // Store results for display
       setQuizResult({
         score: score,
@@ -392,7 +449,7 @@ const QuizContainer = () => {
         percentage: score,
         status: score >= 70 ? "Passed" : "Under Review",
       });
-      
+
       localStorage.setItem("latestScore", score.toString());
       localStorage.setItem("quizResult", JSON.stringify({
         score,
@@ -401,7 +458,7 @@ const QuizContainer = () => {
         percentage: score,
         completedAt: new Date().toISOString(),
       }));
-      
+
       setIsSubmitting(false);
     } catch (error) {
       setIsSubmitting(false);
@@ -466,7 +523,7 @@ const QuizContainer = () => {
     if (!quizResult && !isSubmitting) {
       submitQuizAnswers(answers);
     }
-    
+
     if (isSubmitting) {
       return (
         <Box className="submission-screen">
@@ -477,19 +534,19 @@ const QuizContainer = () => {
         </Box>
       );
     }
-    
+
     return (
       <Box className="submission-screen">
         <Typography className="submitted-title">
           Assessment Completed!
         </Typography>
-        
+
         <Box sx={{ my: 4, textAlign: 'center' }}>
           {/* Hourglass/Review Icon */}
-          <Box sx={{ 
-            width: 120, 
-            height: 120, 
-            borderRadius: '50%', 
+          <Box sx={{
+            width: 120,
+            height: 120,
+            borderRadius: '50%',
             border: '6px solid #1976d2',
             display: 'flex',
             flexDirection: 'column',
@@ -502,17 +559,17 @@ const QuizContainer = () => {
               ✓
             </Typography>
           </Box>
-          
-          <Box sx={{ 
-            p: 3, 
-            borderRadius: 2, 
+
+          <Box sx={{
+            p: 3,
+            borderRadius: 2,
             backgroundColor: '#fff8e1',
             border: '1px solid #ffcc02',
             mb: 3,
             maxWidth: 450,
             margin: '0 auto'
           }}>
-            <Typography variant="h5" sx={{ 
+            <Typography variant="h5" sx={{
               color: '#f57c00',
               fontWeight: 'bold',
               mb: 1
@@ -526,14 +583,14 @@ const QuizContainer = () => {
               Your responses are being reviewed. You will be notified once the results are finalized.
             </Typography>
           </Box>
-          
+
           <Box sx={{ mt: 3, p: 2, backgroundColor: '#f5f5f5', borderRadius: 2, maxWidth: 450, margin: '24px auto 0' }}>
             <Typography variant="body2" color="text.secondary">
               <strong>What happens next?</strong>
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              • Your results will be reviewed by the admin<br/>
-              • You'll receive an email with your results<br/>
+              • Your results will be reviewed by the admin<br />
+              • You'll receive an email with your results<br />
               • If eligible, a personalized learning path will be created for you
             </Typography>
           </Box>
@@ -548,7 +605,7 @@ const QuizContainer = () => {
           className="return-btn"
           onClick={() => {
             if (document.fullscreenElement) {
-              document.exitFullscreen?.().catch(() => {});
+              document.exitFullscreen?.().catch(() => { });
             }
             // Check if user is logged in, otherwise go to home
             const authToken = localStorage.getItem("authToken");
@@ -569,36 +626,36 @@ const QuizContainer = () => {
   //   return <QuizInstructionsModal open={showModal} onStart={startQuiz} />;
   // }
   if (showModal) {
-  // compute previewDuration from location/assessment or fallback to 5 minutes
-  const durationMinutesPreview =
-    (locationState?.assessment?.duration_minutes as number | undefined) ??
-    (assessmentData?.duration_minutes as number | undefined) ??
-    5; // default 5 minutes
+    // compute previewDuration from location/assessment or fallback to 5 minutes
+    const durationMinutesPreview =
+      (locationState?.assessment?.duration_minutes as number | undefined) ??
+      (assessmentData?.duration_minutes as number | undefined) ??
+      5; // default 5 minutes
 
-  const previewDuration = Math.max(1, Math.floor(durationMinutesPreview * 60)); // seconds
+    const previewDuration = Math.max(1, Math.floor(durationMinutesPreview * 60)); // seconds
 
-  // preview per-question time:
-  // - if classic 5min → 30s
-  // - if classic 30min → 180s
-  // - otherwise distribute evenly
-  const totalQuestionsCount = mcqQuestions.questions?.length || 10;
+    // preview per-question time:
+    // - if classic 5min → 30s
+    // - if classic 30min → 180s
+    // - otherwise distribute evenly
+    const totalQuestionsCount = mcqQuestions.questions?.length || 10;
 
-  let previewPerQuestion = 30;
-  if (previewDuration === 300) previewPerQuestion = 30;
-  else if (previewDuration === 1800) previewPerQuestion = 180;
-  else {
-    previewPerQuestion = Math.max(1, Math.floor(previewDuration / totalQuestionsCount));
+    let previewPerQuestion = 30;
+    if (previewDuration === 300) previewPerQuestion = 30;
+    else if (previewDuration === 1800) previewPerQuestion = 180;
+    else {
+      previewPerQuestion = Math.max(1, Math.floor(previewDuration / totalQuestionsCount));
+    }
+
+    return (
+      <QuizInstructionsModal
+        open={showModal}
+        onStart={startQuiz}
+        duration={previewDuration}
+        perQuestion={previewPerQuestion}
+      />
+    );
   }
-
-  return (
-    <QuizInstructionsModal
-      open={showModal}
-      onStart={startQuiz}
-      duration={previewDuration}
-      perQuestion={previewPerQuestion}
-    />
-  );
-}
 
 
   return (
@@ -628,7 +685,7 @@ const QuizContainer = () => {
                 className="warning-btn"
                 onClick={() => {
                   setShowWarning(false);
-                  document.documentElement.requestFullscreen().catch(() => {});
+                  document.documentElement.requestFullscreen().catch(() => { });
                 }}
               >
                 Continue Quiz

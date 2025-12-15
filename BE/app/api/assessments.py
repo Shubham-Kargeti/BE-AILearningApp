@@ -6,7 +6,7 @@ from sqlalchemy import desc
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
-
+from app.utils.generate_admin_assessment import generate_assessment_question_set
 from app.core.dependencies import get_db, get_current_user, optional_auth
 from app.core.security import check_admin, is_admin_user
 from app.db.models import Assessment, AssessmentApplication, Candidate, User, JobDescription
@@ -258,6 +258,32 @@ async def create_assessment(
             )
             db.add(candidate_db)
             await db.flush()
+
+    
+
+    # ------------------------------------------------------
+    # SAFETY CHECK: required_skills must not be empty
+    # ------------------------------------------------------
+    if not request.required_skills or len(request.required_skills) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot generate assessment — no skills were extracted. Please extract skills first."
+        )
+
+    # ------------------------------------------------------
+    #  NEW: GENERATE QUESTION SET FROM REQUIRED SKILLS
+    # ------------------------------------------------------
+    print("\n[ADMIN] Generating QuestionSet from skills:", request.required_skills)
+    question_set_id = await generate_assessment_question_set(
+        request.required_skills,
+        db
+    )
+    print("[ADMIN] QuestionSet ID Generated =", question_set_id)
+
+    # ------------------------------------------------------
+    #  CREATE ASSESSMENT (Inject QuestionSet ID)
+    # ------------------------------------------------------
+
     
     assessment = Assessment(
         title=request.title,
@@ -266,7 +292,8 @@ async def create_assessment(
         jd_id=request.jd_id,
         required_skills=request.required_skills or {},
         required_roles=request.required_roles or [],
-        question_set_id=request.question_set_id,
+        #question_set_id=request.question_set_id,
+        question_set_id=question_set_id,
         assessment_method="questionnaire" if request.is_questionnaire_enabled else "interview",
         duration_minutes=request.duration_minutes,
         is_questionnaire_enabled=request.is_questionnaire_enabled,
