@@ -1,0 +1,29 @@
+.additional-screening {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.screening-label {
+  font-weight: 600;
+  color: #222;
+}
+
+.screening-textarea {
+  resize: vertical;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #dcdcdc;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.screening-textarea:focus {
+  outline: none;
+  border-color: #1976d2;
+}
+
+.screening-hint {
+  font-size: 13px;
+  color: #666;
+}

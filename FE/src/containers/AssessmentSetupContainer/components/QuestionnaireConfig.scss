@@ -1,0 +1,34 @@
+.questionnaire-card {
+  margin-top: 24px;
+}
+
+.questionnaire-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.questionnaire-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.questionnaire-field label {
+  font-size: 14px;
+  margin-bottom: 6px;
+  color: #555;
+}
+
+.questionnaire-field input {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 14px;
+}
+
+.questionnaire-summary {
+  margin-top: 16px;
+  font-size: 14px;
+  color: #333;
+}

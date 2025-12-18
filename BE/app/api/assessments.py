@@ -6,10 +6,11 @@ from sqlalchemy import desc
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
+import json
 from app.utils.generate_admin_assessment import generate_assessment_question_set
 from app.core.dependencies import get_db, get_current_user, optional_auth
 from app.core.security import check_admin, is_admin_user
-from app.db.models import Assessment, AssessmentApplication, Candidate, User, JobDescription
+from app.db.models import Assessment, AssessmentApplication, Candidate, User, JobDescription, Question
 from app.models.schemas import (
     AssessmentCreate, AssessmentUpdate, AssessmentResponse,
     AssessmentApplicationRequest, AssessmentApplicationResponse
@@ -17,7 +18,42 @@ from app.models.schemas import (
 
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
 
+# ------------------------------------------------------------
+# Question Helpers 
+# ------------------------------------------------------------
 
+def resolve_question_type(question: Question) -> str:
+    """
+    Detect question type using options JSON.
+    """
+    if isinstance(question.options, dict):
+        qtype = question.options.get("type")
+        if qtype in ("coding", "architecture"):
+            return qtype
+    return "mcq"
+
+
+def serialize_question(question: Question) -> dict:
+    """
+    Convert DB question into FE-safe payload.
+    """
+    qtype = resolve_question_type(question)
+
+    payload = {
+        "id": question.id,
+        "question_type": qtype,
+        "question_text": question.question_text,
+    }
+
+    if qtype == "mcq":
+        payload["options"] = question.options
+    else:
+        payload["meta"] = {
+            k: v for k, v in question.options.items()
+            if k != "type"
+        }
+
+    return payload
 @router.get("", response_model=List[AssessmentResponse])
 async def list_assessments(
     db: AsyncSession = Depends(get_db),
@@ -146,7 +182,6 @@ async def get_assessment(
         "created_at": assessment.created_at,
         "updated_at": assessment.updated_at,
     }
-    
     if assessment.jd_id:
         jd_stmt = select(JobDescription).where(JobDescription.jd_id == assessment.jd_id)
         jd_result = await db.execute(jd_stmt)
@@ -169,6 +204,22 @@ async def get_assessment(
                 "file_size": jd.file_size,
                 "created_at": jd.created_at,
             }
+        # --------------------------------------------------------
+    # FETCH QUESTIONS FROM QUESTION SET
+    # --------------------------------------------------------
+    if assessment.question_set_id:
+        q_stmt = select(Question).where(
+            Question.question_set_id == assessment.question_set_id
+        )
+        q_result = await db.execute(q_stmt)
+        questions = q_result.scalars().all()
+
+        response["total_questions"] = len(questions)
+        response["questions"] = [serialize_question(q) for q in questions]
+
+        print("[DEBUG] Assessment Questions Payload")
+        print(json.dumps(response["questions"], indent=2))
+
     
     return response
 
@@ -220,7 +271,6 @@ async def create_assessment(
                     experience_level = "lead"
             except:
                 pass
-        
         if candidate_db:
             if request.candidate_info.name:
                 candidate_db.full_name = request.candidate_info.name
@@ -399,8 +449,6 @@ async def publish_assessment(
         created_at=assessment.created_at,
         updated_at=assessment.updated_at,
     )
-
-
 @router.put("/{assessment_id}", response_model=AssessmentResponse)
 async def update_assessment(
     assessment_id: str,

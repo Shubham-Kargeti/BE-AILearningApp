@@ -43,17 +43,16 @@ def is_clearly_beginner_question(question_text: str) -> bool:
     text = question_text.lower().strip()
     return any(text.startswith(p) for p in recall_patterns)
 
-
 # ------------------------------------------------------------
-# LLM PROMPT (UNCHANGED)
+# MCQ LLM PROMPT 
 # ------------------------------------------------------------
-system_message = SystemMessagePromptTemplate.from_template(
+mcq_system_message = SystemMessagePromptTemplate.from_template(
     """
 You are an expert assessment generator for technical and non-technical skills.
 
 You will receive:
 - A list of skills with required difficulty levels
-- A fixed total question count (MAX 10)
+- A fixed total question count (Exactly 6)
 
 You MUST strictly follow the difficulty rubric below.
 Do NOT invent your own interpretation of difficulty.
@@ -139,12 +138,117 @@ No comments.
 """
 )
 
-human_message = HumanMessagePromptTemplate.from_template(
+mcq_human_message = HumanMessagePromptTemplate.from_template(
     "Skills and difficulty levels:\n{skills_json}"
 )
 
-chat_prompt = ChatPromptTemplate.from_messages([system_message, human_message])
+mcq_prompt = ChatPromptTemplate.from_messages(
+    [mcq_system_message, mcq_human_message]
+)
 
+# ------------------------------------------------------------
+# CODING QUESTION PROMPT
+# ------------------------------------------------------------
+
+coding_system_message = SystemMessagePromptTemplate.from_template(
+    """
+You are generating LEETCODE-STYLE CODING QUESTIONS for a technical assessment.
+
+CRITICAL DEFINITIONS (NON-NEGOTIABLE):
+- A coding question MUST be solvable by writing a single function or method
+- The problem MUST have deterministic inputs and outputs
+- The solution MUST be testable using automated test cases
+- DO NOT ask for system design, deployment, architecture, APIs, or DevOps
+- DO NOT ask for explanations, essays, or real-world write-ups
+
+STRICT RULES:
+- Generate EXACTLY 2 questions
+- Difficulty must align with provided skill difficulty:
+  - Easy → Basic algorithms / data structures
+  - Medium → Multi-step logic, optimized solutions
+  - Hard → Advanced algorithms, edge cases, performance constraints
+- Questions MUST resemble LeetCode / HackerRank style problems
+- NO scenario storytelling
+- NO Docker, Kubernetes, cloud, monitoring, or architecture topics
+- NO MCQs
+- NO solutions
+
+QUESTION REQUIREMENTS:
+Each question MUST include:
+1. Clear problem statement
+2. Explicit input description
+3. Explicit output description
+4. Constraints section (time/space or value bounds)
+5. Language-agnostic logic (even if language is specified)
+
+OUTPUT FORMAT (STRICT JSON ONLY):
+Return ONLY a valid JSON array of EXACTLY 2 items.
+
+Each item MUST follow this format EXACTLY:
+
+{{
+  "question_id": 1,
+  "title": "Concise algorithmic problem title",
+  "description": "Problem statement including input and output description",
+  "language": "python",
+  "constraints": [
+    "Example: 1 <= n <= 10^5",
+    "Example: O(n log n) or better solution required"
+  ]
+}}
+
+ABSOLUTE PROHIBITIONS:
+- No markdown
+- No explanations
+- No examples section
+- No test cases
+- No additional fields
+"""
+)
+
+
+coding_human_message = HumanMessagePromptTemplate.from_template(
+    "Skills and difficulty levels:\n{skills_json}"
+)
+
+coding_prompt = ChatPromptTemplate.from_messages(
+    [coding_system_message, coding_human_message]
+)
+
+# ------------------------------------------------------------
+# ARCHITECTURE QUESTION PROMPT 
+# ------------------------------------------------------------
+architecture_system_message = SystemMessagePromptTemplate.from_template(
+    """
+You are generating ARCHITECTURE / SYSTEM DESIGN QUESTIONS.
+
+STRICT RULES:
+- Generate EXACTLY 2 questions
+- Each question MUST include a unique question_id (1–2)
+- Questions must be real-world and design-focused
+- No MCQ options
+- No answers or solutions
+
+OUTPUT FORMAT (STRICT):
+Return ONLY a valid JSON array of EXACTLY 2 items.
+
+Each item must follow this format:
+
+{{
+  "question_id": 1,
+  "title": "System design problem title",
+  "description": "Design problem statement",
+  "focus_areas": ["Scalability", "Reliability", "Trade-offs"]
+}}
+
+No markdown.
+No explanations.
+"""
+)
+
+# ------------------------------------------------------------
+# LLM INITIALIZATION
+# ------------------------------------------------------------
 llm = ChatGroq(
     model="llama-3.3-70b-versatile",
     temperature=0,
@@ -152,7 +256,7 @@ llm = ChatGroq(
 )
 
 # ------------------------------------------------------------
-# MAIN FUNCTION
+# MAIN FUNCTION 
 # ------------------------------------------------------------
 async def generate_assessment_question_set(
     required_skills: dict,
@@ -171,22 +275,68 @@ async def generate_assessment_question_set(
     ]
 
     formatted = json.dumps(skills_with_levels, indent=2)
-    messages = chat_prompt.format_messages(
+
+    messages = mcq_prompt.format_messages(
         skills_json=formatted,
-        total_questions=10
+        total_questions=6
     )
 
-    # Single LLM call
+    # LLM call (MCQs only)
     response = await asyncio.to_thread(llm.invoke, messages)
 
-    print("\n[Admin Assessment LLM Output]\n", response.content)
+    print("\n[Admin MCQ LLM Output]\n", response.content)
 
     try:
         data = json.loads(response.content)
-        if not isinstance(data, list) or len(data) != 10:
-            raise ValueError("Expected exactly 10 questions")
+        if not isinstance(data, list) or len(data) != 6:
+            raise ValueError("Expected exactly 6 MCQ questions")
     except Exception as e:
-        raise ValueError(f"Invalid LLM output: {e}")
+        raise ValueError(f"Invalid MCQ LLM output: {e}")
+    
+    # --------------------------------------------------------
+    # CODING QUESTIONS 
+    # --------------------------------------------------------
+    coding_messages = coding_prompt.format_messages(
+        skills_json=formatted
+    )
+
+    coding_response = await asyncio.to_thread(llm.invoke, coding_messages)
+
+    print("\n[Admin CODING LLM Output]\n", coding_response.content)
+
+    try:
+        coding_data = json.loads(coding_response.content)
+        if not isinstance(coding_data, list) or len(coding_data) != 2:
+            raise ValueError("Expected exactly 2 coding questions")
+    except Exception as e:
+        raise ValueError(f"Invalid CODING LLM output: {e}")
+    
+    # --------------------------------------------------------
+    # ARCHITECTURE QUESTIONS 
+    # --------------------------------------------------------
+    architecture_messages = ChatPromptTemplate.from_messages(
+        [
+            architecture_system_message,
+            HumanMessagePromptTemplate.from_template(
+                "Skills and difficulty levels:\n{skills_json}"
+            ),
+        ]
+    ).format_messages(
+        skills_json=formatted
+    )
+
+    architecture_response = await asyncio.to_thread(llm.invoke, architecture_messages)
+
+    print("\n[Admin ARCHITECTURE LLM Output]\n", architecture_response.content)
+
+    try:
+        architecture_data = json.loads(architecture_response.content)
+        if not isinstance(architecture_data, list) or len(architecture_data) != 2:
+            raise ValueError("Expected exactly 2 architecture questions")
+    except Exception as e:
+        raise ValueError(f"Invalid ARCHITECTURE LLM output: {e}")
+
+
 
     # --------------------------------------------------------
     # Create QuestionSet
@@ -205,7 +355,7 @@ async def generate_assessment_question_set(
     await db.flush()
 
     # --------------------------------------------------------
-    # Save Questions (ASYMMETRIC VALIDATION)
+    # Save MCQ Questions
     # --------------------------------------------------------
     for idx, q in enumerate(data):
         options_dict = {
@@ -217,7 +367,7 @@ async def generate_assessment_question_set(
         intended_difficulty = skill_meta["difficulty"]
         qt = q["question_text"]
 
-        # 🔒 ONLY detect DOWNWARD violations
+        # 🔒 Downward-only difficulty check
         if intended_difficulty in ("medium", "hard") and is_clearly_beginner_question(qt):
             print(
                 f"[WARN] Downward difficulty violation "
@@ -235,6 +385,48 @@ async def generate_assessment_question_set(
         )
 
         db.add(db_question)
+    
+    # --------------------------------------------------------
+    # Save CODING Questions 
+    # --------------------------------------------------------
+    for cq in coding_data:
+        db_question = Question(
+            question_set_id=question_set_id,
+            question_text=f"{cq['title']}\n\n{cq['description']}",
+            options={
+                "type": "coding",
+                "language": cq.get("language"),
+                "constraints": cq.get("constraints", [])
+            },
+            correct_answer="N/A",
+            difficulty="coding",
+            generation_model="llama-3.3-70b-versatile",
+            generation_time=time.time() - start_time
+        )
+        db.add(db_question)
+
+    # --------------------------------------------------------
+    # Save ARCHITECTURE Questions 
+    # --------------------------------------------------------
+    for aq in architecture_data:
+        db_question = Question(
+            question_set_id=question_set_id,
+            question_text=f"{aq['title']}\n\n{aq['description']}",
+            options={
+                "type": "architecture",
+                "focus_areas": aq.get("focus_areas", [])
+            },
+            correct_answer="N/A",
+            difficulty="architecture",
+            generation_model="llama-3.3-70b-versatile",
+            generation_time=time.time() - start_time
+        )
+        db.add(db_question)
+    print(
+    "[DEBUG] Total questions to be saved:",
+    6 + len(coding_data) + len(architecture_data)
+    )
+
 
     await db.commit()
     return question_set_id
