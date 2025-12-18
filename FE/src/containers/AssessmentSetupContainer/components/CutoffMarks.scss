@@ -1,0 +1,35 @@
+.cutoff-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 240px;
+}
+
+.cutoff-label {
+  font-weight: 600;
+  color: #222;
+}
+
+.muted {
+  font-weight: 400;
+  color: #666;
+  font-size: 13px;
+}
+
+.cutoff-input {
+  padding: 10px 12px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px solid #dcdcdc;
+  width: 120px;
+}
+
+.cutoff-input:focus {
+  outline: none;
+  border-color: #1976d2;
+}
+
+.cutoff-hint {
+  font-size: 13px;
+  color: #666;
+}

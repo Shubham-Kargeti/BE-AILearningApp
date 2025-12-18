@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./AssessmentSetupContainer.scss";
-
 import FileUpload from "./components/FileUpload";
 import CandidateInfoSection from "./components/CandidateInfoSection";
 import type { CandidateInfoData } from "./components/CandidateInfoSection";
@@ -14,6 +13,14 @@ import Toast from "../../components/Toast/Toast";
 import { isAdmin } from "../../utils/adminUsers";
 import { uploadService, assessmentService } from "../../API/services";
 import { parseResume, getExtractionConfidence } from "../../utils/resumeParser";
+
+import QuestionnaireConfig from "./components/QuestionnaireConfig";
+import type { QuestionDistribution } from "./components/QuestionnaireConfig";
+
+import AdditionalScreeningQuestion from "./components/AdditionalScreeningQuestions";
+
+import CutoffMarks from "./components/CutOffMarks";
+
 
 interface ValidationError {
   field: string;
@@ -61,6 +68,18 @@ const AssessmentSetupContainer: React.FC = () => {
   const [assessmentMethod, setAssessmentMethod] = useState("questionnaire");
   const [expiresAt, setExpiresAt] = useState<string>("");
 
+  const [questionDistribution, setQuestionDistribution] =
+    useState<QuestionDistribution>({
+      mcq: 6,
+      coding: 2,
+      architecture: 2,
+    });
+
+  const [screeningQuestion, setScreeningQuestion] =
+    useState<string>("");
+
+  const [cutoffMarks, setCutoffMarks] = useState<number>(70);
+
   const [processLoading, setProcessLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formValid, setFormValid] = useState(false);
@@ -68,6 +87,7 @@ const AssessmentSetupContainer: React.FC = () => {
 
   const [showAssessmentLinkModal, setShowAssessmentLinkModal] = useState(false);
   const [assessmentLink, setAssessmentLink] = useState("");
+
 
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
 
@@ -268,7 +288,7 @@ const AssessmentSetupContainer: React.FC = () => {
           const level = skillDurations?.[skill.toLowerCase()]
             ? skillDurations[skill.toLowerCase()] >= 3 ? "advanced" : "intermediate"
             : "intermediate";
-            
+
           return { ...acc, [skill]: level };
         }, {}),
         required_roles: [role.trim()],
@@ -425,6 +445,50 @@ const AssessmentSetupContainer: React.FC = () => {
           setMethod={setAssessmentMethod}
         />
       </section>
+
+      <section className="card questionnaire-config-card">
+        <div className="card-header">
+          <h2>Questionnaire Configuration</h2>
+          <p className="hint">
+            Define how many questions of each type will appear in the assessment.
+          </p>
+        </div>
+
+        <QuestionnaireConfig
+          value={questionDistribution}
+          onChange={setQuestionDistribution}
+        />
+      </section>
+
+      <section className="card screening-question-card">
+        <div className="card-header">
+          <h2>Additional Screening Question</h2>
+          <p className="hint">
+            Add a compulsory question that the candidate must answer.
+          </p>
+        </div>
+
+        <AdditionalScreeningQuestion
+          value={screeningQuestion}
+          onChange={setScreeningQuestion}
+        />
+      </section>
+
+      <section className="card cutoff-marks-card">
+        <div className="card-header">
+          <h2>Cut-off Marks</h2>
+          <p className="hint">
+            Set the minimum score required to qualify the assessment.
+          </p>
+        </div>
+
+        <CutoffMarks
+          value={cutoffMarks}
+          onChange={setCutoffMarks}
+        />
+      </section>
+
+
 
       <section className="card expiry-card">
         <div className="card-header">
