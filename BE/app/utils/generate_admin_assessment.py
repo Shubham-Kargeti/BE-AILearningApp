@@ -52,7 +52,7 @@ You are an expert assessment generator for technical and non-technical skills.
 
 You will receive:
 - A list of skills with required difficulty levels
-- A fixed total question count (Exactly 6)
+- A fixed total question count (Exactly {total_questions})
 
 You MUST strictly follow the difficulty rubric below.
 Do NOT invent your own interpretation of difficulty.
@@ -162,7 +162,7 @@ CRITICAL DEFINITIONS (NON-NEGOTIABLE):
 - DO NOT ask for explanations, essays, or real-world write-ups
 
 STRICT RULES:
-- Generate EXACTLY 2 questions
+- Generate EXACTLY {coding_count} questions
 - Difficulty must align with provided skill difficulty:
   - Easy → Basic algorithms / data structures
   - Medium → Multi-step logic, optimized solutions
@@ -182,7 +182,7 @@ Each question MUST include:
 5. Language-agnostic logic (even if language is specified)
 
 OUTPUT FORMAT (STRICT JSON ONLY):
-Return ONLY a valid JSON array of EXACTLY 2 items.
+Return ONLY a valid JSON array of EXACTLY {coding_count} items.
 
 Each item MUST follow this format EXACTLY:
 
@@ -223,14 +223,14 @@ architecture_system_message = SystemMessagePromptTemplate.from_template(
 You are generating ARCHITECTURE / SYSTEM DESIGN QUESTIONS.
 
 STRICT RULES:
-- Generate EXACTLY 2 questions
+- Generate EXACTLY {architecture_count} questions
 - Each question MUST include a unique question_id (1–2)
 - Questions must be real-world and design-focused
 - No MCQ options
 - No answers or solutions
 
 OUTPUT FORMAT (STRICT):
-Return ONLY a valid JSON array of EXACTLY 2 items.
+Return ONLY a valid JSON array of EXACTLY {architecture_count} items.
 
 Each item must follow this format:
 
@@ -260,9 +260,21 @@ llm = ChatGroq(
 # ------------------------------------------------------------
 async def generate_assessment_question_set(
     required_skills: dict,
-    db: AsyncSession
+    db: AsyncSession,
+    questionnaire_config: dict | None = None
 ):
     start_time = time.time()
+
+    # ------------------------------------------------------------
+    # Questionnaire configuration (FE-driven, backward-safe)
+    # ------------------------------------------------------------
+    questionnaire_config = questionnaire_config or {}
+
+    mcq_count = int(questionnaire_config.get("mcq", 6))
+    coding_count = int(questionnaire_config.get("coding", 2))
+    architecture_count = int(questionnaire_config.get("architecture", 2))
+    total_questions = mcq_count + coding_count + architecture_count
+
 
     # Normalize skills
     skills_with_levels = [
@@ -278,7 +290,8 @@ async def generate_assessment_question_set(
 
     messages = mcq_prompt.format_messages(
         skills_json=formatted,
-        total_questions=6
+        #total_questions=6
+        total_questions=mcq_count
     )
 
     # LLM call (MCQs only)
@@ -288,8 +301,13 @@ async def generate_assessment_question_set(
 
     try:
         data = json.loads(response.content)
-        if not isinstance(data, list) or len(data) != 6:
-            raise ValueError("Expected exactly 6 MCQ questions")
+        # if not isinstance(data, list) or len(data) != 6:
+        #     raise ValueError("Expected exactly 6 MCQ questions")
+        if not isinstance(data, list) or len(data) != mcq_count:
+            raise ValueError(
+                f"Expected exactly {mcq_count} MCQ questions, got {len(data)}"
+            )
+
     except Exception as e:
         raise ValueError(f"Invalid MCQ LLM output: {e}")
     
@@ -297,7 +315,8 @@ async def generate_assessment_question_set(
     # CODING QUESTIONS 
     # --------------------------------------------------------
     coding_messages = coding_prompt.format_messages(
-        skills_json=formatted
+        skills_json=formatted,
+        coding_count=coding_count
     )
 
     coding_response = await asyncio.to_thread(llm.invoke, coding_messages)
@@ -306,8 +325,13 @@ async def generate_assessment_question_set(
 
     try:
         coding_data = json.loads(coding_response.content)
-        if not isinstance(coding_data, list) or len(coding_data) != 2:
-            raise ValueError("Expected exactly 2 coding questions")
+        # if not isinstance(coding_data, list) or len(coding_data) != 2:
+        #     raise ValueError("Expected exactly 2 coding questions")
+        if not isinstance(coding_data, list) or len(coding_data) != coding_count:
+            raise ValueError(
+            f"Expected exactly {coding_count} coding questions, got {len(coding_data)}"
+    )
+
     except Exception as e:
         raise ValueError(f"Invalid CODING LLM output: {e}")
     
@@ -322,7 +346,8 @@ async def generate_assessment_question_set(
             ),
         ]
     ).format_messages(
-        skills_json=formatted
+        skills_json=formatted,
+        architecture_count=architecture_count
     )
 
     architecture_response = await asyncio.to_thread(llm.invoke, architecture_messages)
@@ -331,8 +356,13 @@ async def generate_assessment_question_set(
 
     try:
         architecture_data = json.loads(architecture_response.content)
-        if not isinstance(architecture_data, list) or len(architecture_data) != 2:
-            raise ValueError("Expected exactly 2 architecture questions")
+        # if not isinstance(architecture_data, list) or len(architecture_data) != 2:
+        #     raise ValueError("Expected exactly 2 architecture questions")
+        if not isinstance(architecture_data, list) or len(architecture_data) != architecture_count:
+            raise ValueError(
+        f"Expected exactly {architecture_count} architecture questions, got {len(architecture_data)}"
+    )
+
     except Exception as e:
         raise ValueError(f"Invalid ARCHITECTURE LLM output: {e}")
 
@@ -347,7 +377,7 @@ async def generate_assessment_question_set(
         question_set_id=question_set_id,
         skill="multiple-skills",
         level="mixed",
-        total_questions=10,
+        total_questions=total_questions,
         generation_model="llama-3.3-70b-versatile"
     )
 
@@ -424,8 +454,9 @@ async def generate_assessment_question_set(
         db.add(db_question)
     print(
     "[DEBUG] Total questions to be saved:",
-    6 + len(coding_data) + len(architecture_data)
-    )
+    mcq_count + len(coding_data) + len(architecture_data)
+)
+
 
 
     await db.commit()

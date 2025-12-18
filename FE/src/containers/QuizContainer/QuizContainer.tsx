@@ -526,6 +526,73 @@ const QuizContainer = () => {
   /* ================================================================
      SUBMIT QUIZ ANSWERS
      ================================================================ */
+  // const submitQuizAnswers = async (
+  //   answers: {
+  //     question_id: number;
+  //     selected_answer: string;
+  //   }[]
+  // ) => {
+  //   try {
+  //     setIsSubmitting(true);
+
+  //     const res = await quizService.submitQuiz(
+  //       sessionId,
+  //       answers,
+  //       sessionStartedAnonymous
+  //     );
+
+  //     const score = res.score_percentage;
+  //     const correctCount =
+  //       res.correct_answers ??
+  //       Math.round((score / 100) * answers.length);
+
+  //     setQuizResult({
+  //       score,
+  //       totalQuestions: answers.length,
+  //       correctAnswers: correctCount,
+  //       percentage: score,
+  //       status: score >= 70 ? "Passed" : "Under Review",
+  //     });
+
+  //     localStorage.setItem(
+  //       "latestScore",
+  //       score.toString()
+  //     );
+  //     localStorage.setItem(
+  //       "quizResult",
+  //       JSON.stringify({
+  //         score,
+  //         totalQuestions: answers.length,
+  //         correctAnswers: correctCount,
+  //         percentage: score,
+  //         completedAt: new Date().toISOString(),
+  //       })
+  //     );
+  //   } catch (error) {
+  //     console.error(
+  //       "Error submitting quiz answers:",
+  //       error
+  //     );
+  //     setQuizResult({
+  //       score: 0,
+  //       totalQuestions: answers.length,
+  //       correctAnswers: 0,
+  //       percentage: 0,
+  //       status:
+  //         "Submission Error - Please contact admin",
+  //     });
+  //   } finally {
+  //     setIsSubmitting(false);
+  //   }
+  // };
+
+  useEffect(() => {
+    if (submitted && !quizResult && !isSubmitting) {
+      submitQuizAnswers(answers);
+    }
+  }, [submitted, answers, quizResult, isSubmitting]);
+
+
   const submitQuizAnswers = async (
     answers: {
       question_id: number;
@@ -535,56 +602,54 @@ const QuizContainer = () => {
     try {
       setIsSubmitting(true);
 
-      const res = await quizService.submitQuiz(
-        sessionId,
-        answers,
-        sessionStartedAnonymous
-      );
+      let score = 0;
+      let correctCount = 0;
 
-      const score = res.score_percentage;
-      const correctCount =
-        res.correct_answers ??
-        Math.round((score / 100) * answers.length);
+      try {
+        const res = await quizService.submitQuiz(
+          sessionId,
+          answers,
+          sessionStartedAnonymous
+        );
 
+        score = res.score_percentage ?? 0;
+        correctCount =
+          res.correct_answers ??
+          Math.round((score / 100) * answers.length);
+
+        localStorage.setItem("latestScore", score.toString());
+        localStorage.setItem(
+          "quizResult",
+          JSON.stringify({
+            score,
+            totalQuestions: answers.length,
+            correctAnswers: correctCount,
+            percentage: score,
+            completedAt: new Date().toISOString(),
+          })
+        );
+      } catch (apiError) {
+        console.warn(
+          "Submit API failed, proceeding to submitted screen",
+          apiError
+        );
+      }
+
+      // ✅ THIS WAS MISSING
       setQuizResult({
         score,
         totalQuestions: answers.length,
         correctAnswers: correctCount,
         percentage: score,
-        status: score >= 70 ? "Passed" : "Under Review",
+        status: "Submitted",
       });
 
-      localStorage.setItem(
-        "latestScore",
-        score.toString()
-      );
-      localStorage.setItem(
-        "quizResult",
-        JSON.stringify({
-          score,
-          totalQuestions: answers.length,
-          correctAnswers: correctCount,
-          percentage: score,
-          completedAt: new Date().toISOString(),
-        })
-      );
-    } catch (error) {
-      console.error(
-        "Error submitting quiz answers:",
-        error
-      );
-      setQuizResult({
-        score: 0,
-        totalQuestions: answers.length,
-        correctAnswers: 0,
-        percentage: 0,
-        status:
-          "Submission Error - Please contact admin",
-      });
     } finally {
       setIsSubmitting(false);
+      //setSubmitted(true);
     }
   };
+
 
   /* ================================================================
      NEXT QUESTION HANDLER (CORE FLOW)
@@ -672,24 +737,39 @@ const QuizContainer = () => {
   /* ================================================================
      SUBMISSION STATE
      ================================================================ */
-  if (submitted) {
-    if (!quizResult && !isSubmitting) {
-      submitQuizAnswers(answers);
-    }
 
-    if (isSubmitting) {
-      return (
-        <Box className="submission-screen">
-          <Typography className="submitted-title">
-            Submitting Quiz...
-          </Typography>
-          <Typography className="submitted-text">
-            Please wait while we process your answers.
-          </Typography>
-        </Box>
-      );
-    }
+  if (submitted && isSubmitting) {
+    return (
+      <Box className="submission-screen">
+        <Typography className="submitted-title">
+          Submitting Quiz...
+        </Typography>
+        <Typography className="submitted-text">
+          The answers are submitted. Your admin will share the result soon.
+        </Typography>
+      </Box>
+    );
   }
+
+  if (submitted && quizResult && !isSubmitting) {
+    return (
+      <Box className="submission-screen">
+        <Typography className="submitted-title">
+          Quiz Submitted
+        </Typography>
+
+        <Typography className="submitted-text">
+          Thank you for completing the assessment.
+          Your responses have been recorded.
+        </Typography>
+
+        <Typography sx={{ mt: 2 }}>
+          Status: {quizResult.status}
+        </Typography>
+      </Box>
+    );
+  }
+
 
   /* ================================================================
      INSTRUCTIONS MODAL

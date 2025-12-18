@@ -251,6 +251,8 @@ class AssessmentCreate(BaseModel):
     is_interview_enabled: bool = False
     expires_at: Optional[datetime] = None
     candidate_info: Optional[CandidateInfoSchema] = None
+    questionnaire_config: Optional[Dict[str, int]] = None
+
 
 
 class AssessmentUpdate(BaseModel):
