@@ -302,6 +302,15 @@ const AssessmentSetupContainer: React.FC = () => {
           current_role: candidateInfo.currentRole,
         },
       };
+      
+      if (assessmentMethod === "questionnaire") {
+        assessmentPayload.questionnaire_config = {
+          mcq: questionDistribution.mcq,
+          coding: questionDistribution.coding,
+          architecture: questionDistribution.architecture,
+        };
+      }
+
 
       if (expiresAt) {
         assessmentPayload.expires_at = new Date(expiresAt).toISOString();

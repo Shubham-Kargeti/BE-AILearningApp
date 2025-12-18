@@ -326,7 +326,8 @@ async def create_assessment(
     print("\n[ADMIN] Generating QuestionSet from skills:", request.required_skills)
     question_set_id = await generate_assessment_question_set(
         request.required_skills,
-        db
+        db,
+        questionnaire_config=request.questionnaire_config
     )
     print("[ADMIN] QuestionSet ID Generated =", question_set_id)
 

@@ -232,6 +232,8 @@ async def start_questionset_test_anonymous(
         "started_at": started_at,
         "questions": question_list,
     }
+
+
 @router.post("/questionset-tests/submit", response_model=TestResultResponse)
 async def submit_questionset_answers(
     request: SubmitAllAnswersRequest,
@@ -239,8 +241,10 @@ async def submit_questionset_answers(
     db: AsyncSession = Depends(get_db)
 ) -> TestResultResponse:
     """
-    ✅ Submit All Answers and Get Immediate Results
+    Submit all answers for a QuestionSet test (authenticated).
+    Supports MCQ + Coding + Architecture.
     """
+
     # --------------------------------------------------
     # Get and validate session
     # --------------------------------------------------
@@ -273,7 +277,7 @@ async def submit_questionset_answers(
         )
 
     # --------------------------------------------------
-    # Get QuestionSet
+    # Load QuestionSet
     # --------------------------------------------------
     qs_result = await db.execute(
         select(QuestionSet).where(
@@ -289,7 +293,7 @@ async def submit_questionset_answers(
         )
 
     # --------------------------------------------------
-    # Get all questions for this set
+    # Load questions
     # --------------------------------------------------
     questions_result = await db.execute(
         select(Question).where(
@@ -301,6 +305,9 @@ async def submit_questionset_answers(
     correct_count = 0
     answer_records = []
 
+    # --------------------------------------------------
+    # Process answers
+    # --------------------------------------------------
     for answer_submit in request.answers:
         question = questions.get(answer_submit.question_id)
 
@@ -310,15 +317,32 @@ async def submit_questionset_answers(
                 detail=f"Question {answer_submit.question_id} not found"
             )
 
-        if answer_submit.selected_answer not in question.options:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid answer '{answer_submit.selected_answer}'"
+        qtype = resolve_question_type(question)
+
+        # ---------- MCQ ----------
+        if qtype == "mcq":
+            if answer_submit.selected_answer not in question.options:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid answer '{answer_submit.selected_answer}'"
+                )
+
+            is_correct = (
+                answer_submit.selected_answer == question.correct_answer
             )
 
-        is_correct = (
-            answer_submit.selected_answer == question.correct_answer
-        )
+        # ---------- CODING / ARCHITECTURE ----------
+        else:
+            if (
+                not isinstance(answer_submit.selected_answer, str)
+                or not answer_submit.selected_answer.strip()
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Answer cannot be empty"
+                )
+
+            is_correct = False  # demo-safe
 
         if is_correct:
             correct_count += 1
@@ -334,10 +358,14 @@ async def submit_questionset_answers(
 
     db.add_all(answer_records)
 
+    # --------------------------------------------------
+    # Finalize session
+    # --------------------------------------------------
     completed_at = datetime.now(timezone.utc)
     duration_seconds = int(
         (completed_at - session.started_at).total_seconds()
     )
+
     score_percentage = (
         (correct_count / session.total_questions) * 100
         if session.total_questions > 0 else 0
@@ -359,14 +387,23 @@ async def submit_questionset_answers(
         test_completed=True
     )
 
+    # --------------------------------------------------
+    # Build detailed results (MCQ-safe)
+    # --------------------------------------------------
     detailed_results = []
     for answer_submit in request.answers:
         question = questions[answer_submit.question_id]
+        qtype = resolve_question_type(question)
 
-        options = [
-            MCQOption(option_id=k, text=v)
-            for k, v in sorted(question.options.items())
-        ]
+        if qtype == "mcq":
+            options = [
+                MCQOption(option_id=k, text=v)
+                for k, v in sorted(question.options.items())
+            ]
+            correct_answer = question.correct_answer
+        else:
+            options = []
+            correct_answer = None
 
         detailed_results.append(
             QuestionResultDetailed(
@@ -374,11 +411,8 @@ async def submit_questionset_answers(
                 question_text=question.question_text,
                 options=options,
                 your_answer=answer_submit.selected_answer,
-                correct_answer=question.correct_answer,
-                is_correct=(
-                    answer_submit.selected_answer
-                    == question.correct_answer
-                )
+                correct_answer=correct_answer,
+                is_correct=answer_submit.selected_answer == correct_answer
             )
         )
 
@@ -396,6 +430,7 @@ async def submit_questionset_answers(
     )
 
 
+
 @router.post(
     "/questionset-tests/submit/anonymous",
     response_model=TestResultResponse
@@ -407,7 +442,9 @@ async def submit_questionset_answers_anonymous(
 ) -> TestResultResponse:
     """
     Submit all answers for a QuestionSet test anonymously.
+    Supports MCQ + Coding + Architecture (demo-safe).
     """
+
     # --------------------------------------------------
     # Get and validate session
     # --------------------------------------------------
@@ -444,7 +481,7 @@ async def submit_questionset_answers_anonymous(
         )
 
     # --------------------------------------------------
-    # Remaining logic identical to authenticated submit
+    # Load QuestionSet
     # --------------------------------------------------
     qs_result = await db.execute(
         select(QuestionSet).where(
@@ -459,6 +496,9 @@ async def submit_questionset_answers_anonymous(
             detail="QuestionSet not found"
         )
 
+    # --------------------------------------------------
+    # Load questions
+    # --------------------------------------------------
     questions_result = await db.execute(
         select(Question).where(
             Question.question_set_id == session.question_set_id
@@ -469,6 +509,9 @@ async def submit_questionset_answers_anonymous(
     correct_count = 0
     answer_records = []
 
+    # --------------------------------------------------
+    # Process answers
+    # --------------------------------------------------
     for answer_submit in request.answers:
         question = questions.get(answer_submit.question_id)
 
@@ -478,15 +521,32 @@ async def submit_questionset_answers_anonymous(
                 detail="Invalid question"
             )
 
-        if answer_submit.selected_answer not in question.options:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid answer"
+        qtype = resolve_question_type(question)
+
+        # ---------- MCQ ----------
+        if qtype == "mcq":
+            if answer_submit.selected_answer not in question.options:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid answer"
+                )
+
+            is_correct = (
+                answer_submit.selected_answer == question.correct_answer
             )
 
-        is_correct = (
-            answer_submit.selected_answer == question.correct_answer
-        )
+        # ---------- CODING / ARCHITECTURE ----------
+        else:
+            if (
+                not isinstance(answer_submit.selected_answer, str)
+                or not answer_submit.selected_answer.strip()
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Answer cannot be empty"
+                )
+
+            is_correct = False  # demo-safe
 
         if is_correct:
             correct_count += 1
@@ -502,10 +562,14 @@ async def submit_questionset_answers_anonymous(
 
     db.add_all(answer_records)
 
+    # --------------------------------------------------
+    # Finalize session
+    # --------------------------------------------------
     completed_at = datetime.now(timezone.utc)
     duration_seconds = int(
         (completed_at - session.started_at).total_seconds()
     )
+
     score_percentage = (
         (correct_count / session.total_questions) * 100
         if session.total_questions > 0 else 0
@@ -521,21 +585,23 @@ async def submit_questionset_answers_anonymous(
 
     await db.commit()
 
-    if current_user:
-        await check_and_update_quiz_completion(
-            current_user,
-            db,
-            test_completed=True
-        )
-
+    # --------------------------------------------------
+    # Build detailed results (MCQ-safe)
+    # --------------------------------------------------
     detailed_results = []
     for answer_submit in request.answers:
         question = questions[answer_submit.question_id]
+        qtype = resolve_question_type(question)
 
-        options = [
-            MCQOption(option_id=k, text=v)
-            for k, v in sorted(question.options.items())
-        ]
+        if qtype == "mcq":
+            options = [
+                MCQOption(option_id=k, text=v)
+                for k, v in sorted(question.options.items())
+            ]
+            correct_answer = question.correct_answer
+        else:
+            options = []
+            correct_answer = None
 
         detailed_results.append(
             QuestionResultDetailed(
@@ -543,11 +609,8 @@ async def submit_questionset_answers_anonymous(
                 question_text=question.question_text,
                 options=options,
                 your_answer=answer_submit.selected_answer,
-                correct_answer=question.correct_answer,
-                is_correct=(
-                    answer_submit.selected_answer
-                    == question.correct_answer
-                )
+                correct_answer=correct_answer,
+                is_correct=answer_submit.selected_answer == correct_answer
             )
         )
 
@@ -563,6 +626,7 @@ async def submit_questionset_answers_anonymous(
         time_taken_seconds=duration_seconds,
         detailed_results=detailed_results
     )
+
 @router.get(
     "/questionset-tests/{session_id}/results",
     response_model=TestResultResponse
