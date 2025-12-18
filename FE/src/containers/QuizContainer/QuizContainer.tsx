@@ -114,6 +114,14 @@ const QuizContainer = () => {
     status: string;
   } | null>(null);
 
+  // ================= ADDITIONAL SCREENING QUESTION (FE ONLY) =================
+  const [additionalScreeningQuestion, setAdditionalScreeningQuestion] =
+    useState<string | null>(null);
+
+  const [additionalScreeningAnswer, setAdditionalScreeningAnswer] =
+    useState<string>("");
+
+
   /* ================= REFS ================= */
   const initialQuizDurationRef = useRef<number>(quizTimer);
   const questionTimeRef = useRef<number>(QUESTION_TIME_DEFAULT);
@@ -245,6 +253,21 @@ const QuizContainer = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ================= READ ADDITIONAL SCREENING QUESTION =================
+  useEffect(() => {
+    if (
+      locationState?.assessment &&
+      (locationState.assessment as any)
+        .additional_screening_question
+    ) {
+      setAdditionalScreeningQuestion(
+        (locationState.assessment as any)
+          .additional_screening_question
+      );
+    }
+  }, [locationState]);
+
   /* ================================================================
      START QUIZ SESSION
      ================================================================ */
@@ -657,7 +680,8 @@ const QuizContainer = () => {
   const goNext = () => {
     const currentQuestion =
       mcqQuestions.questions[current];
-    if (!currentQuestion) return;
+    //if (!currentQuestion) return;
+    if (!currentQuestion && !isAdditionalQuestionStep) return;
 
     // Persist answer
     // setAnswers((prev) => [
@@ -709,10 +733,25 @@ const QuizContainer = () => {
       );
       setQuizTimer(snapped);
     } else {
-      // Final question → submit
-      setSubmitted(true);
+      if (additionalScreeningQuestion) {
+        // Move to FE-only additional screening question
+        setCurrent((prev) => prev + 1);
+        setQuestion(null);
+      } else {
+        setSubmitted(true);
+      }
     }
+
   };
+
+  /* ================================================================
+   ADDITIONAL SCREENING QUESTION FLAG
+   ================================================================ */
+  const isAdditionalQuestionStep =
+    !submitted &&
+    !!additionalScreeningQuestion &&
+    current === mcqQuestions.questions.length;
+
   /* ================================================================
      ERROR & LOADING STATES
      ================================================================ */
@@ -769,6 +808,54 @@ const QuizContainer = () => {
       </Box>
     );
   }
+  /* ================================================================
+   ADDITIONAL SCREENING QUESTION (FE ONLY)
+   ================================================================ */
+  if (isAdditionalQuestionStep) {
+    return (
+      <Box className="quiz-container">
+        <Typography className="quiz-question">
+          {additionalScreeningQuestion}
+        </Typography>
+
+        <Editor
+          height="300px"
+          language="javascript"
+          value={additionalScreeningAnswer}
+          onChange={(v) =>
+            setAdditionalScreeningAnswer(v || "")
+          }
+          options={{
+            minimap: { enabled: false },
+            fontSize: 14,
+            wordWrap: "on",
+            automaticLayout: true,
+          }}
+        />
+
+        <Button
+          className="next-btn"
+          variant="contained"
+          //onClick={() => setSubmitted(true)}
+          onClick={() => {
+            setAnswers((prev) => [
+              ...prev,
+              {
+                question_id: -1, // FE-only virtual question
+                selected_answer: additionalScreeningAnswer,
+              },
+            ]);
+            setSubmitted(true);
+          }}
+
+          disabled={!additionalScreeningAnswer.trim()}
+        >
+          Submit
+        </Button>
+      </Box>
+    );
+  }
+
 
 
   /* ================================================================
