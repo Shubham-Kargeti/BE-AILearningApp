@@ -54,6 +54,24 @@ def serialize_question(question: Question) -> dict:
         }
 
     return payload
+
+
+def extract_screening_questions(description: Optional[str]) -> list[str]:
+    """
+    Safely extract screening questions from assessment.description.
+    Supports backward compatibility with plain-text descriptions.
+    """
+    if not description:
+        return []
+
+    try:
+        data = json.loads(description)
+        return data.get("screening_questions", []) or []
+    except Exception:
+        # Old assessments had plain-text description
+        return []
+    
+    
 @router.get("", response_model=List[AssessmentResponse])
 async def list_assessments(
     db: AsyncSession = Depends(get_db),
@@ -121,18 +139,6 @@ async def get_assessment(
 ) -> dict:
     """
     Get assessment details by ID with enriched data.
-    
-    Access Control:
-    - Admins can access all assessments (published and drafts)
-    - Candidates can only access published assessments
-    - Returns appropriate error for draft/expired assessments
-    
-    Returns:
-    - Assessment metadata
-    - Extracted skills from linked JD
-    - Extracted roles from linked JD
-    - Assessment method configuration
-    - Required qualifications
     """
     stmt = select(Assessment).where(Assessment.assessment_id == assessment_id)
     result = await db.execute(stmt)
@@ -145,7 +151,7 @@ async def get_assessment(
         )
     
     is_admin = False
-    if current_user and hasattr(current_user, 'email'):
+    if current_user and hasattr(current_user, "email"):
         is_admin = is_admin_user(current_user.email)
     
     if not is_admin:
@@ -160,7 +166,7 @@ async def get_assessment(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="This assessment is no longer active."
             )
-    
+
     response = {
         "id": assessment.id,
         "assessment_id": assessment.assessment_id,
@@ -204,7 +210,8 @@ async def get_assessment(
                 "file_size": jd.file_size,
                 "created_at": jd.created_at,
             }
-        # --------------------------------------------------------
+
+    # --------------------------------------------------------
     # FETCH QUESTIONS FROM QUESTION SET
     # --------------------------------------------------------
     if assessment.question_set_id:
@@ -214,16 +221,30 @@ async def get_assessment(
         q_result = await db.execute(q_stmt)
         questions = q_result.scalars().all()
 
-        response["total_questions"] = len(questions)
-        response["questions"] = [serialize_question(q) for q in questions]
+        serialized_questions = [serialize_question(q) for q in questions]
+
+        # --------------------------------------------------
+        # Append screening questions LAST (non-scored)
+        # --------------------------------------------------
+        screening_questions = extract_screening_questions(
+            assessment.description
+        )
+
+        for idx, sq in enumerate(screening_questions):
+            serialized_questions.append({
+                "id": f"screening_{idx}",
+                "question_type": "screening",
+                "question_text": sq,
+                "required": True
+            })
+
+        response["total_questions"] = len(serialized_questions)
+        response["questions"] = serialized_questions
 
         print("[DEBUG] Assessment Questions Payload")
         print(json.dumps(response["questions"], indent=2))
 
-    
     return response
-
-
 @router.post("", response_model=AssessmentResponse, status_code=status.HTTP_201_CREATED)
 async def create_assessment(
     request: AssessmentCreate,
@@ -232,13 +253,6 @@ async def create_assessment(
 ) -> AssessmentResponse:
     """
     Create a new assessment (Admin only).
-    
-    Requirements:
-    - Admin role required
-    - Title must be unique
-    - If jd_id provided, verify JD exists
-    - Questionnaire method must be enabled
-    - If candidate_info provided, creates or updates candidate record
     """
     await check_admin(current_user)
     
@@ -271,6 +285,7 @@ async def create_assessment(
                     experience_level = "lead"
             except:
                 pass
+
         if candidate_db:
             if request.candidate_info.name:
                 candidate_db.full_name = request.candidate_info.name
@@ -309,8 +324,6 @@ async def create_assessment(
             db.add(candidate_db)
             await db.flush()
 
-    
-
     # ------------------------------------------------------
     # SAFETY CHECK: required_skills must not be empty
     # ------------------------------------------------------
@@ -321,29 +334,29 @@ async def create_assessment(
         )
 
     # ------------------------------------------------------
-    #  NEW: GENERATE QUESTION SET FROM REQUIRED SKILLS
+    # GENERATE QUESTION SET
     # ------------------------------------------------------
-    print("\n[ADMIN] Generating QuestionSet from skills:", request.required_skills)
     question_set_id = await generate_assessment_question_set(
         request.required_skills,
         db,
         questionnaire_config=request.questionnaire_config
     )
-    print("[ADMIN] QuestionSet ID Generated =", question_set_id)
 
-    # ------------------------------------------------------
-    #  CREATE ASSESSMENT (Inject QuestionSet ID)
-    # ------------------------------------------------------
+    # --------------------------------------------
+    # Store screening questions inside description
+    # --------------------------------------------
+    description_payload = {
+        "text": request.description,
+        "screening_questions": getattr(request, "screening_questions", []) or []
+    }
 
-    
     assessment = Assessment(
         title=request.title,
-        description=request.description,
+        description=json.dumps(description_payload),
         job_title=request.job_title,
         jd_id=request.jd_id,
         required_skills=request.required_skills or {},
         required_roles=request.required_roles or [],
-        #question_set_id=request.question_set_id,
         question_set_id=question_set_id,
         assessment_method="questionnaire" if request.is_questionnaire_enabled else "interview",
         duration_minutes=request.duration_minutes,
@@ -357,28 +370,28 @@ async def create_assessment(
     db.add(assessment)
     await db.commit()
     await db.refresh(assessment)
-    
+
     return AssessmentResponse(
-        id=assessment.id,
-        assessment_id=assessment.assessment_id,
-        title=assessment.title,
-        description=assessment.description,
-        job_title=assessment.job_title,
-        jd_id=assessment.jd_id,
-        required_skills=assessment.required_skills,
-        required_roles=assessment.required_roles,
-        question_set_id=assessment.question_set_id,
-        assessment_method=assessment.assessment_method,
-        duration_minutes=assessment.duration_minutes,
-        is_questionnaire_enabled=assessment.is_questionnaire_enabled,
-        is_interview_enabled=assessment.is_interview_enabled,
-        is_active=assessment.is_active,
-        is_published=assessment.is_published,
-        is_expired=assessment.is_expired,
-        expires_at=assessment.expires_at,
-        created_at=assessment.created_at,
-        updated_at=assessment.updated_at,
-    )
+    id=assessment.id,
+    assessment_id=assessment.assessment_id,
+    title=assessment.title,
+    description=assessment.description,
+    job_title=assessment.job_title,
+    jd_id=assessment.jd_id,
+    required_skills=assessment.required_skills,
+    required_roles=assessment.required_roles,
+    question_set_id=assessment.question_set_id,
+    assessment_method=assessment.assessment_method,
+    duration_minutes=assessment.duration_minutes,
+    is_questionnaire_enabled=assessment.is_questionnaire_enabled,
+    is_interview_enabled=assessment.is_interview_enabled,
+    is_active=assessment.is_active,
+    is_published=assessment.is_published,
+    is_expired=assessment.is_expired,
+    expires_at=assessment.expires_at,
+    created_at=assessment.created_at,
+    updated_at=assessment.updated_at,
+)
 
 
 @router.delete("/{assessment_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -450,6 +463,8 @@ async def publish_assessment(
         created_at=assessment.created_at,
         updated_at=assessment.updated_at,
     )
+
+
 @router.put("/{assessment_id}", response_model=AssessmentResponse)
 async def update_assessment(
     assessment_id: str,
@@ -529,11 +544,6 @@ async def apply_for_assessment(
 ) -> AssessmentApplicationResponse:
     """
     Candidate applies for an assessment.
-    
-    - Validates assessment exists and is published
-    - Validates candidate exists
-    - Prevents duplicate applications
-    - Stores form data (availability, skills, role preference)
     """
     assess_stmt = select(Assessment).where(Assessment.assessment_id == assessment_id)
     assess_result = await db.execute(assess_stmt)
@@ -588,7 +598,7 @@ async def apply_for_assessment(
         status=application.status,
         candidate_availability=application.candidate_availability,
         submitted_skills=application.submitted_skills,
-        role_applied_for=application.role_applied_for,
+        role_applied_for=request.role_applied_for,
         applied_at=application.applied_at,
         started_at=application.started_at,
         completed_at=application.completed_at,
@@ -608,14 +618,12 @@ async def list_assessment_applications(
 ) -> List[AssessmentApplicationResponse]:
     """
     List all applications for an assessment (Admin only).
-    
-    Query Parameters:
-    - status: Filter by application status
-    - skip, limit: Pagination
     """
     await check_admin(current_user)
     
-    query = select(AssessmentApplication).where(AssessmentApplication.assessment_id == assessment_id)
+    query = select(AssessmentApplication).where(
+        AssessmentApplication.assessment_id == assessment_id
+    )
     
     if status:
         query = query.where(AssessmentApplication.status == status)
