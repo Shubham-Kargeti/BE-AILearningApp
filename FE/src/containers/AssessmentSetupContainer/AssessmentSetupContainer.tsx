@@ -13,13 +13,10 @@ import Toast from "../../components/Toast/Toast";
 import { isAdmin } from "../../utils/adminUsers";
 import { uploadService, assessmentService } from "../../API/services";
 import { parseResume, getExtractionConfidence } from "../../utils/resumeParser";
-
-import QuestionnaireConfig from "./components/QuestionnaireConfig";
 import type { QuestionDistribution } from "./components/QuestionnaireConfig";
+import AssessmentConfigurationBlock from "./components/AssessmentConfigurationBlock";
 
-import AdditionalScreeningQuestion from "./components/AdditionalScreeningQuestions";
 
-import CutoffMarks from "./components/CutOffMarks";
 
 
 interface ValidationError {
@@ -75,8 +72,9 @@ const AssessmentSetupContainer: React.FC = () => {
       architecture: 2,
     });
 
-  const [screeningQuestion, setScreeningQuestion] =
-    useState<string>("");
+  const [screeningQuestions, setScreeningQuestions] =
+    useState<string[]>([""]);
+
 
   const [cutoffMarks, setCutoffMarks] = useState<number>(70);
 
@@ -302,7 +300,7 @@ const AssessmentSetupContainer: React.FC = () => {
           current_role: candidateInfo.currentRole,
         },
       };
-      
+
       if (assessmentMethod === "questionnaire") {
         assessmentPayload.questionnaire_config = {
           mcq: questionDistribution.mcq,
@@ -443,6 +441,19 @@ const AssessmentSetupContainer: React.FC = () => {
         </div>
       </section>
 
+
+
+
+      <AssessmentConfigurationBlock
+        questionDistribution={questionDistribution}
+        onQuestionDistributionChange={setQuestionDistribution}
+        screeningQuestions={screeningQuestions}
+        onScreeningQuestionsChange={setScreeningQuestions}
+        cutoffMarks={cutoffMarks}
+        onCutoffMarksChange={setCutoffMarks}
+      />
+
+
       <section className="card method-card">
         <div className="card-header">
           <h2>Assessment Method</h2>
@@ -455,47 +466,6 @@ const AssessmentSetupContainer: React.FC = () => {
         />
       </section>
 
-      <section className="card questionnaire-config-card">
-        <div className="card-header">
-          <h2>Questionnaire Configuration</h2>
-          <p className="hint">
-            Define how many questions of each type will appear in the assessment.
-          </p>
-        </div>
-
-        <QuestionnaireConfig
-          value={questionDistribution}
-          onChange={setQuestionDistribution}
-        />
-      </section>
-
-      <section className="card screening-question-card">
-        <div className="card-header">
-          <h2>Additional Screening Question</h2>
-          <p className="hint">
-            Add a compulsory question that the candidate must answer.
-          </p>
-        </div>
-
-        <AdditionalScreeningQuestion
-          value={screeningQuestion}
-          onChange={setScreeningQuestion}
-        />
-      </section>
-
-      <section className="card cutoff-marks-card">
-        <div className="card-header">
-          <h2>Cut-off Marks</h2>
-          <p className="hint">
-            Set the minimum score required to qualify the assessment.
-          </p>
-        </div>
-
-        <CutoffMarks
-          value={cutoffMarks}
-          onChange={setCutoffMarks}
-        />
-      </section>
 
 
 
