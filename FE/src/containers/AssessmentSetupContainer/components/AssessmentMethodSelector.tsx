@@ -13,7 +13,7 @@ const ASSESSMENT_METHODS = [
   {
     id: "questionnaire",
     name: "Questionnaire",
-    description: "AI-generated MCQ-based assessment",
+    description: "AI-generated MCQ, Coding and Architecture-based assessment",
     icon: "📝",
     enabled: true,
     features: ["Auto-generated questions", "Instant scoring", "Real-time feedback"],
