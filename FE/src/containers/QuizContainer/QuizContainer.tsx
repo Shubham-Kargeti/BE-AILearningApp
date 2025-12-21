@@ -22,11 +22,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import ErrorMessage from "../../components/ErrorMessage/ErrorMessage";
 import Editor from "@monaco-editor/react";
 
-/**
- * LocationState is used when navigating via:
- * 1) Admin-created assessment link
- * 2) Candidate direct assessment link
- */
+
 
 type NormalizedMCQOption = {
   option_id: string;
@@ -46,6 +42,7 @@ interface LocationState {
       current_role?: string;
       experience?: string;
     } | null;
+    additional_screening_question?: string;
   };
 }
 
@@ -106,6 +103,10 @@ const QuizContainer = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
+  const [screeningQuestions, setScreeningQuestions] = useState<string[]>([]);
+  const [screeningIndex, setScreeningIndex] = useState(0);
+
+
   const [quizResult, setQuizResult] = useState<{
     score: number;
     totalQuestions: number;
@@ -146,6 +147,23 @@ const QuizContainer = () => {
     "isAdminAssessment:",
     isAdminAssessment
   );
+
+  /* ================================================================
+ ADDITIONAL SCREENING QUESTION FLAG (INDEX-BASED)
+ ================================================================ */
+  const isAdditionalQuestionStep =
+    !submitted &&
+    !!additionalScreeningQuestion &&
+    current === mcqQuestions.questions.length;
+  console.log("SCREENING DEBUG", {
+    additionalScreeningQuestion,
+    current,
+    dbQuestionsLength: mcqQuestions.questions.length,
+    submitted,
+    isAdditionalQuestionStep,
+  });
+
+
   /* ================================================================
      NORMAL QUICK MCQ FLOW (STABLE – DO NOT TOUCH)
      ================================================================ */
@@ -255,18 +273,210 @@ const QuizContainer = () => {
   }, []);
 
   // ================= READ ADDITIONAL SCREENING QUESTION =================
+  // useEffect(() => {
+  //   if (
+  //     locationState?.assessment &&
+  //     (locationState.assessment as any)
+  //       .additional_screening_question
+  //   ) {
+  //     setAdditionalScreeningQuestion(
+  //       (locationState.assessment as any)
+  //         .additional_screening_question
+  //     );
+  //   }
+  // }, [locationState]);
+
+  // /* ================================================================
+  //    START QUIZ SESSION
+  //    ================================================================ */
+  // const getQuizSessionId = async () => {
+  //   if (!mcqQuestions.question_set_id) {
+  //     setError("Questions not loaded. Please refresh and try again.");
+  //     setToastMessage("Questions not loaded. Please refresh.");
+  //     setShowToast(true);
+  //     return;
+  //   }
+
+  //   try {
+  //     const candidateEmail =
+  //       locationState?.assessment?.candidate_info?.email;
+  //     const currentUserEmail =
+  //       localStorage.getItem("userEmail");
+
+  //     // Candidate-specific link enforcement
+  //     if (
+  //       candidateEmail &&
+  //       currentUserEmail &&
+  //       candidateEmail !== currentUserEmail
+  //     ) {
+  //       setRequiresLoginToStart(true);
+  //       setError(
+  //         "This assessment link is reserved for a specific candidate. Please login as the candidate to start."
+  //       );
+  //       setToastMessage(
+  //         "Please login as the candidate to start the assessment."
+  //       );
+  //       setShowToast(true);
+  //       return;
+  //     }
+
+  //     const candidateInfo: {
+  //       candidate_name?: string;
+  //       candidate_email?: string;
+  //     } = {};
+
+  //     if (locationState?.assessment?.candidate_info) {
+  //       candidateInfo.candidate_name =
+  //         locationState.assessment.candidate_info.name;
+  //       candidateInfo.candidate_email =
+  //         locationState.assessment.candidate_info.email;
+  //     } else if (localStorage.getItem("userEmail")) {
+  //       candidateInfo.candidate_email =
+  //         localStorage.getItem("userEmail") as string;
+  //     }
+
+  //     const res = await quizService.startQuiz(
+  //       mcqQuestions.question_set_id,
+  //       candidateInfo
+  //     );
+
+  //     setSessionId(res.session_id);
+
+  //     const durationMinutes =
+  //       (locationState?.assessment?.duration_minutes as
+  //         | number
+  //         | undefined) ??
+  //       (assessmentData?.duration_minutes as
+  //         | number
+  //         | undefined);
+
+  //     const initialDuration =
+  //       typeof durationMinutes === "number"
+  //         ? durationMinutes * 60
+  //         : 300;
+
+  //     initialQuizDurationRef.current = initialDuration;
+  //     setQuizTimer(initialDuration);
+
+  //     const totalQuestions =
+  //       mcqQuestions.questions.length || 10;
+
+  //     const perQuestion = Math.max(
+  //       1,
+  //       Math.floor(initialDuration / totalQuestions)
+  //     );
+
+  //     questionTimeRef.current = perQuestion;
+  //     setQuestionTimer(perQuestion);
+
+  //     setShowModal(false);
+
+  //     // Force fullscreen
+  //     document.documentElement
+  //       .requestFullscreen()
+  //       .catch(() => { });
+  //     document.addEventListener(
+  //       "contextmenu",
+  //       (e) => e.preventDefault()
+  //     );
+
+  //     setQuizStarted(true);
+  //   } catch (error: any) {
+  //     console.error("Error starting quiz:", error);
+  //     const status = error?.response?.status;
+
+  //     if (status === 401) {
+  //       setError(
+  //         "You must be logged in to start this assessment."
+  //       );
+  //       setToastMessage(
+  //         "Authentication required. Please login to continue."
+  //       );
+  //     } else if (status === 403) {
+  //       setError(
+  //         "Your account does not have permission to start this assessment."
+  //       );
+  //       setToastMessage(
+  //         "Account inactive or unauthorized. Contact admin."
+  //       );
+  //       setRequiresLoginToStart(true);
+  //     } else {
+  //       setError(
+  //         "Unable to start quiz. Please try again later."
+  //       );
+  //       setToastMessage(
+  //         "Error starting quiz. Please try again."
+  //       );
+  //     }
+  //     setShowToast(true);
+  //   }
+  // };
+
+  // const startQuiz = () => {
+  //   getQuizSessionId();
+  // };
+
+  // const loginAsCandidateAndStart = async () => {
+  //   const candidateEmail =
+  //     locationState?.assessment?.candidate_info?.email ||
+  //     localStorage.getItem("userEmail");
+
+  //   if (!candidateEmail) {
+  //     window.location.href = "/login";
+  //     return;
+  //   }
+
+  //   try {
+  //     const res = await authService.login(candidateEmail);
+  //     if (res?.access_token) {
+  //       localStorage.setItem(
+  //         "authToken",
+  //         res.access_token
+  //       );
+  //       localStorage.setItem("userEmail", candidateEmail);
+  //       setRequiresLoginToStart(false);
+  //       await getQuizSessionId();
+  //     }
+  //   } catch (err) {
+  //     console.error(
+  //       "Candidate auto-login failed:",
+  //       err
+  //     );
+  //   }
+  // };
+  // ================= READ ADDITIONAL SCREENING QUESTION =================
   useEffect(() => {
-    if (
-      locationState?.assessment &&
-      (locationState.assessment as any)
-        .additional_screening_question
-    ) {
-      setAdditionalScreeningQuestion(
-        (locationState.assessment as any)
-          .additional_screening_question
-      );
+    console.log("SCREENING: useEffect triggered");
+
+    if (!locationState?.assessment?.description) return;
+
+    try {
+      const raw = locationState.assessment.description;
+      console.log("SCREENING: Raw description", raw);
+
+      const parsed =
+        typeof raw === "string" ? JSON.parse(raw) : raw;
+
+      console.log("SCREENING: Parsed description", parsed);
+
+      if (Array.isArray(parsed.screening_questions)) {
+        setScreeningQuestions(parsed.screening_questions);
+        setScreeningIndex(0);
+
+        setAdditionalScreeningQuestion(
+          parsed.screening_questions[0]
+        );
+
+        console.log(
+          "SCREENING SET (question):",
+          parsed.screening_questions[0]
+        );
+      }
+    } catch (err) {
+      console.error("SCREENING: parse failed", err);
     }
   }, [locationState]);
+
 
   /* ================================================================
      START QUIZ SESSION
@@ -325,12 +535,8 @@ const QuizContainer = () => {
       setSessionId(res.session_id);
 
       const durationMinutes =
-        (locationState?.assessment?.duration_minutes as
-          | number
-          | undefined) ??
-        (assessmentData?.duration_minutes as
-          | number
-          | undefined);
+        locationState?.assessment?.duration_minutes ??
+        assessmentData?.duration_minutes;
 
       const initialDuration =
         typeof durationMinutes === "number"
@@ -411,10 +617,7 @@ const QuizContainer = () => {
     try {
       const res = await authService.login(candidateEmail);
       if (res?.access_token) {
-        localStorage.setItem(
-          "authToken",
-          res.access_token
-        );
+        localStorage.setItem("authToken", res.access_token);
         localStorage.setItem("userEmail", candidateEmail);
         setRequiresLoginToStart(false);
         await getQuizSessionId();
@@ -426,6 +629,7 @@ const QuizContainer = () => {
       );
     }
   };
+
   /* ================================================================
      FULLSCREEN & TAB VIOLATION GUARDS
      ================================================================ */
@@ -520,25 +724,67 @@ const QuizContainer = () => {
   /* ================================================================
      GLOBAL & PER-QUESTION TIMERS
      ================================================================ */
+  // useEffect(() => {
+  //   if (!quizStarted) return;
+
+  //   const interval = setInterval(() => {
+  //     // Global quiz timer
+  //     setQuizTimer((prev) => {
+  //       if (prev <= 1) {
+  //         setSubmitted(true);
+  //         return 0;
+  //       }
+  //       return prev - 1;
+  //     });
+
+  //     // Per-question timer
+  //     setQuestionTimer((prev) => {
+  //       if (prev <= 1) {
+  //         goNext();
+  //         return questionTimeRef.current;
+  //       }
+  //       return prev - 1;
+  //     });
+  //   }, 1000);
+
+  //   return () => clearInterval(interval);
+  // }, [quizStarted]);
   useEffect(() => {
     if (!quizStarted) return;
 
     const interval = setInterval(() => {
-      // Global quiz timer
+      // ================= GLOBAL QUIZ TIMER =================
       setQuizTimer((prev) => {
         if (prev <= 1) {
+          console.log("⏱ GLOBAL QUIZ TIMER EXPIRED", {
+            prevTimerValue: prev,
+            submittedBefore: submitted,
+          });
+
           setSubmitted(true);
           return 0;
         }
         return prev - 1;
       });
 
-      // Per-question timer
+      // ================= PER-QUESTION TIMER =================
       setQuestionTimer((prev) => {
         if (prev <= 1) {
+          console.log("⏱ QUESTION TIMER EXPIRED", {
+            prevTimerValue: prev,
+            currentIndex: current,
+            dbQuestionsLength: mcqQuestions.questions.length,
+            hasScreeningQuestion: !!additionalScreeningQuestion,
+            isAdditionalQuestionStep,
+            submitted,
+          });
+
+          console.log("➡️ goNext() CALLED FROM TIMER");
+
           goNext();
           return questionTimeRef.current;
         }
+
         return prev - 1;
       });
     }, 1000);
@@ -546,68 +792,8 @@ const QuizContainer = () => {
     return () => clearInterval(interval);
   }, [quizStarted]);
 
-  /* ================================================================
-     SUBMIT QUIZ ANSWERS
-     ================================================================ */
-  // const submitQuizAnswers = async (
-  //   answers: {
-  //     question_id: number;
-  //     selected_answer: string;
-  //   }[]
-  // ) => {
-  //   try {
-  //     setIsSubmitting(true);
 
-  //     const res = await quizService.submitQuiz(
-  //       sessionId,
-  //       answers,
-  //       sessionStartedAnonymous
-  //     );
 
-  //     const score = res.score_percentage;
-  //     const correctCount =
-  //       res.correct_answers ??
-  //       Math.round((score / 100) * answers.length);
-
-  //     setQuizResult({
-  //       score,
-  //       totalQuestions: answers.length,
-  //       correctAnswers: correctCount,
-  //       percentage: score,
-  //       status: score >= 70 ? "Passed" : "Under Review",
-  //     });
-
-  //     localStorage.setItem(
-  //       "latestScore",
-  //       score.toString()
-  //     );
-  //     localStorage.setItem(
-  //       "quizResult",
-  //       JSON.stringify({
-  //         score,
-  //         totalQuestions: answers.length,
-  //         correctAnswers: correctCount,
-  //         percentage: score,
-  //         completedAt: new Date().toISOString(),
-  //       })
-  //     );
-  //   } catch (error) {
-  //     console.error(
-  //       "Error submitting quiz answers:",
-  //       error
-  //     );
-  //     setQuizResult({
-  //       score: 0,
-  //       totalQuestions: answers.length,
-  //       correctAnswers: 0,
-  //       percentage: 0,
-  //       status:
-  //         "Submission Error - Please contact admin",
-  //     });
-  //   } finally {
-  //     setIsSubmitting(false);
-  //   }
-  // };
 
   useEffect(() => {
     if (submitted && !quizResult && !isSubmitting) {
@@ -677,23 +863,101 @@ const QuizContainer = () => {
   /* ================================================================
      NEXT QUESTION HANDLER (CORE FLOW)
      ================================================================ */
-  const goNext = () => {
-    const currentQuestion =
-      mcqQuestions.questions[current];
-    //if (!currentQuestion) return;
-    if (!currentQuestion && !isAdditionalQuestionStep) return;
+  // const goNext = () => {
+  //   const currentQuestion =
+  //     mcqQuestions.questions[current];
+  //   if (!currentQuestion && !isAdditionalQuestionStep) return;
 
-    // Persist answer
-    // setAnswers((prev) => [
-    //   ...prev,
-    //   {
-    //     question_id: currentQuestion.question_id,
-    //     selected_answer:
-    //       currentQuestion.question_type === "mcq"
-    //         ? selectedOption
-    //         : textAnswer,
-    //   },
-    // ]);
+
+  //   const qid =
+  //     (currentQuestion as any).question_id ??
+  //     (currentQuestion as any).id;
+
+  //   setAnswers((prev) => [
+  //     ...prev,
+  //     {
+  //       question_id: qid,
+  //       selected_answer:
+  //         currentQuestion.question_type === "mcq"
+  //           ? selectedOption
+  //           : textAnswer,
+  //     },
+  //   ]);
+
+
+  //   // Reset inputs
+  //   setSelected("");
+  //   setTextAnswer("");
+
+  //   // Move forward
+  //   if (current < mcqQuestions.questions.length - 1) {
+  //     const nextIndex = current + 1;
+
+  //     setCurrent(nextIndex);
+  //     setQuestion(
+  //       mcqQuestions.questions[nextIndex]
+  //     );
+  //     setQuestionTimer(questionTimeRef.current);
+
+  //     // Snap global timer to deterministic value
+  //     const snapped = Math.max(
+  //       0,
+  //       initialQuizDurationRef.current -
+  //       nextIndex *
+  //       questionTimeRef.current
+  //     );
+  //     setQuizTimer(snapped);
+  //   } else {
+  //     setSubmitted(true);
+  //   }
+
+  // };
+  const goNext = () => {
+    console.log("GO NEXT", {
+      current,
+      screeningIndex,
+      screeningQuestions,
+      isAdditionalQuestionStep,
+    });
+
+    // ================= SCREENING STEP =================
+    if (isAdditionalQuestionStep) {
+      console.log("SCREENING ANSWER SUBMIT", {
+        screeningIndex,
+        answer: additionalScreeningAnswer,
+      });
+
+      // store screening answer
+      setAnswers((prev) => [
+        ...prev,
+        {
+          question_id: -1 - screeningIndex, // unique FE-only IDs
+          selected_answer: additionalScreeningAnswer,
+        },
+      ]);
+
+      const nextIndex = screeningIndex + 1;
+
+      // move to next screening question
+      if (nextIndex < screeningQuestions.length) {
+        setScreeningIndex(nextIndex);
+        setAdditionalScreeningQuestion(
+          screeningQuestions[nextIndex]
+        );
+        setAdditionalScreeningAnswer("");
+        return; // 🔴 VERY IMPORTANT
+      }
+
+      // all screening questions done
+      console.log("ALL SCREENING QUESTIONS COMPLETED");
+      setSubmitted(true);
+      return;
+    }
+
+    // ================= DB QUESTION STEP =================
+    const currentQuestion = mcqQuestions.questions[current];
+    if (!currentQuestion) return;
+
     const qid =
       (currentQuestion as any).question_id ??
       (currentQuestion as any).id;
@@ -709,73 +973,76 @@ const QuizContainer = () => {
       },
     ]);
 
-
-    // Reset inputs
     setSelected("");
     setTextAnswer("");
 
-    // Move forward
     if (current < mcqQuestions.questions.length - 1) {
       const nextIndex = current + 1;
-
       setCurrent(nextIndex);
-      setQuestion(
-        mcqQuestions.questions[nextIndex]
-      );
+      setQuestion(mcqQuestions.questions[nextIndex]);
       setQuestionTimer(questionTimeRef.current);
 
-      // Snap global timer to deterministic value
       const snapped = Math.max(
         0,
         initialQuizDurationRef.current -
-        nextIndex *
-        questionTimeRef.current
+        nextIndex * questionTimeRef.current
       );
       setQuizTimer(snapped);
     } else {
-      if (additionalScreeningQuestion) {
-        // Move to FE-only additional screening question
-        setCurrent((prev) => prev + 1);
-        setQuestion(null);
+      console.log("LAST DB QUESTION REACHED", {
+        current,
+        dbQuestionsLength: mcqQuestions.questions.length,
+        hasScreening: screeningQuestions.length > 0,
+      });
+
+      // last DB question → move to screening OR submit
+      if (screeningQuestions.length > 0) {
+        setCurrent((i) => i + 1); // enter screening
       } else {
         setSubmitted(true);
       }
     }
-
   };
 
-  /* ================================================================
-   ADDITIONAL SCREENING QUESTION FLAG
-   ================================================================ */
-  const isAdditionalQuestionStep =
-    !submitted &&
-    !!additionalScreeningQuestion &&
-    current === mcqQuestions.questions.length;
 
   /* ================================================================
-     ERROR & LOADING STATES
+     ADDITIONAL SCREENING QUESTION (PHASE 3 – FE ONLY)
      ================================================================ */
-  if (error) {
+  if (isAdditionalQuestionStep) {
+    console.log("RENDERING SCREENING UI");
+
     return (
-      <ErrorMessage
-        message={error}
-        onRetry={getMCQsBasedOnProfile}
-      />
+      <Box className="quiz-container">
+        <Typography className="quiz-question">
+          {additionalScreeningQuestion}
+        </Typography>
+
+        <Editor
+          height="300px"
+          language="javascript"
+          value={additionalScreeningAnswer}
+          onChange={(v) =>
+            setAdditionalScreeningAnswer(v || "")
+          }
+          options={{
+            minimap: { enabled: false },
+            fontSize: 14,
+            wordWrap: "on",
+            automaticLayout: true,
+          }}
+        />
+
+        <Button
+          className="next-btn"
+          variant="contained"
+          onClick={goNext}
+          disabled={!additionalScreeningAnswer.trim()}
+        >
+          Submit
+        </Button>
+      </Box>
     );
   }
-
-  if (loading) {
-    return (
-      <Loader
-        fullscreen
-        message="Loading AgenticAI assessment..."
-      />
-    );
-  }
-
-  /* ================================================================
-     SUBMISSION STATE
-     ================================================================ */
 
   if (submitted && isSubmitting) {
     return (
@@ -808,110 +1075,12 @@ const QuizContainer = () => {
       </Box>
     );
   }
-  /* ================================================================
-   ADDITIONAL SCREENING QUESTION (FE ONLY)
-   ================================================================ */
-  if (isAdditionalQuestionStep) {
-    return (
-      <Box className="quiz-container">
-        <Typography className="quiz-question">
-          {additionalScreeningQuestion}
-        </Typography>
-
-        <Editor
-          height="300px"
-          language="javascript"
-          value={additionalScreeningAnswer}
-          onChange={(v) =>
-            setAdditionalScreeningAnswer(v || "")
-          }
-          options={{
-            minimap: { enabled: false },
-            fontSize: 14,
-            wordWrap: "on",
-            automaticLayout: true,
-          }}
-        />
-
-        <Button
-          className="next-btn"
-          variant="contained"
-          //onClick={() => setSubmitted(true)}
-          onClick={() => {
-            setAnswers((prev) => [
-              ...prev,
-              {
-                question_id: -1, // FE-only virtual question
-                selected_answer: additionalScreeningAnswer,
-              },
-            ]);
-            setSubmitted(true);
-          }}
-
-          disabled={!additionalScreeningAnswer.trim()}
-        >
-          Submit
-        </Button>
-      </Box>
-    );
-  }
-
-
 
   /* ================================================================
-     INSTRUCTIONS MODAL
-     ================================================================ */
-  if (showModal) {
-    const durationMinutesPreview =
-      locationState?.assessment?.duration_minutes ??
-      assessmentData?.duration_minutes ??
-      5;
-
-    const previewDuration = Math.max(
-      1,
-      Math.floor(durationMinutesPreview * 60)
-    );
-
-    const totalQuestions =
-      mcqQuestions.questions.length || 10;
-
-    const previewPerQuestion =
-      previewDuration === 300
-        ? 30
-        : previewDuration === 1800
-          ? 180
-          : Math.max(
-            1,
-            Math.floor(
-              previewDuration / totalQuestions
-            )
-          );
-
-    return (
-      <QuizInstructionsModal
-        open={showModal}
-        onStart={startQuiz}
-        duration={previewDuration}
-        perQuestion={previewPerQuestion}
-      />
-    );
-  }
-
-  /* ================================================================
-     QUESTION RENDER
+     DB QUESTION RENDER (PHASE 2 – ONLY DB QUESTIONS)
      ================================================================ */
   if (!question) return null;
 
-  // const mcqOptions: NormalizedMCQOption[] =
-  //   question.question_type === "mcq" &&
-  //     question.options
-  //     ? Object.entries(question.options).map(
-  //       ([option_id, text]) => ({
-  //         option_id,
-  //         text: String(text),
-  //       })
-  //     )
-  //     : [];
   const isMcq =
     question.question_type === "mcq" ||
     Array.isArray(question.options);
@@ -928,6 +1097,7 @@ const QuizContainer = () => {
         )
         : []
     : [];
+
 
 
 
@@ -1010,6 +1180,32 @@ const QuizContainer = () => {
         <Typography className="quiz-question">
           {question.question_text}
         </Typography>
+
+        {/* ================= SCREENING ================= */}
+        {/* {question.question_type === "screening" && (
+          <>
+            <Typography className="quiz-question">
+              {question.question_text}
+            </Typography>
+
+            <textarea
+              className="screening-textarea"
+              placeholder="Write your answer here..."
+              value={textAnswer}
+              onChange={(e) => setTextAnswer(e.target.value)}
+            />
+
+            <Button
+              className="next-btn"
+              variant="contained"
+              onClick={goNext}
+              disabled={!textAnswer.trim()}
+            >
+              Next
+            </Button>
+          </>
+        )} */}
+
 
         {/* ================= MCQ ================= */}
         {/* {question.question_type === "mcq" && ( */}
@@ -1097,7 +1293,6 @@ const QuizContainer = () => {
           })()}
 
         {/* ================= ARCHITECTURE ================= */}
-        {/* ================= ARCHITECTURE ================= */}
         {question.question_type === "architecture" &&
           (() => {
             const focusAreas =
@@ -1176,3 +1371,4 @@ const QuizContainer = () => {
 };
 
 export default QuizContainer;
+

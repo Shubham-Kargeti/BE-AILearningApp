@@ -1,4 +1,8 @@
-export type QuestionType = "mcq" | "coding" | "architecture";
+export type QuestionType =
+  | "mcq"
+  | "coding"
+  | "architecture"
+  | "screening";
 
 export interface MCQOption {
   option_id: string;
@@ -6,15 +10,14 @@ export interface MCQOption {
 }
 
 export interface AssessmentQuestion {
-  question_id: number;
+  question_id?: number;  
+  id?: string;            
   question_text: string;
   question_type: QuestionType;
 
-  // MCQ
   options?: MCQOption[];
   correct_answer?: string;
 
-  // Coding / Architecture
   meta?: {
     language?: string;
     constraints?: string[];

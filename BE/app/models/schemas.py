@@ -252,6 +252,7 @@ class AssessmentCreate(BaseModel):
     expires_at: Optional[datetime] = None
     candidate_info: Optional[CandidateInfoSchema] = None
     questionnaire_config: Optional[Dict[str, int]] = None
+    screening_questions: Optional[List[str]] = None
 
 
 
@@ -268,6 +269,7 @@ class AssessmentUpdate(BaseModel):
     is_active: Optional[bool] = None
     is_published: Optional[bool] = None
     expires_at: Optional[datetime] = None
+    screening_questions: Optional[List[str]] = None
 
 
 class AssessmentResponse(BaseModel):

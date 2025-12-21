@@ -277,63 +277,78 @@ const AssessmentSetupContainer: React.FC = () => {
     setSubmitLoading(true);
 
     try {
-      const assessmentPayload: any = {
-        title: `Assessment for ${role}`,
-        description: `Assessment created for candidate ${candidateInfo.name || candidateInfo.email}`,
-        job_title: role.trim(),
-        //required_skills: skills.reduce((acc, skill) => ({ ...acc, [skill]: "intermediate" }), {}),
-        required_skills: skills.reduce((acc, skill) => {
-          const level = skillDurations?.[skill.toLowerCase()]
-            ? skillDurations[skill.toLowerCase()] >= 3 ? "advanced" : "intermediate"
-            : "intermediate";
+  const assessmentPayload: any = {
+    title: `Assessment for ${role}`,
+    description: `Assessment created for candidate ${candidateInfo.name || candidateInfo.email}`,
+    job_title: role.trim(),
 
-          return { ...acc, [skill]: level };
-        }, {}),
-        required_roles: [role.trim()],
-        duration_minutes: 30,
-        is_questionnaire_enabled: assessmentMethod === "questionnaire",
-        is_interview_enabled: assessmentMethod === "interview",
-        candidate_info: {
-          name: candidateInfo.name,
-          email: candidateInfo.email,
-          experience: candidateInfo.experience,
-          current_role: candidateInfo.currentRole,
-        },
-      };
+    required_skills: skills.reduce((acc, skill) => {
+      const level = skillDurations?.[skill.toLowerCase()]
+        ? skillDurations[skill.toLowerCase()] >= 3
+          ? "advanced"
+          : "intermediate"
+        : "intermediate";
 
-      if (assessmentMethod === "questionnaire") {
-        assessmentPayload.questionnaire_config = {
-          mcq: questionDistribution.mcq,
-          coding: questionDistribution.coding,
-          architecture: questionDistribution.architecture,
-        };
-      }
+      return { ...acc, [skill]: level };
+    }, {}),
 
+    required_roles: [role.trim()],
+    duration_minutes: 30,
 
-      if (expiresAt) {
-        assessmentPayload.expires_at = new Date(expiresAt).toISOString();
-      }
+    is_questionnaire_enabled: assessmentMethod === "questionnaire",
+    is_interview_enabled: assessmentMethod === "interview",
 
-      const response = isEditMode
-        ? await assessmentService.updateAssessment(assessmentId!, assessmentPayload)
-        : await assessmentService.createAssessment(assessmentPayload);
+    candidate_info: {
+      name: candidateInfo.name,
+      email: candidateInfo.email,
+      experience: candidateInfo.experience,
+      current_role: candidateInfo.currentRole,
+    },
 
-      const resultAssessmentId = response?.assessment_id;
-      const generatedLink = `${window.location.origin}/candidate-assessment/${resultAssessmentId}`;
-
-      setAssessmentLink(generatedLink);
-      setShowAssessmentLinkModal(true);
-
-      setToast({ type: "success", message: isEditMode ? "Assessment updated successfully!" : "Assessment created successfully!" });
-    } catch (err: any) {
-      console.error("Error submitting assessment:", err);
-      const errorMessage = err.response?.data?.detail || "Failed to create assessment. Please try again.";
-      setToast({ type: "error", message: errorMessage });
-    } finally {
-      setSubmitLoading(false);
-    }
+    // ✅ ADD THIS — Screening questions sent to BE
+    screening_questions: screeningQuestions
+      .map(q => q.trim())
+      .filter(Boolean),
   };
 
+  if (assessmentMethod === "questionnaire") {
+    assessmentPayload.questionnaire_config = {
+      mcq: questionDistribution.mcq,
+      coding: questionDistribution.coding,
+      architecture: questionDistribution.architecture,
+    };
+  }
+
+  if (expiresAt) {
+    assessmentPayload.expires_at = new Date(expiresAt).toISOString();
+  }
+
+  const response = isEditMode
+    ? await assessmentService.updateAssessment(assessmentId!, assessmentPayload)
+    : await assessmentService.createAssessment(assessmentPayload);
+
+  const resultAssessmentId = response?.assessment_id;
+  const generatedLink = `${window.location.origin}/candidate-assessment/${resultAssessmentId}`;
+
+  setAssessmentLink(generatedLink);
+  setShowAssessmentLinkModal(true);
+
+  setToast({
+    type: "success",
+    message: isEditMode
+      ? "Assessment updated successfully!"
+      : "Assessment created successfully!",
+  });
+} catch (err: any) {
+  console.error("Error submitting assessment:", err);
+  const errorMessage =
+    err.response?.data?.detail ||
+    "Failed to create assessment. Please try again.";
+  setToast({ type: "error", message: errorMessage });
+} finally {
+  setSubmitLoading(false);
+}
+  };
   if (rbacError) {
     return (
       <div className="assessment-page error-page">
