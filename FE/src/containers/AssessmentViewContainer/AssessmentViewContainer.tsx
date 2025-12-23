@@ -32,7 +32,7 @@ interface ToastMessage {
 const AssessmentViewContainer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  
+
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
@@ -80,9 +80,9 @@ const AssessmentViewContainer: React.FC = () => {
       const result = await quizService.getTestResults(sessionId);
       setSelectedResult(result);
     } catch (err: any) {
-      setToast({ 
-        type: "error", 
-        message: err?.response?.data?.detail?.message || "Results not yet available" 
+      setToast({
+        type: "error",
+        message: err?.response?.data?.detail?.message || "Results not yet available"
       });
     } finally {
       setLoadingResult(false);
@@ -91,9 +91,9 @@ const AssessmentViewContainer: React.FC = () => {
 
   const initiateLearningPath = async (_sessionId: string) => {
     // TODO: Implement learning path initiation
-    setToast({ 
-      type: "info", 
-      message: "Learning path initiation is coming soon!" 
+    setToast({
+      type: "info",
+      message: "Learning path initiation is coming soon!"
     });
   };
 
@@ -153,21 +153,21 @@ const AssessmentViewContainer: React.FC = () => {
 
   const handlePublish = async () => {
     if (!assessment) return;
-    
+
     try {
       setPublishLoading(true);
       const updatedAssessment = await assessmentService.publishAssessment(assessment.assessment_id);
       setAssessment(updatedAssessment);
-      setToast({ 
-        type: "success", 
-        message: updatedAssessment.is_published 
-          ? "Assessment published successfully! Candidates can now access it." 
+      setToast({
+        type: "success",
+        message: updatedAssessment.is_published
+          ? "Assessment published successfully! Candidates can now access it."
           : "Assessment unpublished. Candidates can no longer access it."
       });
     } catch (err: any) {
-      setToast({ 
-        type: "error", 
-        message: err.response?.data?.detail || "Failed to update publish status" 
+      setToast({
+        type: "error",
+        message: err.response?.data?.detail || "Failed to update publish status"
       });
     } finally {
       setPublishLoading(false);
@@ -281,7 +281,7 @@ const AssessmentViewContainer: React.FC = () => {
       <div className="view-content">
         {/* Tab Navigation */}
         <div className="tab-navigation" style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '2px solid #e0e0e0' }}>
-          <button 
+          <button
             className={`tab-btn ${activeTab === 'details' ? 'active' : ''}`}
             onClick={() => setActiveTab('details')}
             style={{
@@ -299,7 +299,7 @@ const AssessmentViewContainer: React.FC = () => {
             <FiFileText style={{ marginRight: '0.5rem' }} />
             Assessment Details
           </button>
-          <button 
+          <button
             className={`tab-btn ${activeTab === 'results' ? 'active' : ''}`}
             onClick={() => setActiveTab('results')}
             style={{
@@ -321,145 +321,168 @@ const AssessmentViewContainer: React.FC = () => {
 
         {activeTab === 'details' && (
           <>
-        <div className="title-section">
-          <div className="title-info">
-            <h1>{assessment.title}</h1>
-            {assessment.job_title && (
-              <span className="job-title">{assessment.job_title}</span>
-            )}
-          </div>
-          <div className={`status-badge ${statusInfo.color}`}>
-            {statusInfo.icon}
-            <span>{statusInfo.label}</span>
-          </div>
-        </div>
+            <div className="title-section">
+              <div className="title-info">
+                <h1>{assessment.title}</h1>
+                {assessment.job_title && (
+                  <span className="job-title">{assessment.job_title}</span>
+                )}
+              </div>
+              <div className={`status-badge ${statusInfo.color}`}>
+                {statusInfo.icon}
+                <span>{statusInfo.label}</span>
+              </div>
+            </div>
 
-        {assessment.description && (
-          <div className="description-section">
-            <p>{assessment.description}</p>
-          </div>
-        )}
+            
+            {assessment.description && (() => {
+              try {
+                const parsed =
+                  typeof assessment.description === "string"
+                    ? JSON.parse(assessment.description)
+                    : assessment.description;
 
-        <div className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-icon">
-              <FiClock size={24} />
-            </div>
-            <div className="stat-content">
-              <span className="stat-value">{assessment.duration_minutes}</span>
-              <span className="stat-label">Minutes</span>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-icon">
-              <FiFileText size={24} />
-            </div>
-            <div className="stat-content">
-              <span className="stat-value">{assessment.assessment_method}</span>
-              <span className="stat-label">Method</span>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-icon">
-              <FiUsers size={24} />
-            </div>
-            <div className="stat-content">
-              <span className="stat-value">{skills.length}</span>
-              <span className="stat-label">Skills Required</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="link-section">
-          <h3>
-            <FiLink size={18} />
-            Assessment Link
-          </h3>
-          <div className="link-box">
-            <input type="text" readOnly value={assessmentLink} />
-            <button className="btn-copy" onClick={handleCopyLink}>
-              <FiCopy size={16} />
-              Copy
-            </button>
-          </div>
-          <p className="link-hint">Share this link with candidates to start the assessment</p>
-          {assessment.expires_at ? (
-            <p className={`link-expiry ${assessment.is_expired ? 'expired' : 'active'}`}>
-              <FiClock size={14} />
-              <span>
-                {assessment.is_expired 
-                  ? `Expired on ${new Date(assessment.expires_at).toLocaleString()}`
-                  : `Expires on ${new Date(assessment.expires_at).toLocaleString()}`
+                // ✅ show only human-readable text
+                if (parsed?.text) {
+                  return (
+                    <div className="description-section">
+                      <p>{parsed.text}</p>
+                    </div>
+                  );
                 }
-              </span>
-            </p>
-          ) : (
-            <p className="link-note">
-              <FiClock size={14} />
-              <span>No expiry date set - link remains active indefinitely</span>
-            </p>
-          )}
-        </div>
 
-        {skills.length > 0 && (
-          <div className="skills-section">
-            <h3>Required Skills</h3>
-            <div className="skills-grid">
-              {skills.map(([skill, level]) => (
-                <div key={skill} className="skill-item">
-                  <span className="skill-name">{skill}</span>
-                  <span className={`skill-level level-${level.toLowerCase()}`}>
-                    {level}
+                return null;
+              } catch {
+                // fallback: plain string (non-JSON legacy)
+                return (
+                  <div className="description-section">
+                    <p>{assessment.description}</p>
+                  </div>
+                );
+              }
+            })()}
+
+
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <FiClock size={24} />
+                </div>
+                <div className="stat-content">
+                  <span className="stat-value">{assessment.duration_minutes}</span>
+                  <span className="stat-label">Minutes</span>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <FiFileText size={24} />
+                </div>
+                <div className="stat-content">
+                  <span className="stat-value">{assessment.assessment_method}</span>
+                  <span className="stat-label">Method</span>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-icon">
+                  <FiUsers size={24} />
+                </div>
+                <div className="stat-content">
+                  <span className="stat-value">{skills.length}</span>
+                  <span className="stat-label">Skills Required</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="link-section">
+              <h3>
+                <FiLink size={18} />
+                Assessment Link
+              </h3>
+              <div className="link-box">
+                <input type="text" readOnly value={assessmentLink} />
+                <button className="btn-copy" onClick={handleCopyLink}>
+                  <FiCopy size={16} />
+                  Copy
+                </button>
+              </div>
+              <p className="link-hint">Share this link with candidates to start the assessment</p>
+              {assessment.expires_at ? (
+                <p className={`link-expiry ${assessment.is_expired ? 'expired' : 'active'}`}>
+                  <FiClock size={14} />
+                  <span>
+                    {assessment.is_expired
+                      ? `Expired on ${new Date(assessment.expires_at).toLocaleString()}`
+                      : `Expires on ${new Date(assessment.expires_at).toLocaleString()}`
+                    }
+                  </span>
+                </p>
+              ) : (
+                <p className="link-note">
+                  <FiClock size={14} />
+                  <span>No expiry date set - link remains active indefinitely</span>
+                </p>
+              )}
+            </div>
+
+            {skills.length > 0 && (
+              <div className="skills-section">
+                <h3>Required Skills</h3>
+                <div className="skills-grid">
+                  {skills.map(([skill, level]) => (
+                    <div key={skill} className="skill-item">
+                      <span className="skill-name">{skill}</span>
+                      <span className={`skill-level level-${level.toLowerCase()}`}>
+                        {level}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="settings-section">
+              <h3>Assessment Settings</h3>
+              <div className="settings-grid">
+                <div className={`setting-item ${assessment.is_questionnaire_enabled ? "enabled" : "disabled"}`}>
+                  <FiFileText size={20} />
+                  <span>Questionnaire</span>
+                  <span className="setting-status">
+                    {assessment.is_questionnaire_enabled ? "Enabled" : "Disabled"}
                   </span>
                 </div>
-              ))}
+                <div className={`setting-item ${assessment.is_interview_enabled ? "enabled" : "disabled"}`}>
+                  <FiUsers size={20} />
+                  <span>Interview</span>
+                  <span className="setting-status">
+                    {assessment.is_interview_enabled ? "Enabled" : "Disabled"}
+                  </span>
+                </div>
+                <div className={`setting-item ${assessment.is_active ? "enabled" : "disabled"}`}>
+                  <FiActivity size={20} />
+                  <span>Active Status</span>
+                  <span className="setting-status">
+                    {assessment.is_active ? "Active" : "Inactive"}
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
 
-        <div className="settings-section">
-          <h3>Assessment Settings</h3>
-          <div className="settings-grid">
-            <div className={`setting-item ${assessment.is_questionnaire_enabled ? "enabled" : "disabled"}`}>
-              <FiFileText size={20} />
-              <span>Questionnaire</span>
-              <span className="setting-status">
-                {assessment.is_questionnaire_enabled ? "Enabled" : "Disabled"}
-              </span>
+            <div className="metadata-section">
+              <div className="metadata-item">
+                <FiCalendar size={16} />
+                <span>Created: {formatDate(assessment.created_at)}</span>
+              </div>
+              <div className="metadata-item">
+                <FiCalendar size={16} />
+                <span>Updated: {formatDate(assessment.updated_at)}</span>
+              </div>
+              <div className="metadata-item">
+                <FiMail size={16} />
+                <span>ID: {assessment.assessment_id}</span>
+              </div>
             </div>
-            <div className={`setting-item ${assessment.is_interview_enabled ? "enabled" : "disabled"}`}>
-              <FiUsers size={20} />
-              <span>Interview</span>
-              <span className="setting-status">
-                {assessment.is_interview_enabled ? "Enabled" : "Disabled"}
-              </span>
-            </div>
-            <div className={`setting-item ${assessment.is_active ? "enabled" : "disabled"}`}>
-              <FiActivity size={20} />
-              <span>Active Status</span>
-              <span className="setting-status">
-                {assessment.is_active ? "Active" : "Inactive"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="metadata-section">
-          <div className="metadata-item">
-            <FiCalendar size={16} />
-            <span>Created: {formatDate(assessment.created_at)}</span>
-          </div>
-          <div className="metadata-item">
-            <FiCalendar size={16} />
-            <span>Updated: {formatDate(assessment.updated_at)}</span>
-          </div>
-          <div className="metadata-item">
-            <FiMail size={16} />
-            <span>ID: {assessment.assessment_id}</span>
-          </div>
-        </div>
           </>
         )}
 
@@ -483,8 +506,8 @@ const AssessmentViewContainer: React.FC = () => {
             ) : (
               <div className="sessions-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {testSessions.map((session) => (
-                  <div 
-                    key={session.session_id} 
+                  <div
+                    key={session.session_id}
                     style={{
                       padding: '1rem 1.5rem',
                       backgroundColor: '#fff',
@@ -500,7 +523,7 @@ const AssessmentViewContainer: React.FC = () => {
                         Session: {session.session_id.slice(0, 12)}...
                       </p>
                       <p style={{ fontSize: '0.875rem', color: '#666' }}>
-                        Status: <span style={{ 
+                        Status: <span style={{
                           color: session.status === 'completed' ? '#4caf50' : '#ff9800',
                           fontWeight: '500'
                         }}>{session.status}</span>
@@ -566,7 +589,7 @@ const AssessmentViewContainer: React.FC = () => {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                     <h3>Detailed Results</h3>
-                    <button 
+                    <button
                       onClick={() => setSelectedResult(null)}
                       style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}
                     >
@@ -598,7 +621,7 @@ const AssessmentViewContainer: React.FC = () => {
                   <h4 style={{ marginBottom: '1rem' }}>Question Breakdown</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {selectedResult.detailed_results.map((q, idx) => (
-                      <div 
+                      <div
                         key={q.question_id}
                         style={{
                           padding: '1rem',
@@ -622,7 +645,7 @@ const AssessmentViewContainer: React.FC = () => {
                     ))}
                   </div>
 
-                  <button 
+                  <button
                     className="btn btn-primary"
                     onClick={() => setSelectedResult(null)}
                     style={{ marginTop: '1.5rem', width: '100%' }}
