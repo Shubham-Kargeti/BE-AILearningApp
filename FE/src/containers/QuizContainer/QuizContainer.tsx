@@ -1323,7 +1323,7 @@ const QuizContainer = () => {
                 </Box>
 
                 {/* RIGHT: ANSWER */}
-                <Box className="architecture-answer">
+                {/* <Box className="architecture-answer">
                   <Typography className="section-title">
                     Your Design
                   </Typography>
@@ -1337,6 +1337,30 @@ const QuizContainer = () => {
                     }
                   />
 
+                  <Button
+                    className="next-btn"
+                    variant="contained"
+                    onClick={goNext}
+                    disabled={!textAnswer.trim()}
+                  >
+                    Next
+                  </Button>
+                </Box> */}
+                <Box className="architecture-answer">
+                  <Typography className="section-title">
+                    Your Design
+                  </Typography>
+
+                  <textarea
+                    className="architecture-textarea large"
+                    placeholder="Describe your system design, components, scaling strategy, and trade-offs..."
+                    value={textAnswer}
+                    onChange={(e) =>
+                      setTextAnswer(e.target.value)
+                    }
+                  />
+                </Box>
+                <Box sx={{ marginTop: "20px" }}>
                   <Button
                     className="next-btn"
                     variant="contained"
