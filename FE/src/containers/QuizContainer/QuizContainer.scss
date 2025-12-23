@@ -54,6 +54,11 @@
   text-transform: none !important;
   border-radius: 8px !important;
   margin-top: 20px;
+
+  /* 🔥 IMPORTANT FIX */
+  width: auto;
+  min-width: 120px;
+  padding: 8px 24px !important;
 }
 
 .quiz-modal {
