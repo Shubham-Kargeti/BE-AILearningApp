@@ -1,3 +1,42 @@
+/**
+ * COPILOT TASK — HARD FILE SCOPE LOCK
+ *
+ * You are allowed to edit THIS FILE ONLY:
+ *   - src/containers/QuizContainer/QuizContainer.tsx
+ *
+ * STRICTLY FORBIDDEN:
+ * - Do NOT modify AssessmentTypes.ts
+ * - Do NOT modify any other file
+ * - Do NOT create new files
+ * - Do NOT change tsconfig
+ *
+ * OBJECTIVE:
+ * - Fix TypeScript build errors so `npm run build` succeeds
+ * - ZERO runtime behavior change
+ *
+ * ABSOLUTE RULES:
+ * 1. Do NOT remove or alter rendering logic for:
+ *    - MCQ
+ *    - Coding questions
+ *    - Architecture questions
+ *    - Screening questions
+ * 2. Do NOT delete JSX blocks or editor components
+ * 3. Do NOT comment out logic to silence errors
+ * 4. Do NOT add dummy references or `if(false)` usage
+ * 5. Do NOT weaken types globally
+ *
+ * ALLOWED:
+ * - Local type narrowing
+ * - Local type casting at assignment boundaries
+ * - Helper functions INSIDE THIS FILE ONLY
+ * - Adapting API response shape to existing AssessmentQuestion type
+ *
+ * IMPORTANT:
+ * AssessmentTypes.ts is correct and must be treated as READ-ONLY.
+ *
+ * SUCCESS = build passes, UI behavior unchanged.
+ */
+
 import { useEffect, useState, useRef } from "react";
 import {
   Box,
@@ -10,16 +49,13 @@ import {
   Snackbar,
   Alert,
 } from "@mui/material";
-import QuizInstructionsModal from "./components/QuizInstructionsModal";
 import "./QuizContainer.scss";
 import { quizService, authService } from "../../API/services";
 import type {
   AssessmentQuestion,
   QuestionSet,
 } from "../../AssessmentTypes/AssessmentTypes";
-import Loader from "../../components/Loader";
-import { useNavigate, useLocation } from "react-router-dom";
-import ErrorMessage from "../../components/ErrorMessage/ErrorMessage";
+import { useLocation } from "react-router-dom";
 import Editor from "@monaco-editor/react";
 
 
@@ -36,6 +72,7 @@ interface LocationState {
     required_skills?: Record<string, string>;
     duration_minutes?: number;
     title?: string;
+    description?: any;
     candidate_info?: {
       name?: string;
       email?: string;
@@ -50,7 +87,7 @@ const QUESTION_TIME_DEFAULT = 30;
 
 const QuizContainer = () => {
   /* ================= CORE UI STATE ================= */
-  const [showModal, setShowModal] = useState(true);
+  const [, setShowModal] = useState(true);
   const [current, setCurrent] = useState(0);
   const [selectedOption, setSelected] = useState("");
   const [textAnswer, setTextAnswer] = useState("");
@@ -89,9 +126,9 @@ const QuizContainer = () => {
   });
 
   /* ================= META STATE ================= */
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [quizStarted, setQuizStarted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string>("");
 
   const [sessionStartedAnonymous, setSessionStartedAnonymous] =
@@ -128,9 +165,37 @@ const QuizContainer = () => {
   const questionTimeRef = useRef<number>(QUESTION_TIME_DEFAULT);
 
   /* ================= ROUTER ================= */
-  const navigate = useNavigate();
   const location = useLocation();
   const locationState = location.state as LocationState | null;
+
+  /* ================================================================
+     Helper: normalize backend question/sets to `AssessmentQuestion`
+     ================================================================ */
+  const normalizeQuestion = (raw: any): AssessmentQuestion => {
+    const q: any = { ...raw };
+
+    if (!q.question_type) {
+      if (q.type) q.question_type = q.type;
+      else if (Array.isArray(q.options) || q.options)
+        q.question_type = "mcq";
+      else q.question_type = "screening";
+    }
+
+    return q as AssessmentQuestion;
+  };
+
+  const normalizeQuestionSet = (raw: any): QuestionSet => {
+    return {
+      question_set_id: raw.question_set_id ?? raw.id ?? "",
+      skill: raw.skill ?? raw.topic ?? "",
+      level: raw.level ?? "intermediate",
+      total_questions: raw.total_questions ?? (raw.questions?.length ?? 0),
+      created_at: raw.created_at ?? raw.started_at ?? "",
+      questions: Array.isArray(raw.questions)
+        ? raw.questions.map((q: any) => normalizeQuestion(q))
+        : [],
+    };
+  };
 
   /**
    * Assessment resolution
@@ -197,8 +262,9 @@ const QuizContainer = () => {
         subtopics
       );
 
-      setMcqQuestions(res);
-      setQuestion(res.questions?.[0] ?? null);
+      const normalized = normalizeQuestionSet(res);
+      setMcqQuestions(normalized);
+      setQuestion(normalized.questions?.[0] ?? null);
       setLoading(false);
     } catch (err) {
       console.error("Error loading MCQs:", err);
@@ -233,17 +299,9 @@ const QuizContainer = () => {
         }
       );
 
-      const questionSet: QuestionSet = {
-        question_set_id: res.question_set_id,
-        skill: res.skill,
-        level: res.level,
-        total_questions: res.total_questions,
-        created_at: res.started_at,
-        questions: res.questions,
-      };
-
-      setMcqQuestions(questionSet);
-      setQuestion(res.questions?.[0] ?? null);
+      const normalized = normalizeQuestionSet(res);
+      setMcqQuestions(normalized);
+      setQuestion(normalized.questions?.[0] ?? null);
       setLoading(false);
     } catch (err) {
       console.error(
@@ -600,9 +658,7 @@ const QuizContainer = () => {
     }
   };
 
-  const startQuiz = () => {
-    getQuizSessionId();
-  };
+  
 
   const loginAsCandidateAndStart = async () => {
     const candidateEmail =
