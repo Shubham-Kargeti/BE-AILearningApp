@@ -68,7 +68,7 @@ const AssessmentViewContainer: React.FC = () => {
       const sessions = await quizService.listTestSessions();
       setTestSessions(sessions);
     } catch (err) {
-      console.error("Error fetching test sessions:", err);
+
     } finally {
       setLoadingSessions(false);
     }
@@ -110,7 +110,7 @@ const AssessmentViewContainer: React.FC = () => {
         const data = await assessmentService.getAssessment(id);
         setAssessment(data);
       } catch (err: any) {
-        console.error("Error fetching assessment:", err);
+
         setError(err.response?.data?.detail || "Failed to load assessment");
       } finally {
         setLoading(false);

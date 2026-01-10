@@ -46,7 +46,6 @@ const ProfileSetupContainer = () => {
       expertise: Yup.string().required("Select your expertise level"),
     }),
     onSubmit: (values) => {
-      console.log("Monesh Profile saved:", values);
       localStorage.setItem("profileCompleted", "true");
 
       const { expertise, skills, subSkills } = values;

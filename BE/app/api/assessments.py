@@ -15,6 +15,8 @@ from app.models.schemas import (
     AssessmentCreate, AssessmentUpdate, AssessmentResponse,
     AssessmentApplicationRequest, AssessmentApplicationResponse
 )
+from app.models.schemas import ScreeningResponseCreate, ScreeningResponseResponse
+from app.db.models import ScreeningResponse
 
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
 
@@ -126,6 +128,12 @@ async def list_assessments(
             expires_at=a.expires_at,
             created_at=a.created_at,
             updated_at=a.updated_at,
+            # NEW: Experience-based question configuration fields
+            total_questions=a.total_questions,
+            question_type_mix=a.question_type_mix,
+            passing_score_threshold=a.passing_score_threshold,
+            auto_adjust_by_experience=a.auto_adjust_by_experience,
+            difficulty_distribution=a.difficulty_distribution,
         )
         for a in assessments
     ]
@@ -391,6 +399,11 @@ async def create_assessment(
     expires_at=assessment.expires_at,
     created_at=assessment.created_at,
     updated_at=assessment.updated_at,
+    total_questions=assessment.total_questions,
+    question_type_mix=assessment.question_type_mix,
+    passing_score_threshold=assessment.passing_score_threshold,
+    auto_adjust_by_experience=assessment.auto_adjust_by_experience,
+    difficulty_distribution=assessment.difficulty_distribution,
 )
 
 
@@ -460,8 +473,15 @@ async def publish_assessment(
         is_interview_enabled=assessment.is_interview_enabled,
         is_active=assessment.is_active,
         is_published=assessment.is_published,
+        is_expired=assessment.is_expired,
+        expires_at=assessment.expires_at,
         created_at=assessment.created_at,
         updated_at=assessment.updated_at,
+        total_questions=assessment.total_questions,
+        question_type_mix=assessment.question_type_mix,
+        passing_score_threshold=assessment.passing_score_threshold,
+        auto_adjust_by_experience=assessment.auto_adjust_by_experience,
+        difficulty_distribution=assessment.difficulty_distribution,
     )
 
 
@@ -507,6 +527,16 @@ async def update_assessment(
         assessment.is_published = request.is_published
     if request.expires_at is not None:
         assessment.expires_at = request.expires_at
+    if request.total_questions is not None:
+        assessment.total_questions = request.total_questions
+    if request.question_type_mix is not None:
+        assessment.question_type_mix = request.question_type_mix
+    if request.passing_score_threshold is not None:
+        assessment.passing_score_threshold = request.passing_score_threshold
+    if request.auto_adjust_by_experience is not None:
+        assessment.auto_adjust_by_experience = request.auto_adjust_by_experience
+    if request.difficulty_distribution is not None:
+        assessment.difficulty_distribution = request.difficulty_distribution
     
     assessment.updated_at = datetime.utcnow()
     await db.commit()
@@ -532,6 +562,11 @@ async def update_assessment(
         expires_at=assessment.expires_at,
         created_at=assessment.created_at,
         updated_at=assessment.updated_at,
+        total_questions=assessment.total_questions,
+        question_type_mix=assessment.question_type_mix,
+        passing_score_threshold=assessment.passing_score_threshold,
+        auto_adjust_by_experience=assessment.auto_adjust_by_experience,
+        difficulty_distribution=assessment.difficulty_distribution,
     )
 
 
@@ -652,3 +687,53 @@ async def list_assessment_applications(
         )
         for app in applications
     ]
+
+
+@router.post("/{assessment_id}/screening-responses", response_model=ScreeningResponseResponse, status_code=status.HTTP_201_CREATED)
+async def submit_screening_responses(
+    assessment_id: str,
+    request: ScreeningResponseCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
+) -> ScreeningResponseResponse:
+    """Submit mandatory screening answers for an assessment (candidate or anonymous)."""
+    stmt = select(Assessment).where(Assessment.assessment_id == assessment_id)
+    result = await db.execute(stmt)
+    assessment = result.scalars().first()
+
+    if not assessment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
+
+    # Do not allow submissions for unpublished/inactive assessments for non-admins
+    is_admin = False
+    if current_user and hasattr(current_user, "email"):
+        from app.core.security import is_admin_user
+        is_admin = is_admin_user(current_user.email)
+
+    if not is_admin:
+        if not assessment.is_published:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="This assessment is not available yet. Please contact the administrator.")
+        if not assessment.is_active:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="This assessment is no longer active.")
+
+    screening = ScreeningResponse(
+        assessment_id=assessment.id,
+        candidate_session_id=request.candidate_session_id,
+        candidate_id=None,
+        answers={"answers": request.answers},
+    )
+
+    db.add(screening)
+    await db.commit()
+    await db.refresh(screening)
+
+    return ScreeningResponseResponse(
+        id=screening.id,
+        screening_id=screening.screening_id,
+        assessment_id=screening.assessment_id,
+        candidate_session_id=screening.candidate_session_id,
+        candidate_id=screening.candidate_id,
+        answers=screening.answers,
+        created_at=screening.created_at,
+        updated_at=screening.updated_at,
+    )

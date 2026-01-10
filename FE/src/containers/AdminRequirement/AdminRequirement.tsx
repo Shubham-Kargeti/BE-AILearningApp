@@ -51,7 +51,7 @@ const AdminRequirement = () => {
         navigate("/admin/assessment");
       }, 2000);
     } catch (err: any) {
-      console.error("Failed to create requirement:", err);
+
       setError(err?.response?.data?.detail || "Failed to create requirement. Please try again.");
     } finally {
       setIsSubmitting(false);

@@ -4,6 +4,9 @@ import QuestionnaireConfig, {
 } from "./QuestionnaireConfig";
 import AdditionalScreeningQuestions from "./AdditionalScreeningQuestions";
 import CutoffMarks from "./CutoffMarks";
+import TotalQuestions from "./TotalQuestions";
+import DifficultyDistribution from "./DifficultyDistribution";
+import ExperienceAdjustment from "./ExperienceAdjustment";
 
 interface Props {
     questionDistribution: QuestionDistribution;
@@ -14,6 +17,16 @@ interface Props {
 
     cutoffMarks: number;
     onCutoffMarksChange: (v: number) => void;
+
+    // NEW: Experience-based configuration props
+    totalQuestions: number;
+    onTotalQuestionsChange: (v: number) => void;
+
+    autoAdjustByExperience: boolean;
+    onAutoAdjustByExperienceChange: (v: boolean) => void;
+
+    difficultyDistribution: Record<string, number>;
+    onDifficultyDistributionChange: (v: Record<string, number>) => void;
 }
 
 
@@ -24,6 +37,12 @@ const AssessmentConfigurationBlock: React.FC<Props> = ({
     onScreeningQuestionsChange,
     cutoffMarks,
     onCutoffMarksChange,
+    totalQuestions,
+    onTotalQuestionsChange,
+    autoAdjustByExperience,
+    onAutoAdjustByExperienceChange,
+    difficultyDistribution,
+    onDifficultyDistributionChange,
 }) => {
 
     return (
@@ -37,9 +56,24 @@ const AssessmentConfigurationBlock: React.FC<Props> = ({
             </div>
 
             <div className="assessment-config-content">
+                <TotalQuestions
+                    value={totalQuestions}
+                    onChange={onTotalQuestionsChange}
+                />
+
                 <QuestionnaireConfig
                     value={questionDistribution}
                     onChange={onQuestionDistributionChange}
+                />
+
+                <DifficultyDistribution
+                    value={difficultyDistribution}
+                    onChange={onDifficultyDistributionChange}
+                />
+
+                <ExperienceAdjustment
+                    value={autoAdjustByExperience}
+                    onChange={onAutoAdjustByExperienceChange}
                 />
 
                 <AdditionalScreeningQuestions

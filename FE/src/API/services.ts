@@ -80,6 +80,12 @@ export interface Assessment {
   };
   created_at: string;
   updated_at: string;
+  // NEW: Experience-based question configuration fields
+  total_questions: number;
+  question_type_mix: Record<string, number>;
+  passing_score_threshold: number;
+  auto_adjust_by_experience: boolean;
+  difficulty_distribution: Record<string, number>;
 }
 
 export interface AssessmentCreateRequest {
@@ -94,6 +100,12 @@ export interface AssessmentCreateRequest {
   is_questionnaire_enabled?: boolean;
   is_interview_enabled?: boolean;
   expires_at?: string;
+  // NEW: Experience-based question configuration fields
+  total_questions?: number;
+  question_type_mix?: Record<string, number>;
+  passing_score_threshold?: number;
+  auto_adjust_by_experience?: boolean;
+  difficulty_distribution?: Record<string, number>;
 }
 
 export interface Candidate {
@@ -380,6 +392,13 @@ export const assessmentService = {
     const response = await apiClient.post<Assessment>(
       `/assessments/${assessmentId}/publish`
     );
+    return response.data;
+  },
+  submitScreeningResponses: async (
+    assessmentId: string,
+    payload: { answers: string[]; candidate_session_id?: string }
+  ): Promise<any> => {
+    const response = await apiClient.post(`/assessments/${assessmentId}/screening-responses`, payload);
     return response.data;
   },
 };

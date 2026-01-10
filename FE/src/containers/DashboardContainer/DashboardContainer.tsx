@@ -41,7 +41,6 @@ const DashboardContainer = () => {
   const navigate = useNavigate();
   const score = localStorage.getItem("latestScore");
   const scoreNum = score ? Number(score) : 0;
-  console.log("Monesh Latest score on dashboard:", score);
   const getRecommendedCourses = async () => {
     try {
       const response = await coursesService.getRecommendedCourses("AgenticAI", 7);

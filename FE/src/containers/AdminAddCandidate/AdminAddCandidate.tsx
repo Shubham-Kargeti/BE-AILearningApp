@@ -48,7 +48,7 @@ const AdminAddCandidate = () => {
       setSuccess(true);
       setFormData({ name: "", email: "", role: "", experience: "", skills: "", team: "" });
     } catch (err: any) {
-      console.error("Failed to add candidate:", err);
+
       setError(err?.response?.data?.detail || "Failed to add candidate. Please try again.");
     } finally {
       setIsSubmitting(false);
