@@ -40,8 +40,11 @@ const CandidateAssessmentContainer: React.FC = () => {
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [isStarting, setIsStarting] = useState(false);
-  const [step, setStep] = useState<"loading" | "details" | "email" | "ready" | "expired" | "unavailable">("loading");
+  const [step, setStep] = useState<"loading" | "details" | "email" | "screening" | "ready" | "expired" | "unavailable">("loading");
   const [requiresLogin, setRequiresLogin] = useState(false);
+
+  // Screening is handled at the end of the quiz in `QuizContainer` now —
+  // candidate landing flow doesn't ask screening questions at the start.
 
   // For email-less flow, we generate a temporary candidate ID
   const [candidateSessionId] = useState(() => `candidate_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
@@ -70,14 +73,16 @@ const CandidateAssessmentContainer: React.FC = () => {
           const localEmail = localStorage.getItem("userEmail");
           // If the assessment has a candidate email and the local user doesn't match, show login banner
           setRequiresLogin(!!(candidateEmail && localEmail !== candidateEmail));
+          // Initialize screening answers from description JSON if present
+          // Screening questions (if present in `description`) are now shown at the
+          // end of the assessment by `QuizContainer` rather than before starting.
           setStep("details");
         }
       } else {
         setError("Assessment not found or has expired.");
       }
     } catch (err: any) {
-      console.error("Error fetching assessment:", err);
-      
+
       const backendDetail = err?.response?.data?.detail || "";
       
       if (backendDetail.includes("not available yet")) {
@@ -128,7 +133,7 @@ const CandidateAssessmentContainer: React.FC = () => {
         setEmailError("Failed to verify email. Please try again.");
       }
     } catch (err) {
-      console.error("Email verification failed:", err);
+
       setEmailError("Failed to verify email. Please try again.");
     } finally {
       setIsStarting(false);
@@ -161,7 +166,7 @@ const CandidateAssessmentContainer: React.FC = () => {
       }
     } catch (err) {
       // If auto-login failed, log it but still continue to navigation; user can provide email manually
-      console.warn("Auto-login for candidate failed:", err);
+
     }
 
     navigate(`/candidate-quiz`, {
@@ -411,7 +416,7 @@ const CandidateAssessmentContainer: React.FC = () => {
                           }
                         }
                       } catch (err) {
-                        console.warn("Auto-login failed", err);
+
                       }
                     }}
                   >
@@ -421,6 +426,8 @@ const CandidateAssessmentContainer: React.FC = () => {
               </Box>
             </Box>
           )}
+
+          {/* Screening is presented at the end of the quiz inside `QuizContainer`. */}
 
           {/* Email Step */}
           {step === "email" && (

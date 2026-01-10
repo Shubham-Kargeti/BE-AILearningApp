@@ -380,6 +380,25 @@ class Assessment(Base, TimestampMixin):
     is_questionnaire_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_interview_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     
+    # Question configuration (experience-based)
+    total_questions: Mapped[int] = mapped_column(Integer, default=15, nullable=False)
+    question_type_mix: Mapped[dict] = mapped_column(
+        JSON, 
+        nullable=False,
+        default={"mcq": 0.5, "coding": 0.3, "architecture": 0.2}
+    )  # Distribution of question types
+    
+    # Scoring configuration (experience-adjusted)
+    passing_score_threshold: Mapped[int] = mapped_column(Integer, default=70, nullable=False)  # percentage
+    auto_adjust_by_experience: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    
+    # Difficulty distribution (can be overridden per role/experience)
+    difficulty_distribution: Mapped[dict] = mapped_column(
+        JSON,
+        nullable=False,
+        default={"easy": 0.2, "medium": 0.5, "hard": 0.3}
+    )  # Default distribution: 20% easy, 50% medium, 30% hard
+    
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -456,6 +475,33 @@ class AssessmentApplication(Base, TimestampMixin):
     
     def __repr__(self) -> str:
         return f"<AssessmentApplication(id={self.id}, application_id='{self.application_id}', status='{self.status}')>"
+
+
+class ScreeningResponse(Base, TimestampMixin):
+    """Store screening responses submitted by candidates for an assessment."""
+
+    __tablename__ = "screening_responses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    screening_id: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False,
+                                              default=lambda: f"sr_{uuid.uuid4().hex[:12]}")
+
+    assessment_id: Mapped[int] = mapped_column(Integer, ForeignKey("assessments.id"), nullable=False)
+    candidate_session_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    candidate_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("candidates.id"), nullable=True)
+
+    # Answers stored as JSON: list or dict depending on question format
+    answers: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+    assessment: Mapped[Assessment] = relationship("Assessment")
+
+    __table_args__ = (
+        Index("ix_screening_responses_assessment_id", "assessment_id"),
+        Index("ix_screening_responses_candidate_session", "candidate_session_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ScreeningResponse(id={self.id}, screening_id='{self.screening_id}', assessment_id={self.assessment_id})>"
 
 
 class UploadedDocument(Base, TimestampMixin):

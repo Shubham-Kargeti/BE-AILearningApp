@@ -78,6 +78,15 @@ const AssessmentSetupContainer: React.FC = () => {
 
   const [cutoffMarks, setCutoffMarks] = useState<number>(70);
 
+  // NEW: Experience-based configuration state
+  const [totalQuestions, setTotalQuestions] = useState<number>(20);
+  const [autoAdjustByExperience, setAutoAdjustByExperience] = useState<boolean>(true);
+  const [difficultyDistribution, setDifficultyDistribution] = useState<Record<string, number>>({
+    easy: 0.4,
+    medium: 0.4,
+    hard: 0.2,
+  });
+
   const [processLoading, setProcessLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formValid, setFormValid] = useState(false);
@@ -175,18 +184,13 @@ const AssessmentSetupContainer: React.FC = () => {
 
   const handleResumeTextExtracted = (text: string) => {
     if (!text) {
-      console.log("[Resume Parser] No text extracted");
       return;
     }
 
-    console.log("[Resume Parser] Extracted text length:", text.length);
-    console.log("[Resume Parser] First 500 chars:", text.substring(0, 500));
 
     const parsedInfo = parseResume(text);
     const confidence = getExtractionConfidence(parsedInfo);
 
-    console.log("[Resume Parser] Parsed info:", parsedInfo);
-    console.log("[Resume Parser] Confidence:", confidence);
 
     setCandidateInfo((prev) => ({
       ...prev,
@@ -309,6 +313,13 @@ const AssessmentSetupContainer: React.FC = () => {
     screening_questions: screeningQuestions
       .map(q => q.trim())
       .filter(Boolean),
+
+    // NEW: Experience-based question configuration
+    total_questions: totalQuestions,
+    question_type_mix: questionDistribution, // This maps to the backend's question_type_mix
+    passing_score_threshold: cutoffMarks,
+    auto_adjust_by_experience: autoAdjustByExperience,
+    difficulty_distribution: difficultyDistribution,
   };
 
   if (assessmentMethod === "questionnaire") {
@@ -466,6 +477,12 @@ const AssessmentSetupContainer: React.FC = () => {
         onScreeningQuestionsChange={setScreeningQuestions}
         cutoffMarks={cutoffMarks}
         onCutoffMarksChange={setCutoffMarks}
+        totalQuestions={totalQuestions}
+        onTotalQuestionsChange={setTotalQuestions}
+        autoAdjustByExperience={autoAdjustByExperience}
+        onAutoAdjustByExperienceChange={setAutoAdjustByExperience}
+        difficultyDistribution={difficultyDistribution}
+        onDifficultyDistributionChange={setDifficultyDistribution}
       />
 
 

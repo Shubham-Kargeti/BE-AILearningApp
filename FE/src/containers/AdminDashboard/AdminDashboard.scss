@@ -660,27 +660,31 @@
       white-space: nowrap;
 
       &.col-candidate {
-        width: 18%;
+        width: 16%;
       }
 
       &.col-role {
-        width: 13%;
+        width: 12%;
       }
 
       &.col-skills {
-        width: 26%;
+        width: 20%;
       }
 
-      &.col-status {
-        width: 11%;
-      }
-
-      &.col-dates {
+      &.col-config {
         width: 18%;
       }
 
+      &.col-status {
+        width: 10%;
+      }
+
+      &.col-dates {
+        width: 16%;
+      }
+
       &.col-actions {
-        width: 14%;
+        width: 8%;
         text-align: center;
       }
     }
@@ -855,6 +859,32 @@
             &.danger {
               background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
               color: #991b1b;
+            }
+          }
+        }
+
+        &.col-config {
+          .config-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+
+            .config-item {
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              font-size: 12px;
+
+              .config-label {
+                color: #94a3b8;
+                font-weight: 500;
+                min-width: 80px;
+              }
+
+              .config-value {
+                color: #475569;
+                font-weight: 600;
+              }
             }
           }
         }

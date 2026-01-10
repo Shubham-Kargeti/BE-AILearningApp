@@ -253,6 +253,15 @@ class AssessmentCreate(BaseModel):
     candidate_info: Optional[CandidateInfoSchema] = None
     questionnaire_config: Optional[Dict[str, int]] = None
     screening_questions: Optional[List[str]] = None
+    
+    # Question configuration (experience-based)
+    total_questions: int = 15
+    question_type_mix: Optional[Dict[str, float]] = None  # {"mcq": 0.5, "coding": 0.3, "architecture": 0.2}
+    
+    # Scoring configuration
+    passing_score_threshold: int = 70  # percentage
+    auto_adjust_by_experience: bool = True
+    difficulty_distribution: Optional[Dict[str, float]] = None  # {"easy": 0.2, "medium": 0.5, "hard": 0.3}
 
 
 
@@ -270,6 +279,15 @@ class AssessmentUpdate(BaseModel):
     is_published: Optional[bool] = None
     expires_at: Optional[datetime] = None
     screening_questions: Optional[List[str]] = None
+    
+    # Question configuration (experience-based)
+    total_questions: Optional[int] = None
+    question_type_mix: Optional[Dict[str, float]] = None
+    
+    # Scoring configuration
+    passing_score_threshold: Optional[int] = None
+    auto_adjust_by_experience: Optional[bool] = None
+    difficulty_distribution: Optional[Dict[str, float]] = None
 
 
 class AssessmentResponse(BaseModel):
@@ -293,6 +311,13 @@ class AssessmentResponse(BaseModel):
     is_published: bool
     is_expired: bool = False
     expires_at: Optional[datetime] = None
+    
+    # Question configuration
+    total_questions: int
+    question_type_mix: dict
+    passing_score_threshold: int
+    auto_adjust_by_experience: bool
+    difficulty_distribution: dict
     created_at: datetime
     updated_at: datetime
 
@@ -317,6 +342,23 @@ class AssessmentApplicationResponse(BaseModel):
     applied_at: datetime
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ScreeningResponseCreate(BaseModel):
+    """Request schema for submitting screening answers."""
+    answers: List[str]
+    candidate_session_id: Optional[str] = None
+
+
+class ScreeningResponseResponse(BaseModel):
+    id: int
+    screening_id: str
+    assessment_id: int
+    candidate_session_id: Optional[str]
+    candidate_id: Optional[int]
+    answers: dict
     created_at: datetime
     updated_at: datetime
 
