@@ -41,31 +41,44 @@ const AssessmentViewContainer: React.FC = () => {
   const [publishLoading, setPublishLoading] = useState(false);
   const [testSessions, setTestSessions] = useState<Array<{
     session_id: string;
-    status: string;
+    candidate_name: string | null;
+    candidate_email: string | null;
+    total_questions: number;
+    correct_answers: number | null;
     score_percentage: number | null;
+    is_completed: boolean;
+    started_at: string | null;
     completed_at: string | null;
+    duration_seconds: number | null;
   }>>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [selectedResult, setSelectedResult] = useState<{
     session_id: string;
+    question_set_id: string;
+    skill: string;
+    level: string;
     score_percentage: number;
     correct_answers: number;
     total_questions: number;
+    completed_at: string;
+    time_taken_seconds: number;
     detailed_results: Array<{
       question_id: number;
       question_text: string;
       your_answer: string;
       correct_answer: string;
       is_correct: boolean;
+      options: Array<{ option_id: string; text: string }>;
     }>;
   } | null>(null);
   const [loadingResult, setLoadingResult] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'results'>('details');
 
   const fetchTestSessions = async () => {
+    if (!id) return;
     try {
       setLoadingSessions(true);
-      const sessions = await quizService.listTestSessions();
+      const sessions = await quizService.listAssessmentTestSessions(id);
       setTestSessions(sessions);
     } catch (err) {
       console.error("Error fetching test sessions:", err);
@@ -77,13 +90,21 @@ const AssessmentViewContainer: React.FC = () => {
   const viewDetailedResult = async (sessionId: string) => {
     try {
       setLoadingResult(true);
-      const result = await quizService.getTestResults(sessionId);
+      const result = await quizService.getQuestionSetTestResults(sessionId);
       setSelectedResult(result);
     } catch (err: any) {
-      setToast({
-        type: "error",
-        message: err?.response?.data?.detail?.message || "Results not yet available"
-      });
+      const status = err?.response?.status;
+      const serverMsg = err?.response?.data?.error || err?.response?.data?.message;
+
+      if (status === 401 || status === 403) {
+        setToast({ type: "error", message: "Authentication required. Please log in as an admin." });
+        // Redirect to login so admin can re-authenticate
+        setTimeout(() => window.location.href = '/login', 800);
+      } else if (status === 404) {
+        setToast({ type: "error", message: serverMsg || "Results not yet available" });
+      } else {
+        setToast({ type: "error", message: serverMsg || "Unable to fetch detailed results" });
+      }
     } finally {
       setLoadingResult(false);
     }
@@ -110,7 +131,7 @@ const AssessmentViewContainer: React.FC = () => {
         const data = await assessmentService.getAssessment(id);
         setAssessment(data);
       } catch (err: any) {
-        console.error("Error fetching assessment:", err);
+
         setError(err.response?.data?.detail || "Failed to load assessment");
       } finally {
         setLoading(false);
@@ -509,7 +530,7 @@ const AssessmentViewContainer: React.FC = () => {
                   <div
                     key={session.session_id}
                     style={{
-                      padding: '1rem 1.5rem',
+                      padding: '1.5rem',
                       backgroundColor: '#fff',
                       border: '1px solid #e0e0e0',
                       borderRadius: '8px',
@@ -518,45 +539,80 @@ const AssessmentViewContainer: React.FC = () => {
                       alignItems: 'center',
                     }}
                   >
-                    <div>
-                      <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>
-                        Session: {session.session_id.slice(0, 12)}...
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                        <p style={{ fontWeight: '600', fontSize: '1rem', margin: 0 }}>
+                          {session.candidate_name || 'Anonymous Candidate'}
+                        </p>
+                        {session.is_completed && (
+                          <span style={{
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '12px',
+                            backgroundColor: '#e8f5e9',
+                            color: '#2e7d32',
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                          }}>
+                            <FiCheckCircle size={12} /> Completed
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ fontSize: '0.875rem', color: '#666', margin: '0.25rem 0' }}>
+                        <FiMail size={14} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
+                        {session.candidate_email || 'No email provided'}
                       </p>
-                      <p style={{ fontSize: '0.875rem', color: '#666' }}>
-                        Status: <span style={{
-                          color: session.status === 'completed' ? '#4caf50' : '#ff9800',
-                          fontWeight: '500'
-                        }}>{session.status}</span>
-                        {session.completed_at && ` • Completed: ${new Date(session.completed_at).toLocaleDateString()}`}
+                      <p style={{ fontSize: '0.875rem', color: '#666', margin: '0.25rem 0' }}>
+                        {session.completed_at && (
+                          <>
+                            <FiCalendar size={14} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
+                            Completed: {new Date(session.completed_at).toLocaleString()}
+                          </>
+                        )}
+                        {session.duration_seconds && (
+                          <span style={{ marginLeft: '1rem' }}>
+                            <FiClock size={14} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
+                            Duration: {Math.floor(session.duration_seconds / 60)}m {session.duration_seconds % 60}s
+                          </span>
+                        )}
                       </p>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                       {session.score_percentage !== null && (
                         <div style={{
-                          padding: '0.5rem 1rem',
-                          borderRadius: '20px',
-                          backgroundColor: session.score_percentage >= 70 ? '#e8f5e9' : session.score_percentage >= 50 ? '#fff3e0' : '#ffebee',
-                          color: session.score_percentage >= 70 ? '#2e7d32' : session.score_percentage >= 50 ? '#f57c00' : '#c62828',
-                          fontWeight: '600',
+                          textAlign: 'center',
+                          minWidth: '80px'
                         }}>
-                          {session.score_percentage.toFixed(0)}%
+                          <div style={{
+                            fontSize: '1.5rem',
+                            fontWeight: '700',
+                            color: session.score_percentage >= 70 ? '#2e7d32' : session.score_percentage >= 50 ? '#f57c00' : '#c62828',
+                          }}>
+                            {session.score_percentage.toFixed(1)}%
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#666' }}>
+                            {session.correct_answers || 0}/{session.total_questions}
+                          </div>
                         </div>
                       )}
                       <button
                         className="btn btn-secondary"
                         onClick={() => viewDetailedResult(session.session_id)}
                         disabled={loadingResult}
-                        style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
+                        style={{ fontSize: '0.875rem', padding: '0.5rem 1rem', cursor: loadingResult ? 'not-allowed' : 'pointer' }}
                       >
+                        <FiAward size={14} style={{ marginRight: '0.5rem' }} />
                         View Details
                       </button>
                       <button
                         className="btn btn-primary"
                         onClick={() => initiateLearningPath(session.session_id)}
-                        style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
+                        style={{ fontSize: '0.875rem', padding: '0.5rem 1rem', cursor: 'pointer' }}
                       >
                         <FiBookOpen size={14} style={{ marginRight: '0.5rem' }} />
-                        Initiate Learning Path
+                        Learning Path
                       </button>
                     </div>
                   </div>
@@ -597,25 +653,43 @@ const AssessmentViewContainer: React.FC = () => {
                     </button>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '2rem', marginBottom: '1.5rem' }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <p style={{ fontSize: '2rem', fontWeight: 'bold', color: selectedResult.score_percentage >= 70 ? '#4caf50' : '#f44336' }}>
-                        {selectedResult.score_percentage.toFixed(0)}%
+                  <div style={{ display: 'flex', gap: '2rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ textAlign: 'center', minWidth: '100px' }}>
+                      <p style={{ fontSize: '2rem', fontWeight: 'bold', color: selectedResult.score_percentage >= 70 ? '#4caf50' : selectedResult.score_percentage >= 50 ? '#ff9800' : '#f44336' }}>
+                        {selectedResult.score_percentage.toFixed(1)}%
                       </p>
-                      <p style={{ color: '#666' }}>Score</p>
+                      <p style={{ color: '#666', fontSize: '0.875rem' }}>Score</p>
                     </div>
-                    <div style={{ textAlign: 'center' }}>
+                    <div style={{ textAlign: 'center', minWidth: '100px' }}>
                       <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#4caf50' }}>
                         {selectedResult.correct_answers}
                       </p>
-                      <p style={{ color: '#666' }}>Correct</p>
+                      <p style={{ color: '#666', fontSize: '0.875rem' }}>Correct</p>
                     </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <p style={{ fontSize: '2rem', fontWeight: 'bold' }}>
+                    <div style={{ textAlign: 'center', minWidth: '100px' }}>
+                      <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#f44336' }}>
+                        {selectedResult.total_questions - selectedResult.correct_answers}
+                      </p>
+                      <p style={{ color: '#666', fontSize: '0.875rem' }}>Incorrect</p>
+                    </div>
+                    <div style={{ textAlign: 'center', minWidth: '100px' }}>
+                      <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#1976d2' }}>
                         {selectedResult.total_questions}
                       </p>
-                      <p style={{ color: '#666' }}>Total</p>
+                      <p style={{ color: '#666', fontSize: '0.875rem' }}>Total</p>
                     </div>
+                    <div style={{ textAlign: 'center', minWidth: '100px' }}>
+                      <p style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#666' }}>
+                        {Math.floor(selectedResult.time_taken_seconds / 60)}m {selectedResult.time_taken_seconds % 60}s
+                      </p>
+                      <p style={{ color: '#666', fontSize: '0.875rem' }}>Time Taken</p>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '8px', marginBottom: '1.5rem' }}>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: '#666' }}>
+                      <strong>Skill:</strong> {selectedResult.skill} • <strong>Level:</strong> {selectedResult.level}
+                    </p>
                   </div>
 
                   <h4 style={{ marginBottom: '1rem' }}>Question Breakdown</h4>
@@ -630,17 +704,50 @@ const AssessmentViewContainer: React.FC = () => {
                           borderLeft: `4px solid ${q.is_correct ? '#4caf50' : '#f44336'}`,
                         }}
                       >
-                        <p style={{ fontWeight: '500', marginBottom: '0.5rem' }}>
-                          Q{idx + 1}: {q.question_text}
-                        </p>
-                        <p style={{ fontSize: '0.875rem', color: '#666' }}>
-                          Answer: <span style={{ fontWeight: '500' }}>{q.your_answer || 'Not answered'}</span>
-                          {!q.is_correct && (
-                            <span style={{ marginLeft: '1rem', color: '#4caf50' }}>
-                              Correct: {q.correct_answer}
-                            </span>
+                        <div style={{ display: 'flex', alignItems: 'start', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                          {q.is_correct ? (
+                            <FiCheckCircle size={20} style={{ color: '#4caf50', marginTop: '2px' }} />
+                          ) : (
+                            <FiAlertCircle size={20} style={{ color: '#f44336', marginTop: '2px' }} />
                           )}
-                        </p>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontWeight: '600', margin: '0 0 0.5rem 0' }}>
+                              Q{idx + 1}. {q.question_text}
+                            </p>
+                            {q.options && q.options.length > 0 && (
+                              <div style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
+                                {q.options.map((opt) => (
+                                  <div 
+                                    key={opt.option_id}
+                                    style={{
+                                      padding: '0.25rem 0.5rem',
+                                      marginBottom: '0.25rem',
+                                      borderRadius: '4px',
+                                      backgroundColor: opt.option_id === q.correct_answer ? 'rgba(76, 175, 80, 0.2)' : 
+                                                     opt.option_id === q.your_answer && !q.is_correct ? 'rgba(244, 67, 54, 0.2)' : 'transparent',
+                                    }}
+                                  >
+                                    <strong>{opt.option_id}:</strong> {opt.text}
+                                    {opt.option_id === q.correct_answer && <span style={{ color: '#4caf50', marginLeft: '0.5rem' }}>✓ Correct</span>}
+                                    {opt.option_id === q.your_answer && !q.is_correct && <span style={{ color: '#f44336', marginLeft: '0.5rem' }}>✗ Your Answer</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {(!q.options || q.options.length === 0) && (
+                              <div style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
+                                <p style={{ margin: '0.25rem 0', color: '#666' }}>
+                                  <strong>Your Answer:</strong> {q.your_answer || 'No answer provided'}
+                                </p>
+                                {!q.is_correct && (
+                                  <p style={{ margin: '0.25rem 0', color: '#4caf50' }}>
+                                    <strong>Expected Answer:</strong> {q.correct_answer}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>

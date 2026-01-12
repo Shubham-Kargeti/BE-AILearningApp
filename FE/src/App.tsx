@@ -14,6 +14,8 @@ import StreakContainer from "./containers/StreakContainer";
 import AssessmentSetupContainer from "./containers/AssessmentSetupContainer";
 import AssessmentViewContainer from "./containers/AssessmentViewContainer/AssessmentViewContainer";
 import CandidateAssessmentContainer from "./containers/CandidateAssessmentContainer";
+import AssessmentsListContainer from "./containers/AssessmentsListContainer/AssessmentsListContainer";
+import SettingsContainer from "./containers/SettingsContainer/SettingsContainer";
 
 import AdminProtectedRoute from "./components/adminProtectedRoute/AdminProtectedRoute";
 import AdminDashboard from "./containers/AdminDashboard";
@@ -60,7 +62,8 @@ function App() {
           <Route path={client.PROFILE_SETUP} element={<ProfileSetupContainer />} />
           <Route path={client.DASHBOARD} element={<DashboardContainer />} />
           <Route path={client.STREAK} element={<StreakContainer />} />
-          <Route path={client.SETTINGS} element={<DashboardContainer />} />
+          <Route path={client.SETTINGS} element={<SettingsContainer />} />
+          <Route path={client.ASSESSMENTS} element={<AssessmentsListContainer />} />
         </Route>
 
         <Route
