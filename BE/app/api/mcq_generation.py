@@ -106,10 +106,15 @@ async def generate_mcqs(
         # Step 5: Prepare response format
         response_questions = []
         for q in saved_questions:
-            options = [
-                MCQOption(option_id=k, text=v)
-                for k, v in sorted(q.options.items())
-            ]
+            options = []
+            for k, v in sorted(q.options.items()):
+                if isinstance(v, str):
+                    opt_text = v
+                elif isinstance(v, list):
+                    opt_text = " | ".join(map(str, v))
+                else:
+                    opt_text = str(v)
+                options.append(MCQOption(option_id=k, text=opt_text))
             response_questions.append(
                 MCQQuestion(
                     question_id=q.id,

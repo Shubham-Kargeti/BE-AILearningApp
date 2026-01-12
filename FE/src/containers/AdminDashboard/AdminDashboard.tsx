@@ -133,6 +133,7 @@ const AdminDashboard: React.FC = () => {
         }));
         
         setAssessments(displayData);
+        console.log("[AdminDashboard] fetched assessments:", data.length, "mapped:", displayData.length);
         
         const calculatedStats = {
           total_assessments: displayData.length,
