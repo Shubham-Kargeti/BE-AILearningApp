@@ -225,7 +225,18 @@ async def start_questionset_test_anonymous(
     )
 
     db.add(test_session)
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception as e:
+        from sqlalchemy.exc import DBAPIError
+        if isinstance(e, DBAPIError):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=("Database error while saving answers. "
+                        "This may be caused by answer length exceeding the column size. "
+                        "Please run the alter script to change answers.selected_answer to TEXT."),
+            )
+        raise
     await db.refresh(test_session)
 
     # --------------------------------------------------
@@ -544,21 +555,6 @@ async def submit_questionset_answers_anonymous(
             Question.question_set_id == session.question_set_id
         )
     )
-            # Ensure selected_answer fits into DB column (truncate if excessively long)
-            selected_value = selected
-            MAX_ANSWER_LEN = 10000
-            if len(selected_value) > MAX_ANSWER_LEN:
-                # Truncate long answers to prevent DB errors and log the truncation
-                selected_value = selected_value[:MAX_ANSWER_LEN]
-
-            answer_records.append(
-                Answer(
-                    session_id=request.session_id,
-                    question_id=answer_submit.question_id,
-                    selected_answer=selected_value,
-                    is_correct=is_correct
-                )
-            )
     for answer_submit in request.answers:
         question = questions.get(answer_submit.question_id)
 

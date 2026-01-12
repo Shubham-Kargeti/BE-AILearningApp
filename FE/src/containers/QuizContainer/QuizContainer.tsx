@@ -18,7 +18,6 @@ import type {
   QuestionType,
 } from "../../AssessmentTypes/AssessmentTypes";
 import { useLocation } from "react-router-dom";
-import { useLocation } from "react-router-dom";
 import Editor from "@monaco-editor/react";
 
 type NormalizedMCQOption = {
@@ -83,9 +82,9 @@ const QuizContainer = () => {
   });
 
   /* ================= META STATE ================= */
-  const [, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [quizStarted, setQuizStarted] = useState(false);
-  const [, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string>("");
 
   const [sessionStartedAnonymous, setSessionStartedAnonymous] =
