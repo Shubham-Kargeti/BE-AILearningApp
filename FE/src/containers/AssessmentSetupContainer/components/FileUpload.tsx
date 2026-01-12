@@ -159,10 +159,7 @@ const FileUpload: React.FC<Props> = ({ label, onFileSelect, onTextExtracted, isR
       }
     }
 
-    console.log("[FileUpload] Extracted text length:", extractedText.length);
-    console.log("[FileUpload] onTextExtracted callback exists:", !!onTextExtracted);
     if (onTextExtracted && extractedText) {
-      console.log("[FileUpload] Calling onTextExtracted callback");
       onTextExtracted(extractedText);
     }
 

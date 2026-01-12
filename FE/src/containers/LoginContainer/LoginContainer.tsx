@@ -7,7 +7,6 @@ import { allowedUsers, HTTP_POST, LOGIN } from "../../API/constants";
 import Loader from "../../components/Loader";
 import {isAdmin} from "../../utils/adminUsers"
 
-
 const LoginContainer = () => {
   const navigate = useNavigate();
   const [values, setValues] = useState({ email: "", password: "" });
@@ -44,7 +43,7 @@ const LoginContainer = () => {
       setLoading(false);
       return access_token;
     } catch (error) {
-      console.error("Error generating auth token:", error);
+
       setLoading(false);
     }
   };

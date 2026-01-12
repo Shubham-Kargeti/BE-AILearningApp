@@ -26,7 +26,7 @@ const AssessmentLinkModal: React.FC<Props> = ({ open, link, email, onClose }) =>
         onClose();
       }, 1200);
     } catch (err) {
-      console.error("copy failed", err);
+
       window.alert("Copy failed.");
     }
   };

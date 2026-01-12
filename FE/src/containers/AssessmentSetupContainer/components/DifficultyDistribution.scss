@@ -1,0 +1,64 @@
+.difficulty-distribution-card {
+  margin-bottom: 1.5rem;
+
+  .card-header {
+    margin-bottom: 1rem;
+
+    h2 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .hint {
+      margin: 0;
+      font-size: 0.875rem;
+      color: #666;
+    }
+
+    .warning {
+      margin: 0.5rem 0 0 0;
+      font-size: 0.875rem;
+      color: #dc3545;
+      font-weight: 500;
+    }
+  }
+
+  .difficulty-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+
+    .difficulty-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+
+      label {
+        font-weight: 500;
+        color: #333;
+      }
+
+      input {
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+        transition: border-color 0.2s;
+
+        &:focus {
+          outline: none;
+          border-color: #007bff;
+          box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+      }
+
+      .percentage {
+        font-size: 0.875rem;
+        color: #666;
+        font-weight: 500;
+      }
+    }
+  }
+}

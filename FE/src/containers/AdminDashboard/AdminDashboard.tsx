@@ -133,6 +133,7 @@ const AdminDashboard: React.FC = () => {
         }));
         
         setAssessments(displayData);
+        console.log("[AdminDashboard] fetched assessments:", data.length, "mapped:", displayData.length);
         
         const calculatedStats = {
           total_assessments: displayData.length,
@@ -148,8 +149,7 @@ const AdminDashboard: React.FC = () => {
           setToast({ type: "success", message: `Loaded ${displayData.length} assessments` });
         }
       } catch (err: any) {
-        console.error("Error fetching assessments:", err);
-        
+
         let errorMessage = "Failed to load assessments.";
         
         if (err.response?.status === 401) {
@@ -245,7 +245,7 @@ const AdminDashboard: React.FC = () => {
       
       setToast({ type: "success", message: "Assessment deleted successfully" });
     } catch (err: any) {
-      console.error("Error deleting assessment:", err);
+
       setToast({ 
         type: "error", 
         message: err.response?.data?.detail || "Failed to delete assessment" 
@@ -520,6 +520,7 @@ const AdminDashboard: React.FC = () => {
                   <th className="col-candidate">Candidate</th>
                   <th className="col-role">Role</th>
                   <th className="col-skills">Top Skills</th>
+                  <th className="col-config">Configuration</th>
                   <th className="col-status">Status</th>
                   <th className="col-dates">Dates</th>
                   <th className="col-actions">Actions</th>
@@ -563,6 +564,22 @@ const AdminDashboard: React.FC = () => {
                           ) : (
                             <span className="no-skills">No skills defined</span>
                           )}
+                        </div>
+                      </td>
+                      <td className="col-config">
+                        <div className="config-cell">
+                          <div className="config-item">
+                            <span className="config-label">Questions:</span>
+                            <span className="config-value">{assessment.total_questions || 'N/A'}</span>
+                          </div>
+                          <div className="config-item">
+                            <span className="config-label">Auto-adjust:</span>
+                            <span className="config-value">{assessment.auto_adjust_by_experience ? 'Yes' : 'No'}</span>
+                          </div>
+                          <div className="config-item">
+                            <span className="config-label">Pass threshold:</span>
+                            <span className="config-value">{assessment.passing_score_threshold ? `${assessment.passing_score_threshold}%` : 'N/A'}</span>
+                          </div>
                         </div>
                       </td>
                       <td className="col-status">

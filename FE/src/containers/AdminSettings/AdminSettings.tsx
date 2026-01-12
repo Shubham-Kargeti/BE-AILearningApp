@@ -22,7 +22,6 @@ const AdminSettings = () => {
   };
 
   const handleSave = () => {
-    console.log("Settings saved:", settings);
     alert("Settings saved successfully!");
   };
 

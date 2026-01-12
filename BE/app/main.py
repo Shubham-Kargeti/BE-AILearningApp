@@ -29,6 +29,7 @@ from app.api.candidates import router as candidates_router
 from app.api.assessments import router as assessments_router
 from app.api.skills import router as skills_router
 from app.api.admin_skill_extraction import router as admin_skill_extraction_router
+from app.api.assessment_progress import router as assessment_progress_router
 
 
 # Import for recommended courses if it exists
@@ -156,6 +157,10 @@ Most endpoints require JWT authentication. Use the `/api/v1/auth/login` endpoint
         {
             "name": "Assessments",
             "description": "Assessment configuration and applications"
+        },
+        {
+            "name": "Assessment Progress",
+            "description": "Save and load assessment progress for resume capability"
         },
         {
             "name": "skills-roles",
@@ -314,6 +319,7 @@ app.include_router(mcq_generation_router, prefix=settings.API_V1_PREFIX, tags=["
 app.include_router(subskill_router, prefix=settings.API_V1_PREFIX, tags=["Subskills"])
 app.include_router(candidates_router, tags=["Candidates"])
 app.include_router(assessments_router, tags=["Assessments"])
+app.include_router(assessment_progress_router, prefix=settings.API_V1_PREFIX, tags=["Assessment Progress"])
 app.include_router(skills_router, tags=["skills-roles"])
 app.include_router(admin.router, prefix=settings.API_V1_PREFIX, tags=["Admin"])
 app.include_router(admin_skill_extraction_router, tags=["Admin Skill Extraction"])
