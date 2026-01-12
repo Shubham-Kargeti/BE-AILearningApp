@@ -36,7 +36,7 @@ class MCQQuestion(BaseModel):
     question_id: int
     question_text: str
     options: List[MCQOption]
-    correct_answer: str  # e.g., "A", "B", "C", "D"
+    correct_answer: Optional[str] = None  # e.g., "A", "B", "C", "D"
 
 class MCQResponse(BaseModel):
     jd_id: str
@@ -84,7 +84,7 @@ class QuestionResultDetailed(BaseModel):
     question_text: str
     options: List[MCQOption]
     your_answer: str
-    correct_answer: str
+    correct_answer: Optional[str] = None
     is_correct: bool
 
 class TestResultResponse(BaseModel):
@@ -117,7 +117,7 @@ class QuestionResult(BaseModel):
     question_id: int
     question_text: str
     selected_answer: str
-    correct_answer: str
+    correct_answer: Optional[str] = None
     is_correct: bool
 
 class TestResult(BaseModel):

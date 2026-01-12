@@ -305,6 +305,62 @@ export const quizService = {
     const response = await apiClient.get(`/test-sessions?skip=${skip}&limit=${limit}`);
     return response.data;
   },
+
+  listMyTestSessions: async (skip = 0, limit = 50): Promise<Array<{
+    session_id: string;
+    question_set_id: string | null;
+    skill: string | null;
+    level: string | null;
+    total_questions: number;
+    correct_answers: number | null;
+    score_percentage: number | null;
+    is_completed: boolean;
+    started_at: string | null;
+    completed_at: string | null;
+    duration_seconds: number | null;
+  }>> => {
+    const response = await apiClient.get(`/questionset-tests/my-sessions?skip=${skip}&limit=${limit}`);
+    return response.data;
+  },
+
+  listAssessmentTestSessions: async (assessmentId: string, skip = 0, limit = 50): Promise<Array<{
+    session_id: string;
+    candidate_name: string | null;
+    candidate_email: string | null;
+    total_questions: number;
+    correct_answers: number | null;
+    score_percentage: number | null;
+    is_completed: boolean;
+    started_at: string | null;
+    completed_at: string | null;
+    duration_seconds: number | null;
+  }>> => {
+    const response = await apiClient.get(`/questionset-tests/assessment/${assessmentId}/sessions?skip=${skip}&limit=${limit}`);
+    return response.data;
+  },
+
+  getQuestionSetTestResults: async (sessionId: string): Promise<{
+    session_id: string;
+    question_set_id: string;
+    skill: string;
+    level: string;
+    score_percentage: number;
+    correct_answers: number;
+    total_questions: number;
+    completed_at: string;
+    time_taken_seconds: number;
+    detailed_results: Array<{
+      question_id: number;
+      question_text: string;
+      your_answer: string;
+      correct_answer: string;
+      is_correct: boolean;
+      options: Array<{ option_id: string; text: string }>;
+    }>;
+  }> => {
+    const response = await apiClient.get(`/questionset-tests/${sessionId}/results`);
+    return response.data;
+  },
 };
 
 export const candidateService = {
@@ -492,6 +548,59 @@ export const dashboardService = {
   }> => {
     const response = await apiClient.get("/admin/dashboard");
     return response.data;
+  },
+};
+
+export const assessmentProgressService = {
+  saveProgress: async (progress: {
+    candidate_email: string;
+    candidate_name?: string;
+    session_id?: string;
+    question_set_id?: string;
+    assessment_title?: string;
+    skill?: string;
+    level?: string;
+    current_question_index: number;
+    answers: Record<string, any>;
+    question_status: Record<string, any>;
+    expired_questions: number[];
+    remaining_time_seconds?: number;
+    initial_duration_seconds?: number;
+    total_questions: number;
+    is_completed?: boolean;
+  }): Promise<any> => {
+    const response = await apiClient.post("/assessment-progress/save", progress);
+    return response.data;
+  },
+
+  loadProgress: async (email: string): Promise<{
+    candidate_email: string;
+    candidate_name?: string;
+    session_id?: string;
+    question_set_id?: string;
+    assessment_title?: string;
+    skill?: string;
+    level?: string;
+    current_question_index: number;
+    answers: Record<string, any>;
+    question_status: Record<string, any>;
+    expired_questions: number[];
+    remaining_time_seconds?: number;
+    initial_duration_seconds?: number;
+    total_questions: number;
+    is_completed: boolean;
+    last_saved_at: string;
+  } | null> => {
+    const response = await apiClient.get(`/assessment-progress/load/${encodeURIComponent(email)}`);
+    return response.data;
+  },
+
+  deleteProgress: async (email: string): Promise<void> => {
+    await apiClient.delete(`/assessment-progress/delete/${encodeURIComponent(email)}`);
+  },
+
+  markComplete: async (email: string): Promise<void> => {
+    await apiClient.post(`/assessment-progress/complete/${encodeURIComponent(email)}`);
   },
 };
 

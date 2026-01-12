@@ -3,11 +3,12 @@ from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
 
 from app.db.session import get_db
 from app.db.models import User, TestSession, Question, Answer, QuestionSet
 from app.core.dependencies import get_current_user, optional_user
+from app.core.security import is_admin_user
 from app.utils.streak_manager import check_and_update_quiz_completion
 from app.models.schemas import (
     StartQuestionSetTestRequest,
@@ -321,37 +322,51 @@ async def submit_questionset_answers(
 
         # ---------- MCQ ----------
         if qtype == "mcq":
-            if answer_submit.selected_answer not in question.options:
+            # Accept NOT_ANSWERED sentinel as a valid 'no response' marker
+            if answer_submit.selected_answer == "NOT_ANSWERED":
+                is_correct = False
+            elif answer_submit.selected_answer not in question.options:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid answer '{answer_submit.selected_answer}'"
                 )
-
-            is_correct = (
-                answer_submit.selected_answer == question.correct_answer
-            )
+            else:
+                is_correct = (
+                    answer_submit.selected_answer == question.correct_answer
+                )
 
         # ---------- CODING / ARCHITECTURE ----------
         else:
-            if (
-                not isinstance(answer_submit.selected_answer, str)
-                or not answer_submit.selected_answer.strip()
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Answer cannot be empty"
-                )
+            # Allow NOT_ANSWERED sentinel for coding/architecture to represent unanswered
+            if answer_submit.selected_answer == "NOT_ANSWERED":
+                is_correct = False
+            else:
+                if (
+                    not isinstance(answer_submit.selected_answer, str)
+                    or not answer_submit.selected_answer.strip()
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Answer cannot be empty"
+                    )
 
-            is_correct = False  # demo-safe
+                is_correct = False  # demo-safe
 
         if is_correct:
             correct_count += 1
+
+        # Ensure selected_answer fits into DB column (truncate if excessively long)
+        selected_value = str(answer_submit.selected_answer)
+        MAX_ANSWER_LEN = 10000
+        if len(selected_value) > MAX_ANSWER_LEN:
+            # Truncate long answers to prevent DB errors and log the truncation
+            selected_value = selected_value[:MAX_ANSWER_LEN]
 
         answer_records.append(
             Answer(
                 session_id=request.session_id,
                 question_id=answer_submit.question_id,
-                selected_answer=answer_submit.selected_answer,
+                selected_answer=selected_value,
                 is_correct=is_correct
             )
         )
@@ -396,14 +411,22 @@ async def submit_questionset_answers(
         qtype = resolve_question_type(question)
 
         if qtype == "mcq":
-            options = [
-                MCQOption(option_id=k, text=v)
-                for k, v in sorted(question.options.items())
-            ]
-            correct_answer = question.correct_answer
+            options = []
+            for k, v in sorted(question.options.items()):
+                # Defensive: normalize option text to a string (some options may be lists)
+                if isinstance(v, str):
+                    opt_text = v
+                elif isinstance(v, list):
+                    opt_text = " | ".join(map(str, v))
+                else:
+                    opt_text = str(v)
+                options.append(MCQOption(option_id=k, text=opt_text))
+            # Defensive: ensure we return an explicit placeholder when no correct answer is set
+            correct_answer = question.correct_answer or ""
         else:
             options = []
-            correct_answer = None
+            # For non-mcq question types, return empty-string as placeholder for correct_answer
+            correct_answer = ""
 
         detailed_results.append(
             QuestionResultDetailed(
@@ -504,14 +527,21 @@ async def submit_questionset_answers_anonymous(
             Question.question_set_id == session.question_set_id
         )
     )
-    questions = {q.id: q for q in questions_result.scalars().all()}
+            # Ensure selected_answer fits into DB column (truncate if excessively long)
+            selected_value = selected
+            MAX_ANSWER_LEN = 10000
+            if len(selected_value) > MAX_ANSWER_LEN:
+                # Truncate long answers to prevent DB errors and log the truncation
+                selected_value = selected_value[:MAX_ANSWER_LEN]
 
-    correct_count = 0
-    answer_records = []
-
-    # --------------------------------------------------
-    # Process answers
-    # --------------------------------------------------
+            answer_records.append(
+                Answer(
+                    session_id=request.session_id,
+                    question_id=answer_submit.question_id,
+                    selected_answer=selected_value,
+                    is_correct=is_correct
+                )
+            )
     for answer_submit in request.answers:
         question = questions.get(answer_submit.question_id)
 
@@ -525,37 +555,52 @@ async def submit_questionset_answers_anonymous(
 
         # ---------- MCQ ----------
         if qtype == "mcq":
-            if answer_submit.selected_answer not in question.options:
+            # Accept NOT_ANSWERED sentinel for unanswered MCQs
+            if answer_submit.selected_answer == "NOT_ANSWERED":
+                is_correct = False
+            elif answer_submit.selected_answer not in question.options:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid answer"
                 )
-
-            is_correct = (
-                answer_submit.selected_answer == question.correct_answer
-            )
+            else:
+                is_correct = (
+                    answer_submit.selected_answer == question.correct_answer
+                )
 
         # ---------- CODING / ARCHITECTURE ----------
         else:
-            if (
-                not isinstance(answer_submit.selected_answer, str)
-                or not answer_submit.selected_answer.strip()
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Answer cannot be empty"
-                )
+            if answer_submit.selected_answer == "NOT_ANSWERED":
+                is_correct = False
+            else:
+                if (
+                    not isinstance(answer_submit.selected_answer, str)
+                    or not answer_submit.selected_answer.strip()
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Answer cannot be empty"
+                    )
 
-            is_correct = False  # demo-safe
+                is_correct = False  # demo-safe
 
         if is_correct:
             correct_count += 1
+
+        # Ensure selected_answer is a string and normalize whitespace
+        selected = answer_submit.selected_answer
+        if selected is None:
+            selected = ""
+        # Convert non-strings to string and strip surrounding whitespace
+        if not isinstance(selected, str):
+            selected = str(selected)
+        selected = selected.strip()
 
         answer_records.append(
             Answer(
                 session_id=request.session_id,
                 question_id=answer_submit.question_id,
-                selected_answer=answer_submit.selected_answer,
+                selected_answer=selected,
                 is_correct=is_correct
             )
         )
@@ -594,14 +639,21 @@ async def submit_questionset_answers_anonymous(
         qtype = resolve_question_type(question)
 
         if qtype == "mcq":
-            options = [
-                MCQOption(option_id=k, text=v)
-                for k, v in sorted(question.options.items())
-            ]
-            correct_answer = question.correct_answer
+            options = []
+            for k, v in sorted(question.options.items()):
+                if isinstance(v, str):
+                    opt_text = v
+                elif isinstance(v, list):
+                    opt_text = " | ".join(map(str, v))
+                else:
+                    opt_text = str(v)
+                options.append(MCQOption(option_id=k, text=opt_text))
+            # Defensive: ensure we return an explicit placeholder when no correct answer is set
+            correct_answer = question.correct_answer or ""
         else:
             options = []
-            correct_answer = None
+            # For non-mcq question types, return empty-string as placeholder for correct_answer
+            correct_answer = ""
 
         detailed_results.append(
             QuestionResultDetailed(
@@ -633,23 +685,46 @@ async def submit_questionset_answers_anonymous(
 )
 async def get_questionset_test_results(
     session_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(optional_user),
     db: AsyncSession = Depends(get_db)
 ) -> TestResultResponse:
     """
     📊 Retrieve Test Results
     """
+    # Check if user is admin
+    is_admin = current_user and is_admin_user(current_user.email)
+    
     # --------------------------------------------------
     # Get session
     # --------------------------------------------------
-    result = await db.execute(
-        select(TestSession).where(
-            and_(
-                TestSession.session_id == session_id,
-                TestSession.user_id == current_user.id
+    if is_admin:
+        # Admins can view any session
+        result = await db.execute(
+            select(TestSession).where(TestSession.session_id == session_id)
+        )
+    elif current_user:
+        # Authenticated users can view their own sessions or anonymous sessions
+        result = await db.execute(
+            select(TestSession).where(
+                and_(
+                    TestSession.session_id == session_id,
+                    or_(
+                        TestSession.user_id == current_user.id,
+                        TestSession.user_id.is_(None)
+                    )
+                )
             )
         )
-    )
+    else:
+        # Unauthenticated users can only view anonymous sessions
+        result = await db.execute(
+            select(TestSession).where(
+                and_(
+                    TestSession.session_id == session_id,
+                    TestSession.user_id.is_(None)
+                )
+            )
+        )
     session = result.scalar_one_or_none()
 
     if not session:
@@ -698,10 +773,15 @@ async def get_questionset_test_results(
 
     detailed_results = []
     for answer, question in answers_result:
-        options = [
-            MCQOption(option_id=k, text=v)
-            for k, v in sorted(question.options.items())
-        ]
+        options = []
+        for k, v in sorted(question.options.items()):
+            if isinstance(v, str):
+                opt_text = v
+            elif isinstance(v, list):
+                opt_text = " | ".join(map(str, v))
+            else:
+                opt_text = str(v)
+            options.append(MCQOption(option_id=k, text=opt_text))
 
         detailed_results.append(
             QuestionResultDetailed(
@@ -726,3 +806,102 @@ async def get_questionset_test_results(
         time_taken_seconds=session.duration_seconds,
         detailed_results=detailed_results
     )
+
+
+@router.get("/questionset-tests/my-sessions")
+async def list_my_test_sessions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 50
+):
+    """
+    📋 List all test sessions for the current user
+    """
+    result = await db.execute(
+        select(TestSession, QuestionSet)
+        .outerjoin(QuestionSet, TestSession.question_set_id == QuestionSet.question_set_id)
+        .where(TestSession.user_id == current_user.id)
+        .order_by(TestSession.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    
+    sessions_data = []
+    for session, question_set in result:
+        sessions_data.append({
+            "session_id": session.session_id,
+            "question_set_id": session.question_set_id,
+            "skill": question_set.skill if question_set else None,
+            "level": question_set.level if question_set else None,
+            "total_questions": session.total_questions,
+            "correct_answers": session.correct_answers,
+            "score_percentage": session.score_percentage,
+            "is_completed": session.is_completed,
+            "started_at": session.started_at.isoformat() if session.started_at else None,
+            "completed_at": session.completed_at.isoformat() if session.completed_at else None,
+            "duration_seconds": session.duration_seconds,
+        })
+    
+    return sessions_data
+
+
+@router.get("/questionset-tests/assessment/{assessment_id}/sessions")
+async def list_assessment_test_sessions(
+    assessment_id: str,
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 50
+):
+    """
+    📋 List all test sessions for a specific assessment (admin view)
+    """
+    from app.db.models import Assessment
+    
+    # First, get the assessment to find its question_set_id
+    assessment_result = await db.execute(
+        select(Assessment).where(Assessment.assessment_id == assessment_id)
+    )
+    assessment = assessment_result.scalar_one_or_none()
+    
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assessment not found"
+        )
+    
+    if not assessment.question_set_id:
+        print(f"⚠️ Assessment {assessment_id} has no question_set_id linked")
+        return []  # No question set linked yet
+    
+    print(f"📊 Fetching sessions for assessment {assessment_id} with question_set_id: {assessment.question_set_id}")
+    
+    # Get all test sessions for this question set
+    result = await db.execute(
+        select(TestSession)
+        .where(TestSession.question_set_id == assessment.question_set_id)
+        .order_by(TestSession.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    
+    sessions = result.scalars().all()
+    
+    print(f"✅ Found {len(sessions)} sessions for question_set_id: {assessment.question_set_id}")
+    
+    sessions_data = []
+    for session in sessions:
+        sessions_data.append({
+            "session_id": session.session_id,
+            "candidate_name": session.candidate_name,
+            "candidate_email": session.candidate_email,
+            "total_questions": session.total_questions,
+            "correct_answers": session.correct_answers,
+            "score_percentage": session.score_percentage,
+            "is_completed": session.is_completed,
+            "started_at": session.started_at.isoformat() if session.started_at else None,
+            "completed_at": session.completed_at.isoformat() if session.completed_at else None,
+            "duration_seconds": session.duration_seconds,
+        })
+    
+    return sessions_data

@@ -7,4 +7,5 @@ export const client = {
   SETTINGS: "settings",
   QUIZ: "quiz",
   STREAK: "streak",
+  ASSESSMENTS: "assessments",
 };

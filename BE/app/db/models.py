@@ -245,7 +245,8 @@ class Answer(Base, TimestampMixin):
         String(100), ForeignKey("test_sessions.session_id"), nullable=False, index=True
     )
     question_id: Mapped[int] = mapped_column(Integer, ForeignKey("questions.id"), nullable=False)
-    selected_answer: Mapped[str] = mapped_column(String(10), nullable=False)  # "A", "B", "C", "D"
+    # Allow long text answers (coding, architecture, free text). Use Text to avoid truncation errors.
+    selected_answer: Mapped[str] = mapped_column(Text, nullable=False)
     is_correct: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     time_taken_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     
@@ -601,3 +602,45 @@ class Role(Base, TimestampMixin):
     
     def __repr__(self) -> str:
         return f"<Role(id={self.id}, name='{self.name}', department='{self.department}')>"
+
+
+class AssessmentProgress(Base, TimestampMixin):
+    """Store in-progress assessment state for resume capability."""
+    
+    __tablename__ = "assessment_progress"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    
+    # Email as unique identifier for anonymous candidates
+    candidate_email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    candidate_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    
+    # Assessment context
+    session_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    question_set_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    assessment_title: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    skill: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    level: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    
+    # Progress state (stored as JSON)
+    current_question_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    answers: Mapped[dict] = mapped_column(JSON, nullable=False, default={})  # {questionIndex: answer}
+    question_status: Mapped[dict] = mapped_column(JSON, nullable=False, default={})  # {questionIndex: status}
+    expired_questions: Mapped[list] = mapped_column(JSON, nullable=False, default=[])  # List of expired question indices
+    
+    # Timer state
+    remaining_time_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    initial_duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    last_saved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    
+    # Assessment metadata
+    total_questions: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    __table_args__ = (
+        Index("ix_assessment_progress_email", "candidate_email"),
+        Index("ix_assessment_progress_session_id", "session_id"),
+    )
+    
+    def __repr__(self) -> str:
+        return f"<AssessmentProgress(id={self.id}, email='{self.candidate_email}', progress={self.current_question_index}/{self.total_questions})>"

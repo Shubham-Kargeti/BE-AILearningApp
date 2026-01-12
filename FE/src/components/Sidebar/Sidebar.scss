@@ -1,108 +1,171 @@
 .sidebar-drawer {
-  width: 250px;
+  width: 280px;
   flex-shrink: 0;
-  border-right: none;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
   .MuiDrawer-paper {
-    width: 250px;
+    width: 280px;
     box-sizing: border-box;
-    transition: width 0.3s ease;
-    background-color: #0b0a17;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
     color: #fff;
     border-right: none;
     display: flex !important;
     flex-direction: column !important;
     justify-content: space-between !important;
+    overflow-x: hidden;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.1);
+
+    /* Custom Scrollbar */
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+      
+      &:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+    }
   }
 
   &.collapsed {
-    width: 60px;
+    width: 80px;
 
     .MuiDrawer-paper {
-      width: 60px;
+      width: 80px;
+      align-items: center;
     }
+  }
 
-    /* COLLAPSED: Center Icons & Remove Text Spacing */
-    .sidebar-item {
-      justify-content: center;
-      padding-left: 0 !important;
-      padding-right: 0 !important;
-    }
-
-    .sidebar-icon {
-      min-width: 0 !important;
-      width: 100%;
-      justify-content: center;
-      color: #fff !important;
-    }
+  /* Smooth transitions for all elements */
+  * {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
-.sidebar-toggle-btn {
-  color: #fff !important;
-  margin: 10px auto !important;
-  display: block !important;
+/* Animation for menu items */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-.sidebar-list {
-  padding-top: 10px;
+.MuiListItemButton-root {
+  animation: slideInRight 0.3s ease-out;
 }
 
-/* expand */
-.sidebar-item {
-  display: flex;
-  align-items: center;
-  border-radius: 8px;
-  margin: 6px 8px;
-  transition: background-color 0.3s ease;
+/* Glassmorphism effect for active items */
+.MuiListItemButton-root.Mui-selected {
+  background: rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Smooth hover effect */
+.MuiListItemButton-root:hover {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  transform: translateX(4px);
+}
+
+/* Icon glow effect on hover */
+.MuiListItemIcon-root:hover svg {
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.5));
+}
+
+/* Profile section styling */
+.MuiAvatar-root {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease;
 
   &:hover {
-    background-color: #1d4ed8;
-  }
-
-  &.active {
-    background-color: #1e3a8a;
+    transform: scale(1.05);
   }
 }
 
-/* ✅ Default icon spacing (expanded mode) */
-.sidebar-icon {
-  color: #fff;
-  min-width: 40px;
-  display: flex;
-  justify-content: flex-start;
-
-  &.active {
-    color: #90caf9;
-  }
-}
-
-.sidebar-text {
-  color: #fff;
-
-  &.active {
-    color: #90caf9;
-    font-weight: 600;
-  }
-}
-
-.sidebar-icon svg {
-  color: #ffffff !important;
-  fill: #ffffff !important;
-}
-
-/* Fix Logout button — prevent full red panel */
-.logout-item {
-  margin-top: auto !important;
-  border-radius: 8px !important;
-  margin: 10px 8px !important;
-  transition: background-color 0.25s ease;
+/* Chip styling */
+.MuiChip-root {
+  transition: all 0.3s ease;
 
   &:hover {
-    background-color: #b91c1c !important;
-    /* nicer red */
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
 }
+
+/* Dialog animations */
+.MuiDialog-paper {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .sidebar-drawer {
+    width: 80px;
+
+    &.open {
+      width: 280px;
+    }
+
+    .MuiDrawer-paper {
+      width: 80px;
+    }
+
+    &.open .MuiDrawer-paper {
+      width: 280px;
+    }
+  }
+}
+
+/* Smooth color transitions */
+.MuiButton-root {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Add subtle animation to icons */
+@keyframes iconPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.MuiListItemIcon-root svg {
+  transition: all 0.3s ease;
+}
+
+.MuiListItemButton-root:hover .MuiListItemIcon-root svg {
+  animation: iconPulse 0.6s ease-in-out;
+}
+
+
 
 /* Logout icon style */
 .logout-item .MuiSvgIcon-root {
