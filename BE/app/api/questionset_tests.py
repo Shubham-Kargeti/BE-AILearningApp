@@ -127,7 +127,19 @@ async def start_questionset_test(
     )
 
     db.add(test_session)
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception as e:
+        # Catch DB errors such as data truncation and return a helpful message
+        from sqlalchemy.exc import DBAPIError
+        if isinstance(e, DBAPIError):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=("Database error while saving answers. "
+                        "This may be caused by answer length exceeding the column size. "
+                        "Please run the alter script to change answers.selected_answer to TEXT."),
+            )
+        raise
     await db.refresh(test_session)
 
     # --------------------------------------------------
@@ -356,7 +368,12 @@ async def submit_questionset_answers(
             correct_count += 1
 
         # Ensure selected_answer fits into DB column (truncate if excessively long)
-        selected_value = str(answer_submit.selected_answer)
+        selected_value = answer_submit.selected_answer
+        if selected_value is None:
+            selected_value = ""
+        if not isinstance(selected_value, str):
+            selected_value = str(selected_value)
+        selected_value = selected_value.strip()
         MAX_ANSWER_LEN = 10000
         if len(selected_value) > MAX_ANSWER_LEN:
             # Truncate long answers to prevent DB errors and log the truncation
@@ -586,15 +603,17 @@ async def submit_questionset_answers_anonymous(
 
         if is_correct:
             correct_count += 1
-
         # Ensure selected_answer is a string and normalize whitespace
         selected = answer_submit.selected_answer
         if selected is None:
             selected = ""
-        # Convert non-strings to string and strip surrounding whitespace
         if not isinstance(selected, str):
             selected = str(selected)
         selected = selected.strip()
+        # Truncate very long answers to a safe limit
+        MAX_ANSWER_LEN = 10000
+        if len(selected) > MAX_ANSWER_LEN:
+            selected = selected[:MAX_ANSWER_LEN]
 
         answer_records.append(
             Answer(
