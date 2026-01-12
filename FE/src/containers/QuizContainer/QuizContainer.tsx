@@ -18,6 +18,7 @@ import type {
   QuestionType,
 } from "../../AssessmentTypes/AssessmentTypes";
 import { useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import Editor from "@monaco-editor/react";
 
 type NormalizedMCQOption = {
@@ -32,6 +33,7 @@ interface LocationState {
     required_skills?: Record<string, string>;
     duration_minutes?: number;
     title?: string;
+    description?: any;
     candidate_info?: {
       name?: string;
       email?: string;
@@ -81,9 +83,9 @@ const QuizContainer = () => {
   });
 
   /* ================= META STATE ================= */
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [quizStarted, setQuizStarted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string>("");
 
   const [sessionStartedAnonymous, setSessionStartedAnonymous] =
