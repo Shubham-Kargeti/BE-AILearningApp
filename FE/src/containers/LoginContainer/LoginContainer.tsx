@@ -34,7 +34,7 @@ const LoginContainer = () => {
       const response = await apiCall(LOGIN, HTTP_POST, {
         email: values.email,
       });
-
+      console.log("BASE URL:", import.meta.env.VITE_API_BASE_URL);
       const { access_token } = response;
 
       if (access_token) {

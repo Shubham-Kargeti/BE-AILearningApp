@@ -2,6 +2,7 @@ const baseURL = import.meta.env.VITE_API_BASE_URL;
 const API_V1 = `${baseURL}api/v1`;
 
 export const LOGIN = `${API_V1}/auth/login`;
+console.log("BASE URL:", import.meta.env.VITE_API_BASE_URL);
 export const GENERATE_MCQS = `${API_V1}/generate-mcqs`;
 export const START_QUIZ = `${API_V1}/questionset-tests/start`;
 export const SUBMIT_MCQS = `${API_V1}/questionset-tests/submit`;
