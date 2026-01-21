@@ -252,6 +252,16 @@ async def get_assessment(
         print("[DEBUG] Assessment Questions Payload")
         print(json.dumps(response["questions"], indent=2))
 
+    # --------------------------------------------------------
+    # INCLUDE GENERATED QUESTIONS (from RAG uploads) for admin view
+    # --------------------------------------------------------
+    if is_admin:
+        gen_stmt = select(Question).where(Question.jd_id == assessment.assessment_id)
+        gen_result = await db.execute(gen_stmt)
+        gen_questions = gen_result.scalars().all()
+        if gen_questions:
+            response["generated_questions"] = [serialize_question(q) for q in gen_questions]
+
     return response
 @router.post("", response_model=AssessmentResponse, status_code=status.HTTP_201_CREATED)
 async def create_assessment(

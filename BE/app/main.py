@@ -22,6 +22,7 @@ from app.core.error_handlers import validation_error_handler, ERROR_CODES
 # API routers
 from app.api.mcq_generation import router as mcq_generation_router
 from app.api.upload_jd import router as upload_router
+from app.api.question_docs import router as question_docs_router
 from app.api import auth, users, admin, dashboard, test_sessions
 from app.api.questionset_tests import router as questionset_tests_router
 from app.api.subskills import router as subskill_router
@@ -30,6 +31,8 @@ from app.api.assessments import router as assessments_router
 from app.api.skills import router as skills_router
 from app.api.admin_skill_extraction import router as admin_skill_extraction_router
 from app.api.assessment_progress import router as assessment_progress_router
+from app.api.question_bank import router as question_bank_router
+from app.api.generator_jobs import router as generator_jobs_router
 
 
 # Import for recommended courses if it exists
@@ -323,6 +326,9 @@ app.include_router(assessment_progress_router, prefix=settings.API_V1_PREFIX, ta
 app.include_router(skills_router, tags=["skills-roles"])
 app.include_router(admin.router, prefix=settings.API_V1_PREFIX, tags=["Admin"])
 app.include_router(admin_skill_extraction_router, tags=["Admin Skill Extraction"])
+app.include_router(question_bank_router, prefix=settings.API_V1_PREFIX, tags=["Questions"])
+app.include_router(generator_jobs_router, prefix=settings.API_V1_PREFIX, tags=["Questions"])
+app.include_router(question_docs_router, prefix=settings.API_V1_PREFIX, tags=["Admin"])
 
 # Include recommended courses router if available
 if has_recommended_courses:

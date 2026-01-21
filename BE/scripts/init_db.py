@@ -18,6 +18,20 @@ from app.db.models import (
 async def init_models():
     """Create all tables in database."""
     async with engine.begin() as conn:
+        # Defensive: drop any existing indexes that may have been left behind by
+        # previous partial runs or migration scripts. SQLite can raise
+        # "index ... already exists" when attempting to create an index that
+        # is already present. Dropping indexes first ensures create_all succeeds
+        # idempotently for local/dev usage.
+        try:
+            from sqlalchemy import text
+
+            for idx in Base.metadata.indexes:
+                await conn.execute(text(f"DROP INDEX IF EXISTS {idx.name}"))
+        except Exception:
+            # Non-fatal; continue to create tables even if index cleanup fails
+            pass
+
         await conn.run_sync(Base.metadata.create_all)
     
     print("✅ Database tables created successfully!")
