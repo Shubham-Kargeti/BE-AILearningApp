@@ -1,5 +1,6 @@
 from langchain_groq import ChatGroq
-from config import GROQ_API_KEY
+import os
+from config import GROQ_API_KEY as CONFIG_GROQ_API_KEY
 from langchain_core.prompts import (
     ChatPromptTemplate,
     HumanMessagePromptTemplate,
@@ -247,13 +248,21 @@ No explanations.
 )
 
 # ------------------------------------------------------------
-# LLM INITIALIZATION
+# LLM INITIALIZATION (lazy)
 # ------------------------------------------------------------
-llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
-    temperature=0,
-    api_key=GROQ_API_KEY
-)
+
+class _StubLLM:
+    def invoke(self, *args, **kwargs):
+        raise RuntimeError(
+            "GROQ API key is not configured. Set GROQ_API_KEY to enable LLM features."
+        )
+
+
+def _get_llm():
+    api_key = os.getenv("GROQ_API_KEY") or CONFIG_GROQ_API_KEY
+    if api_key:
+        return ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=api_key)
+    return _StubLLM()
 
 # ------------------------------------------------------------
 # MAIN FUNCTION 
@@ -295,6 +304,7 @@ async def generate_assessment_question_set(
     )
 
     # LLM call (MCQs only)
+    llm = _get_llm()
     response = await asyncio.to_thread(llm.invoke, messages)
 
     print("\n[Admin MCQ LLM Output]\n", response.content)
@@ -319,7 +329,8 @@ async def generate_assessment_question_set(
         coding_count=coding_count
     )
 
-    coding_response = await asyncio.to_thread(llm.invoke, coding_messages)
+    coding_llm = _get_llm()
+    coding_response = await asyncio.to_thread(coding_llm.invoke, coding_messages)
 
     print("\n[Admin CODING LLM Output]\n", coding_response.content)
 

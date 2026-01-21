@@ -1,5 +1,6 @@
 from langchain_groq import ChatGroq
-from config import GROQ_API_KEY
+import os
+from config import GROQ_API_KEY as CONFIG_GROQ_API_KEY
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from app.models.schemas import MCQQuestion, MCQOption
 import json
@@ -31,7 +32,25 @@ human_message = HumanMessagePromptTemplate.from_template(
 
 chat_prompt = ChatPromptTemplate.from_messages([system_message, human_message])
 
-llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=GROQ_API_KEY)
+class _StubLLM:
+    """Simple stub to raise a clear error when GROQ is unavailable."""
+    def invoke(self, *args, **kwargs):
+        raise RuntimeError(
+            "GROQ API key is not configured. Set GROQ_API_KEY to enable LLM features."
+        )
+
+
+def _get_llm():
+    """Lazily initialize the ChatGroq client when needed.
+
+    If a GROQ API key is available via environment or config, instantiate
+    a real ChatGroq client; otherwise return a stub that raises a clear
+    error at call time (so the app can import and run without the key).
+    """
+    api_key = os.getenv("GROQ_API_KEY") or CONFIG_GROQ_API_KEY
+    if api_key:
+        return ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=api_key)
+    return _StubLLM()
 
 def parse_mcqs_from_response(response_text: str):
     cleaned = re.sub(r'``````', '', response_text.strip())
@@ -51,7 +70,7 @@ def parse_mcqs_from_response(response_text: str):
 async def generate_mcqs_for_topic(topic: str, level: str, subtopics: list = None):
     subtopics_str = ", ".join(subtopics) if subtopics else ""
     prompt_messages = chat_prompt.format_messages(topic=topic, subtopics=subtopics_str, level=level)
-    #response = llm.invoke(prompt_messages)
+    llm = _get_llm()
     response = await asyncio.to_thread(llm.invoke, prompt_messages)
     print("Raw LLM Response:")
     print(response.content)

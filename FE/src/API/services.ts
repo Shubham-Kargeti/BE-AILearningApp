@@ -86,6 +86,13 @@ export interface Assessment {
   passing_score_threshold: number;
   auto_adjust_by_experience: boolean;
   difficulty_distribution: Record<string, number>;
+  // Admin-only: generated questions from RAG ingestion
+  generated_questions?: Array<{
+    id?: number | string;
+    question_type?: string;
+    question_text: string;
+    options?: Array<{ option_id: string; text: string }>;
+  }>;
 }
 
 export interface AssessmentCreateRequest {
@@ -492,6 +499,79 @@ export const uploadService = {
       formData,
       { headers: { "Content-Type": "multipart/form-data" } }
     );
+    return response.data;
+  },
+
+  uploadQuestionDoc: async (
+    file: File,
+    assessmentId?: string,
+    onProgress?: (percent: number) => void
+  ): Promise<{ message: string; doc_id: string; s3_key: string; task_id?: string }> => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const qs = assessmentId ? `?assessment_id=${encodeURIComponent(assessmentId)}` : "";
+
+    const response = await apiClient.post(`/admin/question-docs/upload${qs}`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      onUploadProgress: (event) => {
+        if (onProgress && event.total) {
+          onProgress(Math.round((event.loaded * 100) / event.total));
+        }
+      },
+    });
+
+    return response.data;
+  },
+
+  getIngestionStatus: async (taskIdOrDocId: string) => {
+    const response = await apiClient.get(`/admin/question-docs/status/${encodeURIComponent(taskIdOrDocId)}`);
+    return response.data as {
+      task_id: string;
+      task_name: string;
+      status: string;
+      result?: any;
+      error?: string;
+      related_id?: string;
+      created_at?: string;
+      updated_at?: string;
+    };
+  },
+};
+
+export const questionGenService = {
+  listDrafts: async (reviewState: string = "draft") => {
+    const response = await apiClient.get<any[]>(`/question-bank?review_state=${encodeURIComponent(reviewState)}`);
+    return response.data;
+  },
+
+  publishDraft: async (id: number) => {
+    const response = await apiClient.post<any>(`/question-bank/${id}/publish`);
+    return response.data;
+  },
+
+  indexJD: async (jdId: string) => {
+    const response = await apiClient.post(`/rag/index/jd/${encodeURIComponent(jdId)}`);
+    return response.data;
+  },
+
+  indexAllJDs: async () => {
+    const response = await apiClient.post(`/rag/index/jd/all`);
+    return response.data;
+  },
+
+  startGeneration: async (topic: string, count: number = 5, min_hits: number = 1) => {
+    const response = await apiClient.post(`/question-generation/start`, { topic, count, min_hits });
+    return response.data;
+  },
+
+  startGenerationForAssessment: async (assessmentId: string, count: number = 5, mode: string = 'rag', rag_pct: number = 100, min_hits: number = 1) => {
+    const response = await apiClient.post(`/question-generation/start`, { assessment_id: assessmentId, count, mode, rag_pct, min_hits });
+    return response.data as { task_id: string; status: string };
+  },
+
+  getGenerationStatus: async (taskId: string) => {
+    const response = await apiClient.get(`/question-generation/status/${encodeURIComponent(taskId)}`);
     return response.data;
   },
 };
