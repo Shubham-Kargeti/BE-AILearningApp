@@ -1,7 +1,7 @@
 """S3-compatible storage service for document uploads."""
 import io
 import os
-from typing import Optional, BinaryIO
+from typing import Optional, BinaryIO, Union
 from datetime import datetime, timedelta
 import boto3
 from botocore.client import Config
@@ -69,6 +69,14 @@ class S3Service:
         if metadata:
             extra_args['Metadata'] = metadata
         
+        # boto3's upload_fileobj requires a file-like object implementing .read().
+        # Accept bytes/bytearray as a convenience and wrap them in BytesIO.
+        if isinstance(file_obj, (bytes, bytearray)):
+            file_obj = io.BytesIO(file_obj)
+
+        if not hasattr(file_obj, "read"):
+            raise TypeError("file_obj must be a file-like object with a read() method or bytes")
+
         try:
             self.s3_client.upload_fileobj(
                 file_obj,
@@ -269,10 +277,10 @@ class S3Service:
 
 
 # Singleton instance
-_s3_service: Optional[S3Service] = None
+_s3_service: Optional[Union[S3Service, 'LocalStorageService']] = None
 
 
-def get_s3_service() -> S3Service:
+def get_s3_service() -> Union[S3Service, 'LocalStorageService']:
     """Get S3 service singleton."""
     global _s3_service
     if _s3_service is None:
