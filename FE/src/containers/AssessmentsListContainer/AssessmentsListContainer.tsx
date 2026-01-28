@@ -25,6 +25,7 @@ interface Assessment {
   duration_minutes?: number;
   is_active?: boolean;
   is_expired?: boolean;
+  job_title?: string;
 }
 
 const AssessmentsListContainer = () => {
@@ -39,9 +40,13 @@ const AssessmentsListContainer = () => {
   const fetchAssessments = async () => {
     try {
       setLoading(true);
+      // Fetch only active and published assessments for candidates
       const data = await assessmentService.listAssessments(true, 0, 50, false);
 
-      const mapped = data.map((a: any) => ({
+      // Filter to only show active, non-expired assessments
+      const filtered = data.filter((a: any) => a.is_active && !a.is_expired);
+
+      const mapped = filtered.map((a: any) => ({
         assessment_id: a.assessment_id,
         title: a.title,
         description: (() => {
@@ -56,6 +61,7 @@ const AssessmentsListContainer = () => {
         duration_minutes: a.duration_minutes,
         is_active: a.is_active,
         is_expired: a.is_expired,
+        job_title: a.job_title,
       }));
 
       setAssessments(mapped);
@@ -63,6 +69,25 @@ const AssessmentsListContainer = () => {
       console.error("Error fetching assessments:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStartAssessment = async (assessmentId: string) => {
+    try {
+      // Fetch full assessment details before starting
+      const assessment = await assessmentService.getAssessment(assessmentId);
+      
+      // Navigate to quiz with assessment data
+      navigate('/candidate-quiz', {
+        state: {
+          assessmentId: assessmentId,
+          assessment: assessment,
+          fromCandidateLink: false,
+        }
+      });
+    } catch (error) {
+      console.error("Error starting assessment:", error);
+      alert("Failed to start assessment. Please try again.");
     }
   };
 
@@ -176,10 +201,21 @@ const AssessmentsListContainer = () => {
                       <Typography variant="h6" sx={{ 
                         fontWeight: 700, 
                         color: '#0f172a', 
-                        marginBottom: '0.75rem'
+                        marginBottom: '0.5rem'
                       }}>
                         {assessment.title}
                       </Typography>
+
+                      {assessment.job_title && (
+                        <Typography sx={{ 
+                          fontSize: '0.8125rem', 
+                          color: '#667eea',
+                          fontWeight: 600,
+                          marginBottom: '0.75rem'
+                        }}>
+                          {assessment.job_title}
+                        </Typography>
+                      )}
 
                       {assessment.description && (
                         <Typography sx={{ 
@@ -229,6 +265,7 @@ const AssessmentsListContainer = () => {
                         variant="contained"
                         startIcon={<PlayArrowIcon />}
                         disabled={!assessment.is_active || assessment.is_expired}
+                        onClick={() => handleStartAssessment(assessment.assessment_id)}
                         sx={{
                           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                           borderRadius: '10px',
