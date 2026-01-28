@@ -374,6 +374,7 @@ class UploadedDocumentResponse(BaseModel):
     mime_type: str
     extraction_preview: Optional[str]
     is_encrypted: bool
+    jd_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -397,6 +398,21 @@ class DocumentSkillExtractionResponse(BaseModel):
     extracted_skills: List[ExtractedSkill]
     total_skills_found: int
     extraction_preview: str  # First 500 chars of extracted text
+
+
+# ============ GENERATED QUESTION / ADMIN REVIEW SCHEMAS ============
+
+class GeneratedQuestion(BaseModel):
+    """Representation of a generated question draft stored in QuestionBank."""
+    id: int
+    question_text: str
+    choices: dict
+    correct_answer: str
+    source_type: Optional[str] = None
+    quality_score: Optional[float] = None
+    review_state: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class AdminBulkSkillExtractionResponse(BaseModel):

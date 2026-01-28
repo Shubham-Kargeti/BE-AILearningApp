@@ -121,6 +121,12 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     MAX_QUESTIONS_PER_TEST: int = 20
     QUESTION_GENERATION_TIMEOUT: int = 300  # 5 minutes
+
+    # SSL / RDS dev helper
+    # When true, the app will create an SSL context that does not verify
+    # certificates. This is intended for short-lived dev usage only
+    # (e.g., when connecting to an RDS instance with a non-standard cert chain).
+    SKIP_SSL_VERIFY: bool = False
     
     # Test Sessions
     TEST_DURATION_MINUTES: int = 30

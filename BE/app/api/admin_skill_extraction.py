@@ -320,17 +320,23 @@ async def extract_skills_from_documents(
             timestamp = datetime.utcnow().isoformat()
             s3_key = f"documents/{doc_type}/admin/{timestamp}/{file_id}/{file.filename}"
             
-            await s3_service.upload_file(
-                file_obj=file_bytes,
-                object_name=s3_key,
-                content_type=file.content_type or "application/octet-stream",
-                metadata={
-                    "file_id": file_id,
-                    "doc_type": doc_type,
-                    "original_filename": file.filename,
-                    "uploaded_by": str(current_user.id),
-                }
-            )
+            try:
+                await asyncio.to_thread(
+                    s3_service.upload_file,
+                    file_bytes,
+                    s3_key,
+                    file.content_type or "application/octet-stream",
+                    {
+                        "file_id": file_id,
+                        "doc_type": doc_type,
+                        "original_filename": file.filename,
+                        "uploaded_by": str(current_user.id),
+                    },
+                )
+            except TypeError:
+                await asyncio.to_thread(
+                    lambda: s3_service.upload_file(file_obj=file_bytes, object_name=s3_key, content_type=file.content_type or "application/octet-stream", metadata={"file_id": file_id, "doc_type": doc_type, "original_filename": file.filename, "uploaded_by": str(current_user.id)})
+                )
             
             document = UploadedDocument(
                 file_id=file_id,

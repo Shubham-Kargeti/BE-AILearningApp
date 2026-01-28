@@ -230,6 +230,21 @@ pytest --cov=app --cov-report=html
 
 ## 🚀 Deployment
 
+## FAISS Vector Index (Course Recommendations) 🔎
+
+The project includes tooling to build a FAISS index used by the course recommendation endpoint.
+
+- Local build script: `BE/app/vector_db/build_course_vector_index.py` (also wrapped by `BE/scripts/build_faiss_index.ps1`).
+- CI Workflow: `.github/workflows/faiss_ingest.yml` runs on push or manual dispatch, downloads `Courses Masterdata.xlsx` (if `COURSES_MASTER_URL` secret provided), builds the FAISS index and uploads it as a workflow artifact.
+
+To build locally, place the master spreadsheet at `BE/data/Courses Masterdata.xlsx` and run:
+```powershell
+python BE/app/vector_db/build_course_vector_index.py --excel BE/data/"Courses Masterdata.xlsx" --out BE/data/course_faiss_index
+```
+
+On CI, set `COURSES_MASTER_URL` as a GitHub secret pointing to a downloadable file (or commit the file to `BE/data/` in a protected branch) so the workflow can build the index.
+
+
 ### Azure AD SSO Configuration
 
 For production with Azure AD SSO (Nagarro emails):
