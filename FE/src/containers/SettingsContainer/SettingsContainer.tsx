@@ -8,14 +8,13 @@ import {
   TextField,
   Avatar,
   Divider,
-  FormControlLabel,
+ 
 } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
 import PersonIcon from "@mui/icons-material/Person";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import SecurityIcon from "@mui/icons-material/Security";
 import PaletteIcon from "@mui/icons-material/Palette";
-import LanguageIcon from "@mui/icons-material/Language";
 import SaveIcon from "@mui/icons-material/Save";
 
 const SettingsContainer = () => {

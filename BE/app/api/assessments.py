@@ -253,14 +253,28 @@ async def get_assessment(
         print(json.dumps(response["questions"], indent=2))
 
     # --------------------------------------------------------
-    # INCLUDE GENERATED QUESTIONS (from RAG uploads) for admin view
+    # INCLUDE GENERATED QUESTIONS for admin view
+    # Show actual questions from question_set_id (what candidates will see)
     # --------------------------------------------------------
     if is_admin:
-        gen_stmt = select(Question).where(Question.jd_id == assessment.assessment_id)
-        gen_result = await db.execute(gen_stmt)
-        gen_questions = gen_result.scalars().all()
-        if gen_questions:
-            response["generated_questions"] = [serialize_question(q) for q in gen_questions]
+        if assessment.question_set_id:
+            # Fetch questions from the assessment's question set
+            gen_stmt = select(Question).where(Question.question_set_id == assessment.question_set_id)
+            gen_result = await db.execute(gen_stmt)
+            gen_questions = gen_result.scalars().all()
+            
+            # Include screening questions from description
+            all_admin_questions = [serialize_question(q) for q in gen_questions]
+            screening_questions = extract_screening_questions(assessment.description)
+            for idx, sq in enumerate(screening_questions):
+                all_admin_questions.append({
+                    "id": f"screening_{idx}",
+                    "question_type": "screening",
+                    "question_text": sq,
+                    "required": True
+                })
+            
+            response["generated_questions"] = all_admin_questions
 
     return response
 @router.post("", response_model=AssessmentResponse, status_code=status.HTTP_201_CREATED)

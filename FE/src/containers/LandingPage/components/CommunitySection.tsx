@@ -1,4 +1,4 @@
-import { Box, Typography, Grid, Avatar } from "@mui/material";
+import { Box, Typography, Avatar, Grid } from "@mui/material";
 import StarIcon from "@mui/icons-material/Star";
 import StarHalfIcon from "@mui/icons-material/StarHalf";
 import "./CommunitySection.scss";
@@ -31,7 +31,7 @@ const CommunitySection = () => {
         Join Our Thriving Community
       </Typography>
 
-      <Grid container spacing={4} className="testimonial-grid">
+        <Grid container spacing={4} className="testimonial-grid">
         {testimonials.map((t) => (
           <Grid size={{ xs: 12, sm: 6, md: 4 }} key={t.name}>
             <Box className="testimonial-card">

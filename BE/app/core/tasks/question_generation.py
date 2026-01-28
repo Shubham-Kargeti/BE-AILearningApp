@@ -21,11 +21,35 @@ def run_question_generation(self, topic: Optional[str], count: int = 5, min_retr
     Session = sessionmaker(bind=engine)
 
     task_id = self.request.id
-    # Create CeleryTask record
+    # Create or update CeleryTask record. Use query-first to avoid duplicate key
+    # insertions if a record was already created earlier (e.g., when enqueuing
+    # from the web request). Handle race conditions by catching IntegrityError
+    # and updating the existing row.
+    from sqlalchemy.exc import IntegrityError
+
     with Session() as session:
-        ct = CeleryTask(task_id=task_id, task_name="run_question_generation", status="STARTED", related_type="question_generation")
-        session.add(ct)
-        session.commit()
+        ct = session.query(CeleryTask).filter(CeleryTask.task_id == task_id).one_or_none()
+        if ct:
+            ct.status = "STARTED"
+            ct.task_name = "run_question_generation"
+            session.commit()
+        else:
+            try:
+                ct = CeleryTask(task_id=task_id, task_name="run_question_generation", status="STARTED", related_type="question_generation")
+                session.add(ct)
+                session.commit()
+            except IntegrityError:
+                # Another process likely inserted the row concurrently. Roll
+                # back and update the existing row instead.
+                session.rollback()
+                existing = session.query(CeleryTask).filter(CeleryTask.task_id == task_id).one_or_none()
+                if existing:
+                    existing.status = "STARTED"
+                    existing.task_name = "run_question_generation"
+                    session.commit()
+                else:
+                    # Re-raise if something unexpected happened
+                    raise
 
     try:
         # Use the new generator which supports assessment_id, mode and mix
