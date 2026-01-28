@@ -1,12 +1,12 @@
 import {
   Box,
   Typography,
-  Grid,
   Card,
   CardMedia,
   CardContent,
   Button,
 } from "@mui/material";
+import { Grid } from "@mui/material";
 import "./FeaturedSection.scss";
 import Image2 from "../../../assets/games/home-2.avif";
 import Image3 from "../../../assets/games/home-3.avif";

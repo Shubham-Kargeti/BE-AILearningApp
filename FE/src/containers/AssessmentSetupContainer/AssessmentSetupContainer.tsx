@@ -11,7 +11,7 @@ import AssessmentSetupSubmitButton from "./components/AssessmentSetupSubmitButto
 import AssessmentLinkModal from "./components/AssessmentLinkModal";
 import Toast from "../../components/Toast/Toast";
 import { isAdmin } from "../../utils/adminUsers";
-import { uploadService, assessmentService } from "../../API/services";
+import { uploadService, assessmentService, questionGenService } from "../../API/services";
 import { parseResume, getExtractionConfidence } from "../../utils/resumeParser";
 import type { QuestionDistribution } from "./components/QuestionnaireConfig";
 import AssessmentConfigurationBlock from "./components/AssessmentConfigurationBlock";
@@ -37,6 +37,10 @@ const AssessmentSetupContainer: React.FC = () => {
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [reqDoc, setReqDoc] = useState<File | null>(null);
   const [clientDoc, setClientDoc] = useState<File | null>(null);
+  const [ragFile, setRagFile] = useState<File | null>(null);
+  const [ragUploadProgress, setRagUploadProgress] = useState<number | null>(null);
+  const [ragUploadedDocId, setRagUploadedDocId] = useState<string | null>(null);
+  const [createdAssessmentId, setCreatedAssessmentId] = useState<string | null>(null);
 
   const [candidateInfo, setCandidateInfo] = useState<CandidateInfoData>({
     name: "",
@@ -272,8 +276,9 @@ const AssessmentSetupContainer: React.FC = () => {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!formValid) {
+  const handleSubmit = async (skipValidation = false) => {
+    // Skip validation when called from RAG buttons with minimal info
+    if (!skipValidation && !formValid) {
       setToast({ type: "error", message: "Please complete all required fields" });
       return;
     }
@@ -283,7 +288,7 @@ const AssessmentSetupContainer: React.FC = () => {
     try {
   const assessmentPayload: any = {
     title: `Assessment for ${role}`,
-    description: `Assessment created for candidate ${candidateInfo.name || candidateInfo.email}`,
+    description: `Assessment created for candidate ${candidateInfo.name || candidateInfo.email || 'admin'}`,
     job_title: role.trim(),
 
     required_skills: skills.reduce((acc, skill) => {
@@ -302,13 +307,6 @@ const AssessmentSetupContainer: React.FC = () => {
     is_questionnaire_enabled: assessmentMethod === "questionnaire",
     is_interview_enabled: assessmentMethod === "interview",
 
-    candidate_info: {
-      name: candidateInfo.name,
-      email: candidateInfo.email,
-      experience: candidateInfo.experience,
-      current_role: candidateInfo.currentRole,
-    },
-
     // ✅ ADD THIS — Screening questions sent to BE
     screening_questions: screeningQuestions
       .map(q => q.trim())
@@ -319,8 +317,18 @@ const AssessmentSetupContainer: React.FC = () => {
     question_type_mix: questionDistribution, // This maps to the backend's question_type_mix
     passing_score_threshold: cutoffMarks,
     auto_adjust_by_experience: autoAdjustByExperience,
-    difficulty_distribution: difficultyDistribution,
+    difficulty_distribution: difficultyDistribution
   };
+
+  // Only add candidate_info if we have email (required by backend)
+  if (candidateInfo.email || candidateInfo.name) {
+    assessmentPayload.candidate_info = {
+      name: candidateInfo.name || 'Candidate',
+      email: candidateInfo.email || 'admin@example.com',
+      experience: candidateInfo.experience,
+      current_role: candidateInfo.currentRole,
+    };
+  }
 
   if (assessmentMethod === "questionnaire") {
     assessmentPayload.questionnaire_config = {
@@ -339,6 +347,8 @@ const AssessmentSetupContainer: React.FC = () => {
     : await assessmentService.createAssessment(assessmentPayload);
 
   const resultAssessmentId = response?.assessment_id;
+  // store created id for subsequent actions (upload/generation)
+  if (resultAssessmentId) setCreatedAssessmentId(resultAssessmentId);
   const generatedLink = `${window.location.origin}/candidate-assessment/${resultAssessmentId}`;
 
   setAssessmentLink(generatedLink);
@@ -350,6 +360,21 @@ const AssessmentSetupContainer: React.FC = () => {
       ? "Assessment updated successfully!"
       : "Assessment created successfully!",
   });
+
+  // If a RAG file was selected during create, upload it automatically (but do NOT auto-generate)
+  if (ragFile && resultAssessmentId) {
+    try {
+      setRagUploadProgress(0);
+      const res = await uploadService.uploadQuestionDoc(ragFile, resultAssessmentId, (p) => setRagUploadProgress(p));
+      setRagUploadedDocId(res.doc_id);
+      setToast({ type: "success", message: `RAG document uploaded (doc id: ${res.doc_id})` });
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.detail || "Failed to upload RAG document";
+      setToast({ type: "error", message: errorMessage });
+    } finally {
+      setRagUploadProgress(null);
+    }
+  }
 } catch (err: any) {
   console.error("Error submitting assessment:", err);
   const errorMessage =
@@ -525,6 +550,115 @@ const AssessmentSetupContainer: React.FC = () => {
           {!expiresAt && (
             <p className="expiry-note">Leave empty for no expiration</p>
           )}
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="card-header">
+          <h2>RAG Document (Optional)</h2>
+          <p className="hint">Upload a document to generate questions using RAG (Retrieval-Augmented Generation)</p>
+        </div>
+
+        <div className="upload-grid">
+          <FileUpload label="RAG Document (Optional)" onFileSelect={setRagFile} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12 }}>
+          <button
+            className="btn"
+            onClick={async () => {
+              if (!ragFile) {
+                setToast({ type: 'error', message: 'Select a RAG document first' });
+                return;
+              }
+              
+              // If assessment doesn't exist, create it first
+              let targetAssessmentId = isEditMode ? assessmentId : createdAssessmentId;
+              if (!targetAssessmentId) {
+                // Check minimum required fields
+                if (!role.trim()) {
+                  setToast({ type: 'error', message: 'Please enter Role before uploading RAG' });
+                  return;
+                }
+                if (skills.length === 0) {
+                  setToast({ type: 'error', message: 'Please add at least one Skill before uploading RAG' });
+                  return;
+                }
+                if (!cvFile && !candidateInfo.email) {
+                  setToast({ type: 'error', message: 'Please upload CV or enter candidate email before uploading RAG' });
+                  return;
+                }
+                
+                setToast({ type: 'info', message: 'Creating assessment first...' });
+                await handleSubmit(true); // Skip strict validation for RAG auto-create
+                // After handleSubmit, createdAssessmentId should be set
+                targetAssessmentId = createdAssessmentId;
+                if (!targetAssessmentId) {
+                  setToast({ type: 'error', message: 'Failed to create assessment. Please try again.' });
+                  return;
+                }
+              }
+              
+              try {
+                setRagUploadProgress(0);
+                const res = await uploadService.uploadQuestionDoc(ragFile, targetAssessmentId, (p) => setRagUploadProgress(p));
+                setRagUploadedDocId(res.doc_id);
+                setToast({ type: 'success', message: `RAG uploaded (doc: ${res.doc_id})` });
+              } catch (err: any) {
+                const msg = err.response?.data?.detail || 'Failed to upload RAG document';
+                setToast({ type: 'error', message: msg });
+              } finally {
+                setRagUploadProgress(null);
+              }
+            }}
+          >
+            Upload RAG
+          </button>
+
+          <button
+            className="btn btn-primary"
+            onClick={async () => {
+              // If assessment doesn't exist, create it first
+              let targetAssessmentId = isEditMode ? assessmentId : createdAssessmentId;
+              if (!targetAssessmentId) {
+                // Check minimum required fields
+                if (!role.trim()) {
+                  setToast({ type: 'error', message: 'Please enter Role before generating questions' });
+                  return;
+                }
+                if (skills.length === 0) {
+                  setToast({ type: 'error', message: 'Please add at least one Skill before generating questions' });
+                  return;
+                }
+                if (!cvFile && !candidateInfo.email) {
+                  setToast({ type: 'error', message: 'Please upload CV or enter candidate email before generating questions' });
+                  return;
+                }
+                
+                setToast({ type: 'info', message: 'Creating assessment first...' });
+                await handleSubmit(true); // Skip strict validation for RAG auto-create
+                // After handleSubmit, createdAssessmentId should be set
+                targetAssessmentId = createdAssessmentId;
+                if (!targetAssessmentId) {
+                  setToast({ type: 'error', message: 'Failed to create assessment. Please try again.' });
+                  return;
+                }
+              }
+              
+              try {
+                const res = await questionGenService.startGenerationForAssessment(targetAssessmentId, totalQuestions, 'rag');
+                setToast({ type: 'success', message: `Generation queued (task: ${res.task_id})` });
+              } catch (err: any) {
+                const msg = err.response?.data?.detail || 'Failed to start generation';
+                setToast({ type: 'error', message: msg });
+              }
+            }}
+            disabled={!ragUploadedDocId && !ragFile}
+          >
+            Generate Questions (RAG)
+          </button>
+
+          {ragUploadProgress !== null && <div style={{ marginLeft: 'auto' }}>{ragUploadProgress}%</div>}
         </div>
       </section>
 

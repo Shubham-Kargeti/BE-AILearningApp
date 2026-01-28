@@ -14,7 +14,6 @@ import { useNavigate } from "react-router-dom";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import TimerIcon from "@mui/icons-material/Timer";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { assessmentService } from "../../API/services";
 
 interface Assessment {
@@ -156,7 +155,7 @@ const AssessmentsListContainer = () => {
           ) : (
             <Grid container spacing={3}>
               {assessments.map((assessment) => (
-                <Grid item xs={12} sm={6} md={4} key={assessment.assessment_id}>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={assessment.assessment_id}>
                   <Card sx={{ 
                     height: '100%',
                     borderRadius: '16px',
