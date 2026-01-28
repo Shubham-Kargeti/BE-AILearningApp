@@ -122,17 +122,24 @@ async def upload_document(
         file_id = f"file_{uuid.uuid4().hex[:12]}"
         s3_key = f"documents/{doc_type}/{user_id}/{timestamp}/{file_id}/{file.filename}"
         
-        await s3_service.upload_file(
-            file_obj=file_bytes,
-            object_name=s3_key,
-            content_type=file.content_type or "application/octet-stream",
-            metadata={
-                "file_id": file_id,
-                "doc_type": doc_type,
-                "original_filename": file.filename,
-                "uploaded_by": str(current_user.id) if current_user else "anonymous",
-            }
-        )
+        # upload may be blocking - run in thread
+        try:
+            await asyncio.to_thread(
+                s3_service.upload_file,
+                file_bytes,
+                s3_key,
+                file.content_type or "application/octet-stream",
+                {
+                    "file_id": file_id,
+                    "doc_type": doc_type,
+                    "original_filename": file.filename,
+                    "uploaded_by": str(current_user.id) if current_user else "anonymous",
+                },
+            )
+        except TypeError:
+            await asyncio.to_thread(
+                lambda: s3_service.upload_file(file_obj=file_bytes, object_name=s3_key, content_type=file.content_type or "application/octet-stream", metadata={"file_id": file_id, "doc_type": doc_type, "original_filename": file.filename, "uploaded_by": str(current_user.id) if current_user else "anonymous"})
+            )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -184,6 +191,15 @@ async def upload_document(
         )
         db.add(jd)
         await db.commit()
+        # Index JD into vector store asynchronously to avoid blocking the request
+        try:
+            import asyncio
+            from app.services.doc_ingest import index_document
+
+            asyncio.create_task(asyncio.to_thread(index_document, jd.jd_id, jd.extracted_text, {"title": jd.title}))
+        except Exception as e:
+            # Log but don't fail the upload
+            print(f"Warning: failed to schedule JD indexing: {e}")
     
     return UploadedDocumentResponse(
         id=document.id,
@@ -195,6 +211,7 @@ async def upload_document(
         mime_type=document.mime_type,
         extraction_preview=document.extraction_preview,
         is_encrypted=document.is_encrypted,
+        jd_id=jd.jd_id if doc_type == "jd" else None,
         created_at=document.created_at,
         updated_at=document.updated_at,
     )

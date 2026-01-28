@@ -19,8 +19,9 @@ import {
   FiAward,
   FiBookOpen,
 } from "react-icons/fi";
-import { assessmentService, quizService } from "../../API/services";
+import { assessmentService, quizService, uploadService } from "../../API/services";
 import type { Assessment } from "../../API/services";
+import { isAdmin } from "../../utils/adminUsers";
 import Toast from "../../components/Toast/Toast";
 import "./AssessmentViewContainer.scss";
 
@@ -52,6 +53,16 @@ const AssessmentViewContainer: React.FC = () => {
     duration_seconds: number | null;
   }>>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [lastUploadInfo, setLastUploadInfo] = useState<{ doc_id: string; s3_key: string; task_id?: string } | null>(null);
+  const [ingestionStatus, setIngestionStatus] = useState<string | null>(null);
+  const [ingestionError, setIngestionError] = useState<string | null>(null);
+  const pollingRef = React.useRef<number | null>(null);
+  const [generationTaskId, setGenerationTaskId] = useState<string | null>(null);
+  const [generationStatus, setGenerationStatus] = useState<string | null>(null);
+  const generationPollingRef = React.useRef<number | null>(null);
   const [selectedResult, setSelectedResult] = useState<{
     session_id: string;
     question_set_id: string;
@@ -130,6 +141,8 @@ const AssessmentViewContainer: React.FC = () => {
         setLoading(true);
         const data = await assessmentService.getAssessment(id);
         setAssessment(data);
+        // reset last upload info when refetching
+        setLastUploadInfo(null);
       } catch (err: any) {
 
         setError(err.response?.data?.detail || "Failed to load assessment");
@@ -146,6 +159,16 @@ const AssessmentViewContainer: React.FC = () => {
       fetchTestSessions();
     }
   }, [activeTab]);
+
+  // cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, []);
 
   const handleCopyLink = () => {
     if (assessment) {
@@ -489,6 +512,197 @@ const AssessmentViewContainer: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Admin: Upload question docs for RAG ingestion */}
+            {(() => {
+              try {
+                const logged = localStorage.getItem("loggedInUser");
+                let email: string | null = null;
+                try {
+                  const parsed = logged ? JSON.parse(logged) : null;
+                  if (parsed && typeof parsed === 'object' && parsed.email) {
+                    email = parsed.email;
+                  }
+                } catch {
+                  // logged may be a plain email string
+                  if (logged && typeof logged === 'string') email = logged;
+                }
+                if (email && isAdmin(email)) {
+                  return (
+                    <div className="admin-upload-section" style={{ marginTop: '1.5rem', padding: '1rem', border: '1px dashed #e0e0e0', borderRadius: '8px' }}>
+                      <h3>Upload Question Documents (Admin)</h3>
+                      <p style={{ color: '#666', marginTop: 0 }}>Upload a document to extract questions via RAG. The ingestion runs asynchronously.</p>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <input type="file" onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)} />
+                        <button className="btn btn-primary" disabled={!selectedFile || uploading} onClick={async () => {
+                          if (!selectedFile) return;
+                          try {
+                            setUploading(true);
+                            setUploadProgress(0);
+                            const resp = await uploadService.uploadQuestionDoc(selectedFile, assessment.assessment_id, (p) => setUploadProgress(p));
+                            setLastUploadInfo({ doc_id: resp.doc_id, s3_key: resp.s3_key, task_id: resp.task_id });
+                            setIngestionStatus(resp.task_id ? 'PENDING' : null);
+                            setIngestionError(null);
+                            // start polling status if we have a task id
+                            if (resp.task_id) {
+                              // clear any existing poller
+                              if (pollingRef.current) { window.clearInterval(pollingRef.current); pollingRef.current = null; }
+                              pollingRef.current = window.setInterval(async () => {
+                                try {
+                                  const statusResp = await uploadService.getIngestionStatus(resp.task_id!);
+                                  setIngestionStatus(statusResp.status);
+                                  if (statusResp.status === 'SUCCESS') {
+                                    window.clearInterval(pollingRef.current!);
+                                    pollingRef.current = null;
+                                    setToast({ type: 'success', message: 'Ingestion completed' });
+                                    // refresh assessment details
+                                    const refreshed = await assessmentService.getAssessment(id!);
+                                    setAssessment(refreshed);
+                                  } else if (statusResp.status === 'FAILURE') {
+                                    window.clearInterval(pollingRef.current!);
+                                    pollingRef.current = null;
+                                    setIngestionError(statusResp.error || 'Ingestion failed');
+                                    setToast({ type: 'error', message: 'Ingestion failed' });
+                                  }
+                            
+                                  // Optionally we can offer a 'Generate Now' button; handled below
+                                } catch (err: any) {
+                                  // non-fatal: stop polling on 404
+                                  if (err?.response?.status === 404) {
+                                    window.clearInterval(pollingRef.current!);
+                                    pollingRef.current = null;
+                                    setIngestionError('Task not found');
+                                  }
+                                }
+                              }, 2000);
+                            }
+                            setToast({ type: 'success', message: 'Uploaded and scheduled for ingestion' });
+                            // refresh assessment details (generated questions may appear later)
+                            const refreshed = await assessmentService.getAssessment(id!);
+                            setAssessment(refreshed);
+                          } catch (err: any) {
+                            setToast({ type: 'error', message: err?.response?.data?.detail || 'Upload failed' });
+                          } finally {
+                            setUploading(false);
+                            setUploadProgress(null);
+                            setSelectedFile(null);
+                          }
+                        }}>Upload</button>
+                      </div>
+                      {uploadProgress !== null && (
+                        <div style={{ marginTop: '0.75rem' }}>
+                          <div style={{ height: '8px', background: '#e0e0e0', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{ width: `${uploadProgress}%`, height: '100%', background: '#1976d2' }} />
+                          </div>
+                          <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem' }}>{uploadProgress}%</p>
+                        </div>
+                      )}
+
+                      {lastUploadInfo && (
+                        <div style={{ marginTop: '0.75rem', fontSize: '0.9rem', color: '#444' }}>
+                          <strong>Doc ID:</strong> {lastUploadInfo.doc_id} • <strong>S3:</strong> {lastUploadInfo.s3_key}
+                          {lastUploadInfo.task_id && (
+                            <div style={{ marginTop: '0.25rem' }}>
+                              <strong>Ingestion:</strong> {ingestionStatus || 'PENDING'} {ingestionError && `• ${ingestionError}`}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Admin-only: Trigger generation from indexed docs for this assessment */}
+                      <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <button className="btn btn-secondary" disabled={!assessment || !!generationTaskId} onClick={async () => {
+                          try {
+                            setGenerationStatus('QUEUED');
+                            const res = await (window as any).questionGenService?.startGenerationForAssessment
+                              ? await (window as any).questionGenService.startGenerationForAssessment(assessment.assessment_id, 10, 'rag')
+                              : await (await import('../../API/services')).questionGenService.startGenerationForAssessment(assessment.assessment_id, 10, 'rag');
+                            setGenerationTaskId(res.task_id);
+                            setGenerationStatus('QUEUED');
+
+                            // start polling generation status
+                            if (generationPollingRef.current) { window.clearInterval(generationPollingRef.current); generationPollingRef.current = null; }
+                            generationPollingRef.current = window.setInterval(async () => {
+                              try {
+                                const st = await (await import('../../API/services')).questionGenService.getGenerationStatus(res.task_id);
+                                setGenerationStatus(st.status);
+                                if (st.status === 'SUCCESS') {
+                                  window.clearInterval(generationPollingRef.current!);
+                                  generationPollingRef.current = null;
+                                  setToast({ type: 'success', message: 'Question generation completed' });
+                                  // refresh assessment
+                                  const refreshed = await assessmentService.getAssessment(id!);
+                                  setAssessment(refreshed);
+                                  setGenerationTaskId(null);
+                                } else if (st.status === 'FAILURE') {
+                                  window.clearInterval(generationPollingRef.current!);
+                                  generationPollingRef.current = null;
+                                  setToast({ type: 'error', message: 'Question generation failed' });
+                                  setGenerationTaskId(null);
+                                }
+                              } catch (err) {
+                                // ignore
+                              }
+                            }, 2000);
+                          } catch (err: any) {
+                            setToast({ type: 'error', message: err?.response?.data?.detail || 'Failed to start generation' });
+                            setGenerationStatus(null);
+                            setGenerationTaskId(null);
+                          }
+                        }}>Generate Questions (RAG)</button>
+
+                        {generationTaskId && <div style={{ fontSize: '0.9rem', color: '#444' }}>Generation: {generationStatus || 'QUEUED'}</div>}
+                      </div>
+                    </div>
+                  );
+                }
+              } catch {
+                // ignore parse errors
+              }
+              return null;
+            })()}
+
+            {/* Admin: Show generated questions if present */}
+            {assessment.generated_questions && assessment.generated_questions.length > 0 && (() => {
+              try {
+                const logged = localStorage.getItem("loggedInUser");
+                let email: string | null = null;
+                try {
+                  const parsed = logged ? JSON.parse(logged) : null;
+                  if (parsed && typeof parsed === 'object' && parsed.email) {
+                    email = parsed.email;
+                  }
+                } catch {
+                  if (logged && typeof logged === 'string') email = logged;
+                }
+                if (email && isAdmin(email)) {
+                  return (
+                    <div className="generated-questions-section" style={{ marginTop: '1.5rem' }}>
+                      <h3>Generated Questions</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {assessment.generated_questions.map((q: any, idx: number) => (
+                          <div key={q.id || idx} style={{ padding: '0.75rem', border: '1px solid #e0e0e0', borderRadius: '6px', background: '#fff' }}>
+                            <p style={{ margin: 0, fontWeight: 600 }}>{q.question_text}</p>
+                            {q.options && Array.isArray(q.options) && (
+                              <div style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
+                                {q.options.map((opt: any) => (
+                                  <div key={opt.option_id} style={{ marginBottom: '0.25rem' }}>
+                                    <strong>{opt.option_id}.</strong> {opt.text}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+              } catch {
+                // ignore
+              }
+              return null;
+            })()}
 
             <div className="metadata-section">
               <div className="metadata-item">

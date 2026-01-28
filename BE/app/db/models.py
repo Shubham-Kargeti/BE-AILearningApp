@@ -157,6 +157,10 @@ class Question(Base, TimestampMixin):
     # Generation metadata
     generation_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     generation_time: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Source & provenance
+    source_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    source_meta: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    quality_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     
     # Relationships
     question_set: Mapped[Optional["QuestionSet"]] = relationship("QuestionSet", back_populates="questions")
@@ -290,6 +294,28 @@ class CeleryTask(Base, TimestampMixin):
         return f"<CeleryTask(id={self.id}, task_id='{self.task_id}', status='{self.status}')>"
 
 
+class QuestionBank(Base, TimestampMixin):
+    """Temporary QuestionBank table for storing generated drafts awaiting review.
+
+    This mirrors the previous model shape used by admin endpoints and is intentionally
+    lightweight: generated items are stored here for review/publish flows.
+    """
+
+    __tablename__ = "question_bank"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    question_text: Mapped[str] = mapped_column(Text, nullable=False)
+    choices: Mapped[dict] = mapped_column(JSON, nullable=False, default={})
+    correct_answer: Mapped[str] = mapped_column(String(10), nullable=False)
+    source_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    source_meta: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    quality_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    review_state: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+
+    def __repr__(self) -> str:
+        return f"<QuestionBank(id={self.id}, review_state='{self.review_state}')>"
+
+
 class Candidate(Base, TimestampMixin):
     """Candidate profile model for assessment applicants."""
     
@@ -399,6 +425,9 @@ class Assessment(Base, TimestampMixin):
         nullable=False,
         default={"easy": 0.2, "medium": 0.5, "hard": 0.3}
     )  # Default distribution: 20% easy, 50% medium, 30% hard
+
+    # Generation policy for question generation (mode: rag|llm|mix)
+    generation_policy: Mapped[dict] = mapped_column(JSON, nullable=False, default={"mode": "rag", "rag_pct": 100, "llm_pct": 0})
     
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

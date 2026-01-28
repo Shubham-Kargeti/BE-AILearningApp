@@ -1,5 +1,55 @@
 """Celery tasks for question generation."""
+from __future__ import annotations
+
+from celery.utils.log import get_task_logger
+from typing import Optional
+from app.core.celery_app import celery_app
+# unified generator is imported dynamically inside the task to avoid import cycles
+from app.db.session import get_db_sync_engine
+from app.db.models import CeleryTask
+from sqlalchemy.orm import sessionmaker
+import traceback
 import asyncio
+
+logger = get_task_logger(__name__)
+
+
+@celery_app.task(bind=True)
+def run_question_generation(self, topic: Optional[str], count: int = 5, min_retrieval: float = 0.0, assessment_id: Optional[str] = None, mode: str = "rag", rag_pct: int = 100):
+    """Run generation job and record status in CeleryTask model."""
+    engine = get_db_sync_engine()
+    Session = sessionmaker(bind=engine)
+
+    task_id = self.request.id
+    # Create CeleryTask record
+    with Session() as session:
+        ct = CeleryTask(task_id=task_id, task_name="run_question_generation", status="STARTED", related_type="question_generation")
+        session.add(ct)
+        session.commit()
+
+    try:
+        # Use the new generator which supports assessment_id, mode and mix
+        from app.services.question_generator import generate_questions
+
+        created_ids = generate_questions(topic=topic, assessment_id=assessment_id, count=count, mode=mode, rag_pct=rag_pct, min_retrieval=min_retrieval)
+        with Session() as session:
+            ct = session.query(CeleryTask).filter(CeleryTask.task_id == task_id).one()
+            ct.status = "SUCCESS"
+            ct.result = {"created": created_ids}
+            session.commit()
+
+        return {"created": created_ids}
+    except Exception as e:
+        logger.exception("generation_failed")
+        with Session() as session:
+            try:
+                ct = session.query(CeleryTask).filter(CeleryTask.task_id == task_id).one()
+                ct.status = "FAILURE"
+                ct.error = str(e)
+                session.commit()
+            except Exception:
+                logger.exception("failed_to_update_celerytask")
+        raise
 from typing import List, Dict
 from celery import Task
 from app.core.celery_app import celery_app
@@ -117,6 +167,70 @@ async def _generate_and_save_questions(
         'generation_time': generation_time,
         'status': 'success'
     }
+
+
+@celery_app.task(bind=True)
+def index_question_document_task(self, doc_id: str, text: str, metadata: dict = None):
+    """Background task to index a question document into FAISS and record CeleryTask status."""
+    task_id = self.request.id
+
+    # update/create CeleryTask STARTED status in sync DB
+    try:
+        from app.db.session import get_db_sync_engine
+        from sqlalchemy.orm import sessionmaker
+        from app.db.models import CeleryTask
+
+        engine = get_db_sync_engine()
+        Session = sessionmaker(bind=engine)
+        with Session() as session:
+            ct = session.query(CeleryTask).filter(CeleryTask.task_id == task_id).one_or_none()
+            if ct:
+                ct.status = "STARTED"
+                session.commit()
+    except Exception:
+        # non-fatal: proceed with indexing even if DB update fails
+        pass
+
+    try:
+        from app.services.doc_ingest import index_document
+        index_document(doc_id, text, metadata or {})
+
+        # mark SUCCESS
+        try:
+            from app.db.session import get_db_sync_engine
+            from sqlalchemy.orm import sessionmaker
+            from app.db.models import CeleryTask
+
+            engine = get_db_sync_engine()
+            Session = sessionmaker(bind=engine)
+            with Session() as session:
+                ct = session.query(CeleryTask).filter(CeleryTask.task_id == task_id).one_or_none()
+                if ct:
+                    ct.status = "SUCCESS"
+                    ct.result = {"doc_id": doc_id, "status": "indexed"}
+                    session.commit()
+        except Exception:
+            pass
+
+        return {"doc_id": doc_id, "status": "indexed"}
+    except Exception as e:
+        # mark FAILURE
+        try:
+            from app.db.session import get_db_sync_engine
+            from sqlalchemy.orm import sessionmaker
+            from app.db.models import CeleryTask
+
+            engine = get_db_sync_engine()
+            Session = sessionmaker(bind=engine)
+            with Session() as session:
+                ct = session.query(CeleryTask).filter(CeleryTask.task_id == task_id).one_or_none()
+                if ct:
+                    ct.status = "FAILURE"
+                    ct.error = str(e)
+                    session.commit()
+        except Exception:
+            pass
+        raise
 
 
 @celery_app.task(

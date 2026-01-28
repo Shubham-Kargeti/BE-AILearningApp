@@ -7,24 +7,45 @@ import math
 import pandas as pd
 import os
 import json
+import logging
 
 # Import response schemas from schemas.py
 from app.models.schemas import CourseRecommendation, RecommendedCoursesResponse
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
-# Load embedding model & FAISS index
+# Load embedding model & FAISS index (if available)
 embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-vectorstore = FAISS.load_local(
-    "data/course_faiss_index",
-    embedding_model,
-    allow_dangerous_deserialization=True
-)
+vectorstore = None
+INDEX_DIR = os.path.join("data", "course_faiss_index")
+INDEX_FILE = os.path.join(INDEX_DIR, "index.faiss")
+try:
+    if os.path.exists(INDEX_FILE):
+        vectorstore = FAISS.load_local(
+            INDEX_DIR,
+            embedding_model,
+            allow_dangerous_deserialization=True
+        )
+        logger.info("Loaded FAISS course index from %s", INDEX_DIR)
+    else:
+        logger.warning("FAISS index not found at %s - vector search disabled until index is available.", INDEX_FILE)
+except Exception as e:
+    vectorstore = None
+    logger.exception("Failed to load FAISS index: %s", e)
 
 # Load Excel course data and clean
 EXCEL_PATH = os.path.join("data", "Courses Masterdata.xlsx")
-df_courses = pd.read_excel(EXCEL_PATH)
-df_courses = df_courses.fillna("")
+if os.path.exists(EXCEL_PATH):
+    try:
+        df_courses = pd.read_excel(EXCEL_PATH)
+        df_courses = df_courses.fillna("")
+    except Exception:
+        logger.exception("Failed to load course Excel data at %s", EXCEL_PATH)
+        df_courses = pd.DataFrame()
+else:
+    logger.warning("Course master Excel file not found at %s - fallback search will be limited.", EXCEL_PATH)
+    df_courses = pd.DataFrame()
 
 def get_allowed_levels(input_level: str):
     """Returns list of allowed course levels for a given input level."""
@@ -129,10 +150,16 @@ async def recommended_courses(
     try:
         normalized_level = marks_to_level(marks)
 
-        # Original logic below, now using normalized_level.
-        results = vectorstore.similarity_search_with_score(
-            topic, k=10, filter={"type": "resource"}
-        )
+        # Try vector search if index available, otherwise skip to fallback
+        results = []
+        if vectorstore is not None:
+            try:
+                results = vectorstore.similarity_search_with_score(
+                    topic, k=10, filter={"type": "resource"}
+                )
+            except Exception as e:
+                logger.exception("Vector search failed, falling back to keyword search: %s", e)
+                results = []
 
         recommended = []
         allowed_levels = get_allowed_levels(normalized_level) if normalized_level else None

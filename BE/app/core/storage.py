@@ -1,5 +1,6 @@
 """S3-compatible storage service for document uploads."""
 import io
+import os
 from typing import Optional, BinaryIO
 from datetime import datetime, timedelta
 import boto3
@@ -275,5 +276,96 @@ def get_s3_service() -> S3Service:
     """Get S3 service singleton."""
     global _s3_service
     if _s3_service is None:
-        _s3_service = S3Service()
+        try:
+            _s3_service = S3Service()
+        except Exception as e:
+            # If S3 endpoint is not available (e.g., MinIO not running locally),
+            # fallback to a simple local-file storage implementation for dev.
+            print(f"S3 initialization failed, falling back to LocalStorageService: {e}")
+            _s3_service = LocalStorageService(base_dir=os.path.join("data", "local_storage"), bucket_name=settings.S3_BUCKET_NAME)
     return _s3_service
+
+
+class LocalStorageService:
+    """A lightweight local-file fallback for S3-compatible operations (dev only)."""
+
+    def __init__(self, base_dir: str = os.path.join("data", "local_storage"), bucket_name: str = "learning-app-docs"):
+        self.base_dir = base_dir
+        self.bucket_name = bucket_name
+        os.makedirs(self._bucket_dir(), exist_ok=True)
+
+    def _bucket_dir(self) -> str:
+        return os.path.join(self.base_dir, self.bucket_name)
+
+    def _object_path(self, object_name: str) -> str:
+        # sanitize object_name to avoid absolute paths
+        safe_name = object_name.lstrip("/")
+        return os.path.join(self._bucket_dir(), safe_name)
+
+    def upload_file(self, file_obj: BinaryIO, object_name: str, content_type: Optional[str] = None, metadata: Optional[dict] = None) -> str:
+        path = self._object_path(object_name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        # file_obj may be bytes or a file-like
+        if isinstance(file_obj, (bytes, bytearray)):
+            data = file_obj
+        else:
+            try:
+                data = file_obj.read()
+            except Exception:
+                # fallback: try converting to bytes
+                data = bytes(file_obj)
+
+        with open(path, "wb") as f:
+            f.write(data)
+
+        return object_name
+
+    def download_file(self, object_name: str) -> bytes:
+        path = self._object_path(object_name)
+        with open(path, "rb") as f:
+            return f.read()
+
+    def get_file_stream(self, object_name: str) -> BinaryIO:
+        path = self._object_path(object_name)
+        return open(path, "rb")
+
+    def delete_file(self, object_name: str) -> bool:
+        path = self._object_path(object_name)
+        try:
+            os.remove(path)
+            return True
+        except FileNotFoundError:
+            return False
+
+    def file_exists(self, object_name: str) -> bool:
+        return os.path.exists(self._object_path(object_name))
+
+    def get_file_metadata(self, object_name: str) -> Optional[dict]:
+        path = self._object_path(object_name)
+        if not os.path.exists(path):
+            return None
+        stat = os.stat(path)
+        return {
+            'size': stat.st_size,
+            'content_type': None,
+            'last_modified': datetime.fromtimestamp(stat.st_mtime),
+            'metadata': {},
+        }
+
+    def generate_presigned_url(self, object_name: str, expiration: int = 3600, http_method: str = 'GET') -> str:
+        path = self._object_path(object_name)
+        # Return a file:// URL for dev convenience
+        return f"file://{os.path.abspath(path)}"
+
+    def list_files(self, prefix: str = '') -> list[dict]:
+        base = os.path.join(self._bucket_dir(), prefix.lstrip('/'))
+        files = []
+        if not os.path.exists(base):
+            return files
+        for root, _, filenames in os.walk(base):
+            for name in filenames:
+                p = os.path.join(root, name)
+                rel = os.path.relpath(p, self._bucket_dir())
+                stat = os.stat(p)
+                files.append({'key': rel.replace('\\', '/'), 'size': stat.st_size, 'last_modified': datetime.fromtimestamp(stat.st_mtime)})
+        return files
