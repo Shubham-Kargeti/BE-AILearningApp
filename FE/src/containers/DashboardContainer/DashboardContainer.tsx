@@ -5,19 +5,18 @@ import {
   Button, 
   Snackbar, 
   Alert, 
-  Grid, 
+  Grid,
   Card, 
   CardContent, 
   Chip,
   LinearProgress,
   Avatar,
-  Divider,
   Paper
 } from "@mui/material";
 import "./DashboardContainer.scss";
 import { coursesService, quizService } from "../../API/services";
 import type { RecommendedCourse as ServiceRecommendedCourse } from "../../API/services";
-import { getBadge, isValidUrl } from "./helper";
+import { isValidUrl } from "./helper";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -75,8 +74,7 @@ const DashboardContainer = () => {
   const [loadingSessions, setLoadingSessions] = useState(false);
 
   const navigate = useNavigate();
-  const score = localStorage.getItem("latestScore");
-  const scoreNum = score ? Number(score) : 0;
+  
   const getRecommendedCourses = async () => {
     try {
       const response = await coursesService.getRecommendedCourses("AgenticAI", 7);
@@ -222,7 +220,7 @@ const DashboardContainer = () => {
           {/* Stats Overview */}
           {!loadingSessions && testSessions.length > 0 && (
             <Grid container spacing={3} sx={{ marginBottom: '3rem' }}>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <Paper sx={{ 
                   padding: '1.5rem',
                   borderRadius: '16px',
@@ -257,7 +255,7 @@ const DashboardContainer = () => {
                 </Paper>
               </Grid>
 
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <Paper sx={{ 
                   padding: '1.5rem',
                   borderRadius: '16px',
@@ -292,7 +290,7 @@ const DashboardContainer = () => {
                 </Paper>
               </Grid>
 
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <Paper sx={{ 
                   padding: '1.5rem',
                   borderRadius: '16px',
@@ -327,7 +325,7 @@ const DashboardContainer = () => {
                 </Paper>
               </Grid>
 
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <Paper sx={{ 
                   padding: '1.5rem',
                   borderRadius: '16px',
@@ -444,7 +442,7 @@ const DashboardContainer = () => {
                     : '#64748b';
                   
                   return (
-                    <Grid item xs={12} sm={6} md={4} lg={3} key={session.session_id}>
+                    <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={session.session_id}>
                       <Card 
                         sx={{ 
                           height: '100%',

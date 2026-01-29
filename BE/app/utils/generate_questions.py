@@ -67,12 +67,47 @@ def parse_mcqs_from_response(response_text: str):
         questions.append(question)
     return questions
 
-async def generate_mcqs_for_topic(topic: str, level: str, subtopics: list = None):
+async def generate_mcqs_for_topic(topic: str, level: str, subtopics: list[str] | None = None):
     subtopics_str = ", ".join(subtopics) if subtopics else ""
     prompt_messages = chat_prompt.format_messages(topic=topic, subtopics=subtopics_str, level=level)
     llm = _get_llm()
     response = await asyncio.to_thread(llm.invoke, prompt_messages)
     print("Raw LLM Response:")
     print(response.content)
-    questions = parse_mcqs_from_response(response.content)
+    response_text = str(response.content) if not isinstance(response.content, str) else response.content
+    questions = parse_mcqs_from_response(response_text)
     return questions
+
+
+async def generate_mcqs_from_text(text: str, num_questions: int = 10, level: str = 'intermediate'):
+    """
+    Generate MCQs from arbitrary text and return a list of dicts suitable for DB insertion.
+
+    Each dict contains: question_text, options (dict option_id->text), correct_answer, difficulty, topic
+    """
+    text_human = HumanMessagePromptTemplate.from_template(
+        "Generate {num_questions} multiple-choice questions (A-D) from the following text.\nDifficulty Level: {level}\nText:\n{text}"
+    )
+    text_prompt = ChatPromptTemplate.from_messages([system_message, text_human])
+
+    prompt_messages = text_prompt.format_messages(text=text, num_questions=num_questions, level=level)
+    llm = _get_llm()
+    response = await asyncio.to_thread(llm.invoke, prompt_messages)
+    print("Raw LLM Response (from text):")
+    print(response.content)
+
+    response_text = str(response.content) if not isinstance(response.content, str) else response.content
+    mcq_objs = parse_mcqs_from_response(response_text)
+
+    results = []
+    for q in mcq_objs:
+        options_map = {opt.option_id: opt.text for opt in q.options}
+        results.append({
+            "question_text": q.question_text,
+            "options": options_map,
+            "correct_answer": q.correct_answer,
+            "difficulty": level,
+            "topic": None,
+        })
+
+    return results
