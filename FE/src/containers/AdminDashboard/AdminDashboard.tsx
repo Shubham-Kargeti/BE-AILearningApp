@@ -31,6 +31,9 @@ interface DisplayAssessment {
   updated_at: string;
   expires_at?: string;
   assessment_method?: string;
+  total_questions?: number;
+  auto_adjust_by_experience?: boolean;
+  passing_score_threshold?: number;
 }
 
 interface ToastMessage {

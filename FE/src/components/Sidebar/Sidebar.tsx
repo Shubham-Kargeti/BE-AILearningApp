@@ -23,8 +23,6 @@ import {
   Dashboard,
   Logout as LogoutIcon,
   LocalFireDepartment,
-  EmojiEvents,
-  School,
   Assessment,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -188,7 +186,7 @@ const Sidebar = () => {
 
           {/* Navigation Menu */}
           <List sx={{ padding: '1rem 0.5rem', flex: 1 }}>
-            {menuItems.map((item, index) => {
+            {menuItems.map((item, _index) => {
               const isActive = location.pathname === item.path;
               return (
                 <ListItemButton
