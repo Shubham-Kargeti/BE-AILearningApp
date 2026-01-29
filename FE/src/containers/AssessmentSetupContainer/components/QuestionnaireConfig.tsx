@@ -9,10 +9,11 @@ export interface QuestionDistribution {
 
 interface Props {
   value: QuestionDistribution;
+  totalQuestions: number;
   onChange: (value: QuestionDistribution) => void;
 }
 
-const QuestionnaireConfig: React.FC<Props> = ({ value, onChange }) => {
+const QuestionnaireConfig: React.FC<Props> = ({ value, totalQuestions, onChange }) => {
   const update = (
     key: keyof QuestionDistribution,
     val: number
@@ -25,6 +26,8 @@ const QuestionnaireConfig: React.FC<Props> = ({ value, onChange }) => {
 
   const total =
     value.mcq + value.coding + value.architecture;
+  
+  const isInValid = total !== totalQuestions || total === 0;
 
   return (
     <section className="card questionnaire-card">
@@ -80,6 +83,13 @@ const QuestionnaireConfig: React.FC<Props> = ({ value, onChange }) => {
       <div className="questionnaire-summary">
         Total Questions: <strong>{total}</strong>
       </div>
+
+      {isInValid && (
+        <p className="warning">
+          ⚠️ MCQ + Coding + Architecture must equal{" "}
+          {totalQuestions} and be greater than 0.
+        </p>
+      )}
     </section>
   );
 };

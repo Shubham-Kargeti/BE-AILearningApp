@@ -63,6 +63,7 @@ const AssessmentConfigurationBlock: React.FC<Props> = ({
 
                 <QuestionnaireConfig
                     value={questionDistribution}
+                    totalQuestions={totalQuestions}  
                     onChange={onQuestionDistributionChange}
                 />
 
