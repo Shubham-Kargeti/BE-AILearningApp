@@ -106,6 +106,8 @@ const QuizContainer = () => {
   const [_usedFallback, setUsedFallback] = useState(false);
   const [startReturnedEmpty, setStartReturnedEmpty] = useState(false);
   const [problemAssessmentId, setProblemAssessmentId] = useState<string | null>(null);
+  const isAdditionalQuestionStepRef = useRef(false);
+
 
   const [quizResult, setQuizResult] = useState<{
     score: number;
@@ -161,7 +163,9 @@ const QuizContainer = () => {
 
         if (finalTranscript) {
           // Check if we're on a screening question
-          const isOnScreeningQuestion = !submitted && !!additionalScreeningQuestion && current === mcqQuestions.questions.length;
+          // const isOnScreeningQuestion = !submitted && !!additionalScreeningQuestion && current === mcqQuestions.questions.length;
+          const isOnScreeningQuestion = isAdditionalQuestionStepRef.current;
+          console.log('Final Transcript:', finalTranscript, 'IsOnScreeningQuestion:', isOnScreeningQuestion);
           
           if (isOnScreeningQuestion) {
             setAdditionalScreeningAnswer((prev) => prev + finalTranscript);
@@ -205,6 +209,10 @@ const QuizContainer = () => {
 
   const isAdditionalQuestionStep =
     !submitted && !!additionalScreeningQuestion && current === mcqQuestions.questions.length;
+
+    useEffect(() => {
+  isAdditionalQuestionStepRef.current = isAdditionalQuestionStep;
+}, [isAdditionalQuestionStep]);  
 
   // Load saved progress on mount
   useEffect(() => {

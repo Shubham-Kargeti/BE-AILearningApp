@@ -79,7 +79,7 @@ const AssessmentSetupContainer: React.FC = () => {
   const [cutoffMarks, setCutoffMarks] = useState<number>(70);
 
   // NEW: Experience-based configuration state
-  const [totalQuestions, setTotalQuestions] = useState<number>(20);
+  const [totalQuestions, setTotalQuestions] = useState<number>(10);
   const [autoAdjustByExperience, setAutoAdjustByExperience] = useState<boolean>(true);
   const [difficultyDistribution, setDifficultyDistribution] = useState<Record<string, number>>({
     easy: 0.4,
