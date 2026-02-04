@@ -317,7 +317,7 @@ const CandidateAssessmentContainer: React.FC = () => {
                         Number of Questions
                       </Typography>
                       <Typography variant="h6">
-                        {(assessment as any)?.question_count || 20} Questions
+                        {(assessment as any)?.total_questions|| 20} Questions
                       </Typography>
                     </Box>
                   </CardContent>

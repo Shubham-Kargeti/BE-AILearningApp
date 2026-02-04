@@ -1227,10 +1227,10 @@ const QuizContainer = () => {
       mcq: mcqQuestions.questions.filter(q => q.question_type === 'mcq').length,
       coding: mcqQuestions.questions.filter(q => q.question_type === 'coding').length,
       architecture: mcqQuestions.questions.filter(q => q.question_type === 'architecture').length,
-      screening: screeningQuestions.length + (additionalScreeningQuestion ? 1 : 0),
+      screening: screeningQuestions.length
     };
 
-    const totalQuestions = mcqQuestions.questions.length + screeningQuestions.length + (additionalScreeningQuestion ? 1 : 0);
+    const totalQuestions = mcqQuestions.questions.length + screeningQuestions.length
 
     console.log('Pre-assessment data:', {
       mcqQuestionsCount: mcqQuestions.questions.length,
