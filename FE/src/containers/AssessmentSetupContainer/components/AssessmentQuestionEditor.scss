@@ -1,0 +1,16 @@
+.assessment-question-editor {
+  .MuiAccordion-root {
+    &::before {
+      display: none;
+    }
+    
+    &.Mui-expanded {
+      margin: 0;
+      margin-bottom: 1rem;
+    }
+  }
+  
+  .drag-handle {
+    cursor: move;
+  }
+}

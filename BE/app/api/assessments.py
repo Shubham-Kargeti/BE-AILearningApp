@@ -107,36 +107,60 @@ async def list_assessments(
     result = await db.execute(query)
     assessments = result.scalars().all()
     
-    return [
-        AssessmentResponse(
-            id=a.id,
-            assessment_id=a.assessment_id,
-            title=a.title,
-            description=a.description,
-            job_title=a.job_title,
-            jd_id=a.jd_id,
-            required_skills=a.required_skills,
-            required_roles=a.required_roles,
-            question_set_id=a.question_set_id,
-            assessment_method=a.assessment_method,
-            duration_minutes=a.duration_minutes,
-            is_questionnaire_enabled=a.is_questionnaire_enabled,
-            is_interview_enabled=a.is_interview_enabled,
-            is_active=a.is_active,
-            is_published=a.is_published,
-            is_expired=a.is_expired,
-            expires_at=a.expires_at,
-            created_at=a.created_at,
-            updated_at=a.updated_at,
-            # NEW: Experience-based question configuration fields
-            total_questions=a.total_questions,
-            question_type_mix=a.question_type_mix,
-            passing_score_threshold=a.passing_score_threshold,
-            auto_adjust_by_experience=a.auto_adjust_by_experience,
-            difficulty_distribution=a.difficulty_distribution,
+    # Fetch session statistics for each assessment
+    from app.db.models import TestSession
+    assessment_responses = []
+    
+    for a in assessments:
+        # Get session counts if question_set_id exists
+        total_sessions = 0
+        completed_sessions = 0
+        in_progress_sessions = 0
+        
+        if a.question_set_id:
+            session_result = await db.execute(
+                select(TestSession).where(TestSession.question_set_id == a.question_set_id)
+            )
+            sessions = session_result.scalars().all()
+            total_sessions = len(sessions)
+            completed_sessions = sum(1 for s in sessions if s.is_completed)
+            in_progress_sessions = sum(1 for s in sessions if not s.is_completed)
+        
+        assessment_responses.append(
+            AssessmentResponse(
+                id=a.id,
+                assessment_id=a.assessment_id,
+                title=a.title,
+                description=a.description,
+                job_title=a.job_title,
+                jd_id=a.jd_id,
+                required_skills=a.required_skills,
+                required_roles=a.required_roles,
+                question_set_id=a.question_set_id,
+                assessment_method=a.assessment_method,
+                duration_minutes=a.duration_minutes,
+                is_questionnaire_enabled=a.is_questionnaire_enabled,
+                is_interview_enabled=a.is_interview_enabled,
+                is_active=a.is_active,
+                is_published=a.is_published,
+                is_expired=a.is_expired,
+                expires_at=a.expires_at,
+                created_at=a.created_at,
+                updated_at=a.updated_at,
+                # NEW: Experience-based question configuration fields
+                total_questions=a.total_questions,
+                question_type_mix=a.question_type_mix,
+                passing_score_threshold=a.passing_score_threshold,
+                auto_adjust_by_experience=a.auto_adjust_by_experience,
+                difficulty_distribution=a.difficulty_distribution,
+                # Session statistics
+                total_sessions=total_sessions,
+                completed_sessions=completed_sessions,
+                in_progress_sessions=in_progress_sessions,
+            )
         )
-        for a in assessments
-    ]
+    
+    return assessment_responses
 
 
 @router.get("/{assessment_id}", response_model=dict)
