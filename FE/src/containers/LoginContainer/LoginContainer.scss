@@ -1,0 +1,63 @@
+@mixin login-page-styles {
+  height: 100vh;
+  background: #121022;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.login-page {
+  @include login-page-styles;
+}
+
+.login-card {
+  width: 380px;
+  padding: 32px;
+  border-radius: 18px;
+  background: rgba(27, 25, 51, 0.6);
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  text-align: center;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #d0d0e3;
+  margin-bottom: 10px;
+}
+
+.input .MuiOutlinedInput-root {
+  background: #fff;
+  border-radius: 10px;
+}
+
+.primary-btn {
+  background: #3b2bee !important;
+  border-radius: 9999px !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  height: 42px;
+  margin-top: 10px;
+}
+
+.switch {
+  color: #fff;
+  font-size: 14px;
+  margin-top: 10px;
+
+  span {
+    color: #3b2bee;
+    cursor: pointer;
+    font-weight: 600;
+  }
+}

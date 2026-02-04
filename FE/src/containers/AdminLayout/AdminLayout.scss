@@ -1,0 +1,45 @@
+/* -------------------------------------------
+   MAIN LAYOUT
+------------------------------------------- */
+.admin-layout {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden; /* Prevent full-page scrolling */
+}
+
+/* -------------------------------------------
+   FIXED SIDEBAR
+------------------------------------------- */
+.admin-sidebar-fixed {
+  width: 260px; /* Your sidebar width */
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: #111827;
+  color: white;
+  overflow-y: auto; /* Only scroll if sidebar items overflow */
+}
+
+/* -------------------------------------------
+   RIGHT SIDE LAYOUT
+------------------------------------------- */
+.admin-content {
+  margin-left: 260px; 
+  width: calc(100% - 260px);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; 
+}
+
+/* -------------------------------------------
+   CONTENT AREA (scrollable)
+------------------------------------------- */
+.admin-page {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background: #f6f8fb;
+}

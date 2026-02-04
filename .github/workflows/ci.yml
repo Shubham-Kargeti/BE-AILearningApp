@@ -1,0 +1,139 @@
+name: CI - Test and Lint
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      working-directory: ./BE
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-minimal.txt
+        pip install pytest pytest-asyncio pytest-cov
+    
+    - name: Create test .env file
+      working-directory: ./BE
+      run: |
+        cat > .env << EOF
+        ENVIRONMENT=test
+        DEBUG=True
+        DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/test_db
+        REDIS_URL=redis://localhost:6379/0
+        JWT_SECRET_KEY=test-secret-key-for-ci
+        JWT_ALGORITHM=HS256
+        ACCESS_TOKEN_EXPIRE_MINUTES=30
+        REFRESH_TOKEN_EXPIRE_DAYS=7
+        GROQ_API_KEY=test-key
+        CORS_ORIGINS=["http://localhost:3000"]
+        EOF
+    
+    - name: Run database migrations
+      working-directory: ./BE
+      run: |
+        alembic upgrade head
+    
+    - name: Run tests with coverage
+      working-directory: ./BE
+      run: |
+        pytest --cov=app --cov-report=xml --cov-report=term -v
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./BE/coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install linting tools
+      working-directory: ./BE
+      run: |
+        python -m pip install --upgrade pip
+        pip install black ruff
+    
+    - name: Check formatting with Black
+      working-directory: ./BE
+      run: |
+        black --check app/
+    
+    - name: Lint with Ruff
+      working-directory: ./BE
+      run: |
+        ruff check app/
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit
+    
+    - name: Check for security vulnerabilities
+      working-directory: ./BE
+      run: |
+        safety check --json || true
+        
+    - name: Run Bandit security scan
+      working-directory: ./BE
+      run: |
+        bandit -r app/ -f json || true

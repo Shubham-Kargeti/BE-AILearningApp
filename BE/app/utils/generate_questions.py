@@ -1,35 +1,56 @@
 from langchain_groq import ChatGroq
-from config import GROQ_API_KEY
+import os
+from config import GROQ_API_KEY as CONFIG_GROQ_API_KEY
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from app.models.schemas import MCQQuestion, MCQOption
 import json
 import re
+import asyncio
 
 system_message = SystemMessagePromptTemplate.from_template(
     "You are an expert in creating multiple-choice tests."
-    " Generate exactly 10 multiple-choice questions based on the topic and difficulty level."
-    " Questions must reflect the skill level:"
-    " - Beginner: easy questions focusing on basic concepts and understanding."
-    " - Intermediate: moderate difficulty with some application and architecture questions."
-    " - Expert: advanced, challenging questions about design, architecture, code understanding, edge cases, and optimization."
-    " Each question should have 4 answer options (A, B, C, D) with a clearly indicated correct answer."
+    "Generate exactly 10 multiple-choice questions based on the main topic, selected subtopics, and difficulty level."
+    "If subtopics are provided, questions MUST heavily focus on those subtopics."
+    "If no subtopics are specified, generate questions covering the main topic broadly."
+    "Difficulty rules:"
+    " - Beginner: basic definitions and simple concepts."
+    " - Intermediate: applied understanding, architecture, and workflows."
+    " - Advanced: deep reasoning, edge cases, architecture design, optimization."
+    " Each question must have 4 options (A, B, C, D) and a clearly labeled correct answer."
+    " IMPORTANT: Ensure that the correct answer option_id is distributed randomly (or evenly if possible) among options A, B, C, and D across questions."
     "\n\nIMPORTANT: Return ONLY a valid JSON array like:"
     '\n[{{"question_id": 1, "question_text": "Question here?", '
     '"options": [{{"option_id": "A", "text": "Option A"}}, {{"option_id": "B", "text": "Option B"}}, '
-    '{{"option_id": "C", "text": "Option C"}}, {{"option_id": "D", "text": "Option D"}}], "correct_answer": "A"}}]'
-    "\n\nNo other text or formatting."
+    '{{"option_id": "C", "text": "Option C"}}, {{"option_id": "D", "text": "Option D"}}], "correct_answer": "B"}}]'
+    "\n\nNo markdown, no explanations, no backticks."
 )
-#Maintain an id on email(unique and timestamp)
-# TO DOs 
-#1) when generate questions api is hit, it should generate ques and save them to db, then questions will be sent from db to FE.
-#2) Set of questions, skill, level, created at(timestamp).
+
+
 human_message = HumanMessagePromptTemplate.from_template(
-    "Topic: {topic}\nDifficulty Level (beginner, intermediate, expert): {level}"
+    "Topic: {topic}\nSubtopics: {subtopics}\nDifficulty Level (beginner, intermediate, expert): {level}"
 )
 
 chat_prompt = ChatPromptTemplate.from_messages([system_message, human_message])
 
-llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=GROQ_API_KEY)
+class _StubLLM:
+    """Simple stub to raise a clear error when GROQ is unavailable."""
+    def invoke(self, *args, **kwargs):
+        raise RuntimeError(
+            "GROQ API key is not configured. Set GROQ_API_KEY to enable LLM features."
+        )
+
+
+def _get_llm():
+    """Lazily initialize the ChatGroq client when needed.
+
+    If a GROQ API key is available via environment or config, instantiate
+    a real ChatGroq client; otherwise return a stub that raises a clear
+    error at call time (so the app can import and run without the key).
+    """
+    api_key = os.getenv("GROQ_API_KEY") or CONFIG_GROQ_API_KEY
+    if api_key:
+        return ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=api_key)
+    return _StubLLM()
 
 def parse_mcqs_from_response(response_text: str):
     cleaned = re.sub(r'``````', '', response_text.strip())
@@ -46,10 +67,47 @@ def parse_mcqs_from_response(response_text: str):
         questions.append(question)
     return questions
 
-def generate_mcqs_for_topic(topic: str, level: str):
-    prompt_messages = chat_prompt.format_messages(topic=topic, level=level)
-    response = llm.invoke(prompt_messages)
+async def generate_mcqs_for_topic(topic: str, level: str, subtopics: list[str] | None = None):
+    subtopics_str = ", ".join(subtopics) if subtopics else ""
+    prompt_messages = chat_prompt.format_messages(topic=topic, subtopics=subtopics_str, level=level)
+    llm = _get_llm()
+    response = await asyncio.to_thread(llm.invoke, prompt_messages)
     print("Raw LLM Response:")
     print(response.content)
-    questions = parse_mcqs_from_response(response.content)
+    response_text = str(response.content) if not isinstance(response.content, str) else response.content
+    questions = parse_mcqs_from_response(response_text)
     return questions
+
+
+async def generate_mcqs_from_text(text: str, num_questions: int = 10, level: str = 'intermediate'):
+    """
+    Generate MCQs from arbitrary text and return a list of dicts suitable for DB insertion.
+
+    Each dict contains: question_text, options (dict option_id->text), correct_answer, difficulty, topic
+    """
+    text_human = HumanMessagePromptTemplate.from_template(
+        "Generate {num_questions} multiple-choice questions (A-D) from the following text.\nDifficulty Level: {level}\nText:\n{text}"
+    )
+    text_prompt = ChatPromptTemplate.from_messages([system_message, text_human])
+
+    prompt_messages = text_prompt.format_messages(text=text, num_questions=num_questions, level=level)
+    llm = _get_llm()
+    response = await asyncio.to_thread(llm.invoke, prompt_messages)
+    print("Raw LLM Response (from text):")
+    print(response.content)
+
+    response_text = str(response.content) if not isinstance(response.content, str) else response.content
+    mcq_objs = parse_mcqs_from_response(response_text)
+
+    results = []
+    for q in mcq_objs:
+        options_map = {opt.option_id: opt.text for opt in q.options}
+        results.append({
+            "question_text": q.question_text,
+            "options": options_map,
+            "correct_answer": q.correct_answer,
+            "difficulty": level,
+            "topic": None,
+        })
+
+    return results

@@ -1,0 +1,328 @@
+# ============================================================================
+# AI LEARNING APP - COMPREHENSIVE GITIGNORE
+# ============================================================================
+# This file specifies which files should NOT be tracked by Git
+# Last Updated: December 3, 2025
+
+# ============================================================================
+# PYTHON & VIRTUAL ENVIRONMENTS
+# ============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+.venv/
+venv/
+ENV/
+env/
+.venv39/
+.venv310/
+.venv311/
+.venv312/
+.venv313/
+
+# ============================================================================
+# IDE & EDITOR FILES
+# ============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+.settings/
+.classpath
+*.code-workspace
+.history/
+.ionide/
+
+# ============================================================================
+# ENVIRONMENT & CONFIGURATION
+# ============================================================================
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+.env.staging
+config.local.py
+instance/
+.pytest_cache/
+
+# ============================================================================
+# DOCUMENTATION & ASSETS (MAINTENANCE DIRECTORY)
+# ============================================================================
+_documentation_and_assets/
+documentation/
+docs/local/
+
+# PNG, DIAGRAMS & VISUAL ASSETS
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.psd
+*.ai
+
+# Diagram & Architecture Files
+*.mmd
+sequencialDiagram.md
+classDiagram.mmd
+*.mmd.md
+*.flowchart
+*.diagram
+
+# ============================================================================
+# TEST FILES & UTILITIES
+# ============================================================================
+test_*.py
+*_test.py
+tests/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+*.cover
+.nose*
+nosetests.ini
+.pytest_cache/
+test-results.xml
+coverage.xml
+*.lcov
+
+# Test utilities
+check_tables.py
+mark_migration.py
+test_admin_skill_extraction.py
+test_sprint1_imports.py
+db.sql
+
+# ============================================================================
+# DATABASE FILES
+# ============================================================================
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+!scripts/*.sql
+
+# ============================================================================
+# LOGS & TEMPORARY FILES
+# ============================================================================
+*.log
+logs/
+*.tmp
+*.swp
+tmp/
+temp/
+.cache/
+
+# ============================================================================
+# OPERATING SYSTEM
+# ============================================================================
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# ============================================================================
+# NODE.JS & FRONTEND
+# ============================================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+.node_repl_history
+dist/
+build/
+.next/
+out/
+.nuxt/
+.cache/
+.output/
+
+# ============================================================================
+# DOCKER & DEPLOYMENT
+# ============================================================================
+.dockerignore
+Dockerfile.local
+docker-compose.local.yml
+.docker/
+
+# ============================================================================
+# CI/CD & PIPELINE
+# ============================================================================
+.github/workflows/local/
+.gitlab-ci.local.yml
+.travis.local.yml
+
+# ============================================================================
+# AWS & CLOUD
+# ============================================================================
+*.pem
+*.key
+!AI-Learning-App-Key-Mumbai.pem.example
+.aws/
+credentials
+.azure/
+
+# ============================================================================
+# SENSITIVE FILES & SECRETS
+# ============================================================================
+secrets/
+.secrets/
+private/
+credentials.json
+service-account-key.json
+*.key
+*.pem
+!*.example.pem
+
+# ============================================================================
+# BACKUP & ARCHIVE FILES
+# ============================================================================
+*.bak
+*.backup
+*.old
+*.orig
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# ============================================================================
+# MIGRATION & DATABASE
+# ============================================================================
+alembic/versions/local_*.py
+
+# ============================================================================
+# POETRY & DEPENDENCY MANAGEMENT
+# ============================================================================
+poetry.lock
+Pipfile.lock
+
+# ============================================================================
+# DEVELOPMENT ARTIFACTS
+# ============================================================================
+.ipynb_checkpoints/
+*.ipynb
+Thumbs.db
+
+# ============================================================================
+# PROJECT-SPECIFIC IGNORES
+# ============================================================================
+# Temp migration scripts
+scripts/temp/
+scripts/local/
+
+# Local test data
+data/local/
+test_data/
+fixtures/local/
+
+# Generated files
+generated/
+output/
+results/
+
+# ============================================================================
+# DOCUMENTATION THAT SHOULDN'T BE TRACKED
+# ============================================================================
+# Keep in _documentation_and_assets/ instead
+DOCUMENTATION_INDEX.md
+COMPLETE_DOCUMENTATION.md
+ADMIN_SKILL_EXTRACTION_API.md
+ADMIN_SKILL_EXTRACTION_CHECKLIST.md
+ADMIN_SKILL_EXTRACTION_QUICK_START.md
+ADMIN_SKILL_EXTRACTION_SUMMARY.md
+AGENTIC_SYSTEM_HLD.md
+AGENT_IMPLEMENTATIONS_COMPLETE.md
+FRONTEND_API_QUICK_REFERENCE.md
+FRONTEND_BACKEND_ALIGNMENT.md
+HOW_SKILL_EXTRACTION_WORKS.md
+IMPLEMENTATION_COMPLETE.md
+IMPLEMENTATION_SUMMARY.md
+INTERVIEW_PLATFORM_ENHANCEMENT.md
+MVP1_BOARD.csv
+MVP1_BOARD.md
+PRODUCTION_AGENT_SPECS.md
+README_ADMIN_SKILL_EXTRACTION.md
+README_DOCS.md
+ROLE_BASED_ASSESSMENT_SYSTEM.md
+SPRINT1_FRONTEND_QUICK_START.md
+SPRINT_1_API_DOCS.md
+SPRINT_1_IMPLEMENTATION_SUMMARY.md
+START_HERE_ADMIN_SKILL_EXTRACTION.md
+
+# ============================================================================
+# EXCEPTIONS - FILES TO ALWAYS TRACK
+# ============================================================================
+# Explicitly track important files
+!.gitkeep
+!.env.example
+!.env.development.example
+!.env.production.example
+!requirements.txt
+!setup.py
+!setup.ps1
+!Makefile
+!/scripts/
+!/alembic/
+!/BE/
+!/tests/
+!/.github/
+!README.md
+!/docker-compose.example.yml
+
+# ============================================================================
+# SYSTEM SPECIFIC
+# ============================================================================
+# Windows
+*.exe
+*.msi
+*.lnk
+
+# macOS
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+.directory
+.Trash-*
+
+# ============================================================================
+# END OF GITIGNORE
+# ============================================================================

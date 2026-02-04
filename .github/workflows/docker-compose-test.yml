@@ -1,0 +1,46 @@
+name: Docker Compose Test
+
+on:
+  pull_request:
+    branches: [ master, develop ]
+    paths:
+      - 'BE/docker-compose.yml'
+      - 'BE/Dockerfile'
+      - '.github/workflows/docker-compose-test.yml'
+
+jobs:
+  docker-compose:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Create .env file
+      working-directory: ./BE
+      run: |
+        cat > .env << EOF
+        ENVIRONMENT=test
+        DEBUG=True
+        DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/ai_learning_db
+        REDIS_URL=redis://redis:6379/0
+        JWT_SECRET_KEY=test-secret-key
+        GROQ_API_KEY=test-key
+        EOF
+    
+    - name: Start services
+      working-directory: ./BE
+      run: |
+        docker-compose up -d postgres redis minio
+        sleep 10
+    
+    - name: Check services health
+      working-directory: ./BE
+      run: |
+        docker-compose ps
+        docker-compose logs postgres
+    
+    - name: Cleanup
+      if: always()
+      working-directory: ./BE
+      run: |
+        docker-compose down -v

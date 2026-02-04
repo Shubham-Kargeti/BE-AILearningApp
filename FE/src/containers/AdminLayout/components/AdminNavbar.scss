@@ -1,0 +1,57 @@
+.admin-navbar {
+  height: 60px;
+  background: white;
+  border-bottom: 1px solid #e2e2e2;
+  padding: 0 20px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-title {
+  font-size: 20px;
+  font-weight: 500;
+  color: #333;
+}
+
+.admin-icons {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+
+.nav-icon {
+  cursor: pointer;
+  color: #444;
+  transition: 0.2s;
+}
+
+.nav-icon:hover {
+  color: #111;
+}
+/* Make user icon clickable */
+.user-icon-wrapper {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+/* Optional: Highlight on hover for user icon container */
+.user-icon-wrapper:hover .nav-icon {
+  color: #111;
+}
+
+/* Optional: Adjust dropdown menu styling (MUI menu) */
+.MuiMenu-paper {
+  border-radius: 8px !important;
+  padding: 4px 0 !important;
+}
+
+.MuiMenuItem-root {
+  font-size: 14px !important;
+}
+
+.MuiMenuItem-root:hover {
+  background: #f3f3f3 !important;
+}

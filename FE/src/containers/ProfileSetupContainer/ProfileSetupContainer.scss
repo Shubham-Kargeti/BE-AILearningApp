@@ -1,0 +1,71 @@
+.profile-setup-page {
+  display: flex;
+  flex-grow: 1;
+  min-height: 100vh;
+  background: #121022;
+  padding: 40px;
+  color: #fff;
+  font-family: "Space Grotesk", sans-serif;
+
+  .profile-main-content {
+    flex-grow: 1;
+
+    .page-title {
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 30px;
+      font-size: 28px;
+    }
+
+    .profile-form {
+      max-width: 600px;
+
+      .MuiTextField-root {
+        margin-bottom: 20px;
+
+        .MuiOutlinedInput-root {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 10px;
+
+          fieldset {
+            border-color: rgba(255, 255, 255, 0.15);
+          }
+        }
+
+        label {
+          color: #c7c6d9;
+          font-size: 14px;
+        }
+
+        .MuiInputBase-input {
+          color: #fff;
+        }
+
+        .MuiFormHelperText-root {
+          color: #ff8a80 !important;
+        }
+      }
+
+      .MuiChip-root {
+        background: #3b2bee !important;
+        color: white !important;
+        font-weight: 600;
+      }
+
+      .save-btn {
+        margin-top: 26px;
+        background: #3b2bee !important;
+        text-transform: none !important;
+        border-radius: 10px !important;
+        padding: 10px 28px !important;
+        font-weight: 700 !important;
+        font-size: 16px;
+        transition: 0.25s ease;
+
+        &:hover {
+          background: #2e23c7 !important;
+        }
+      }
+    }
+  }
+}

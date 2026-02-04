@@ -42,11 +42,46 @@ def extract_text_from_docx(file_bytes: bytes) -> str:
     return "\n".join(text_parts)
 
 
+def extract_text_from_pptx(file_bytes: bytes) -> str:
+    """
+    Extracts all text from a PowerPoint PPTX file.
+    
+    Args:
+        file_bytes (bytes): The raw binary content of a PPTX file.
+
+    Returns:
+        str: All extracted text, separated by newlines.
+    """
+    try:
+        from pptx import Presentation
+    except ImportError:
+        raise ValueError("python-pptx is required to process PowerPoint files. Install with: pip install python-pptx")
+    
+    prs = Presentation(io.BytesIO(file_bytes))
+    text_parts = []
+    
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if hasattr(shape, "text") and shape.text.strip():
+                text_parts.append(shape.text.strip())
+            # Handle tables in slides
+            if shape.has_table:
+                for row in shape.table.rows:
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            text_parts.append(cell.text.strip())
+    
+    print(text_parts)
+    return "\n".join(text_parts)
+
+
 def extract_text(file_bytes: bytes, name: str) -> str:
     ext = name.lower().split('.')[-1]
     if ext == "pdf":
         return extract_text_from_pdf(file_bytes)
     elif ext == "docx":
         return extract_text_from_docx(file_bytes)
+    elif ext in ("ppt", "pptx"):
+        return extract_text_from_pptx(file_bytes)
     else:
-        raise ValueError(f"Unsupported file extension")
+        raise ValueError(f"Unsupported file extension: {ext}")

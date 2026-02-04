@@ -1,0 +1,207 @@
+.admin-settings {
+  padding: 32px;
+  background: #f8f9fa;
+  min-height: 100vh;
+
+  .settings-container {
+    max-width: 700px;
+    margin: 0 auto;
+
+    h1 {
+      font-size: 28px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #64748b;
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
+
+    .settings-section {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+
+      h2 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #0f172a;
+        margin-bottom: 20px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #e2e8f0;
+      }
+
+      .setting-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 0;
+        border-bottom: 1px solid #f1f5f9;
+
+        &:last-child {
+          border-bottom: none;
+          padding-bottom: 0;
+        }
+
+        .setting-info {
+          flex: 1;
+
+          label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #1e293b;
+            margin-bottom: 4px;
+          }
+
+          p {
+            font-size: 13px;
+            color: #64748b;
+            margin: 0;
+          }
+        }
+
+        .toggle-switch {
+          position: relative;
+          display: inline-flex;
+          width: 48px;
+          height: 28px;
+          cursor: pointer;
+
+          input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+
+            &:checked + .toggle-slider {
+              background-color: #3b82f6;
+
+              &::before {
+                transform: translateX(20px);
+              }
+            }
+          }
+
+          .toggle-slider {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cbd5e1;
+            border-radius: 14px;
+            transition: background-color 0.2s ease;
+
+            &::before {
+              content: "";
+              position: absolute;
+              height: 24px;
+              width: 24px;
+              left: 2px;
+              bottom: 2px;
+              background-color: white;
+              border-radius: 50%;
+              transition: transform 0.2s ease;
+            }
+          }
+        }
+
+        .select-input {
+          padding: 8px 12px;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          font-size: 13px;
+          background-color: white;
+          cursor: pointer;
+          transition: all 0.2s ease;
+
+          &:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+          }
+
+          &:hover {
+            border-color: #cbd5e1;
+          }
+        }
+      }
+    }
+
+    .settings-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-start;
+
+      button {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &.save-btn {
+          background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+          color: white;
+
+          &:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(30, 58, 138, 0.2);
+          }
+        }
+
+        &.reset-btn {
+          background: #f1f5f9;
+          color: #475569;
+          border: 1px solid #e2e8f0;
+
+          &:hover {
+            background: #e2e8f0;
+            border-color: #cbd5e1;
+          }
+        }
+
+        &:active {
+          transform: translateY(0);
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-settings {
+    padding: 16px;
+
+    .settings-container {
+      h1 {
+        font-size: 24px;
+      }
+
+      .settings-section {
+        padding: 16px;
+
+        .setting-item {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 12px;
+        }
+      }
+
+      .settings-actions {
+        flex-direction: column;
+
+        button {
+          width: 100%;
+        }
+      }
+    }
+  }
+}

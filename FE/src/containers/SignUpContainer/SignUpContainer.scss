@@ -1,0 +1,9 @@
+@use "../LoginContainer/LoginContainer.scss" as login;
+
+.signup-page {
+  @include login.login-page-styles;
+}
+
+.signup-card {
+  @extend .login-card;
+}

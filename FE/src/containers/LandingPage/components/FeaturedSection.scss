@@ -1,0 +1,69 @@
+.featured-section {
+  padding: 60px 50px;
+  background: #121022;
+  color: #fff;
+  text-align: center;
+}
+
+.featured-title {
+  font-weight: 700;
+  margin-bottom: 40px;
+}
+
+.featured-grid {
+  justify-content: center;
+}
+
+.game-card {
+  background: rgba(27, 25, 51, 0.6);
+  border-radius: 12px !important;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.image-wrapper {
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+}
+
+.image-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.card-spacer {
+  flex-grow: 1;
+}
+
+.learn-btn {
+  border-color: #3b2bee !important;
+  // color: #fff !important;
+  text-transform: none !important;
+  border-radius: 8px !important;
+  margin-top: 10px;
+
+  &:hover {
+    background: #3b2bee !important;
+  }
+}
+
+.game-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.game-card:hover .image-wrapper img {
+  transform: scale(1.06);
+  transition: transform 0.35s ease;
+}

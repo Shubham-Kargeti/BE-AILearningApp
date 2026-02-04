@@ -1,0 +1,190 @@
+.sidebar-drawer {
+  width: 280px;
+  flex-shrink: 0;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  .MuiDrawer-paper {
+    width: 280px;
+    box-sizing: border-box;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border-right: none;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    overflow-x: hidden;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.1);
+
+    /* Custom Scrollbar */
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+      
+      &:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+    }
+  }
+
+  &.collapsed {
+    width: 80px;
+
+    .MuiDrawer-paper {
+      width: 80px;
+      align-items: center;
+    }
+  }
+
+  /* Smooth transitions for all elements */
+  * {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+/* Animation for menu items */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.MuiListItemButton-root {
+  animation: slideInRight 0.3s ease-out;
+}
+
+/* Glassmorphism effect for active items */
+.MuiListItemButton-root.Mui-selected {
+  background: rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Smooth hover effect */
+.MuiListItemButton-root:hover {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  transform: translateX(4px);
+}
+
+/* Icon glow effect on hover */
+.MuiListItemIcon-root:hover svg {
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.5));
+}
+
+/* Profile section styling */
+.MuiAvatar-root {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease;
+
+  &:hover {
+    transform: scale(1.05);
+  }
+}
+
+/* Chip styling */
+.MuiChip-root {
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* Dialog animations */
+.MuiDialog-paper {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .sidebar-drawer {
+    width: 80px;
+
+    &.open {
+      width: 280px;
+    }
+
+    .MuiDrawer-paper {
+      width: 80px;
+    }
+
+    &.open .MuiDrawer-paper {
+      width: 280px;
+    }
+  }
+}
+
+/* Smooth color transitions */
+.MuiButton-root {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Add subtle animation to icons */
+@keyframes iconPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.MuiListItemIcon-root svg {
+  transition: all 0.3s ease;
+}
+
+.MuiListItemButton-root:hover .MuiListItemIcon-root svg {
+  animation: iconPulse 0.6s ease-in-out;
+}
+
+
+
+/* Logout icon style */
+.logout-item .MuiSvgIcon-root {
+  color: #ffb3b3 !important;
+}
+
+.logout-item:hover .MuiSvgIcon-root {
+  color: #ffffff !important;
+}
+
+.logout-text {
+  color: #ffb3b3 !important;
+
+  &:hover {
+    color: #fff !important;
+  }
+}
+
+.sidebar-list {
+  padding-top: 10px;
+  flex-grow: 1;
+}
