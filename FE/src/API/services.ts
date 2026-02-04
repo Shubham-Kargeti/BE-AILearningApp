@@ -86,6 +86,10 @@ export interface Assessment {
   passing_score_threshold: number;
   auto_adjust_by_experience: boolean;
   difficulty_distribution: Record<string, number>;
+  // Session statistics (for admin dashboard)
+  total_sessions?: number;
+  completed_sessions?: number;
+  in_progress_sessions?: number;
   // Admin-only: generated questions from RAG ingestion
   generated_questions?: Array<{
     id?: number | string;
@@ -206,6 +210,7 @@ export interface RecommendedCourse {
   collection: string;
   category: string;
   description: string;
+  course_level?: string;
 }
 
 export const authService = {
@@ -292,6 +297,9 @@ export const quizService = {
       correct_answer: string;
       is_correct: boolean;
       options: Record<string, string>;
+      points?: number;
+      suggestion?: string;
+      explanation?: string;
     }>;
   }> => {
     const response = await apiClient.get(`/test-sessions/${sessionId}/results`);
@@ -363,11 +371,15 @@ export const quizService = {
       correct_answer: string;
       is_correct: boolean;
       options: Array<{ option_id: string; text: string }>;
+      points: number;
+      suggestion?: string;
+      explanation?: string;
     }>;
   }> => {
     const response = await apiClient.get(`/questionset-tests/${sessionId}/results`);
     return response.data;
   },
+
 };
 
 export const candidateService = {
@@ -607,6 +619,16 @@ export const coursesService = {
       params.append("marks", marks.toString());
     }
     const response = await apiClient.get(`/recommended-courses?${params}`);
+    return response.data;
+  },
+
+  getLearningPath: async (
+    sessionId: string
+  ): Promise<{ 
+    topic: string;
+    recommended_courses: RecommendedCourse[] 
+  }> => {
+    const response = await apiClient.get(`/learning-path/${sessionId}`);
     return response.data;
   },
 };

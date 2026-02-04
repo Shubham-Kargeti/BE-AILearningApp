@@ -86,6 +86,9 @@ class QuestionResultDetailed(BaseModel):
     your_answer: str
     correct_answer: Optional[str] = None
     is_correct: bool
+    points: int = 0
+    suggestion: Optional[str] = None
+    explanation: Optional[str] = None  # Optional field for future use (LLM explanation)
 
 class TestResultResponse(BaseModel):
     """Complete test results."""
@@ -95,10 +98,11 @@ class TestResultResponse(BaseModel):
     level: str
     total_questions: int
     correct_answers: int
-    score_percentage: float
-    completed_at: datetime
-    time_taken_seconds: int
+    score_percentage: Optional[float] = None
+    completed_at: Optional[datetime] = None
+    time_taken_seconds: Optional[int] = None
     detailed_results: List[QuestionResultDetailed]
+    is_partial: bool = False  # Flag for incomplete sessions
 
 class AnswerSubmission(BaseModel):
     session_id: str
@@ -320,6 +324,11 @@ class AssessmentResponse(BaseModel):
     difficulty_distribution: dict
     created_at: datetime
     updated_at: datetime
+    
+    # Session statistics (for admin dashboard)
+    total_sessions: Optional[int] = 0
+    completed_sessions: Optional[int] = 0
+    in_progress_sessions: Optional[int] = 0
 
 
 class AssessmentApplicationRequest(BaseModel):

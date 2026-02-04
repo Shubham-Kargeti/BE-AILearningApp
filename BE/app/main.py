@@ -42,6 +42,13 @@ try:
 except ImportError:
     has_recommended_courses = False
 
+# Import learning path router
+try:
+    from app.api.learning_path import router as learning_path_router
+    has_learning_path = True
+except ImportError:
+    has_learning_path = False
+
 settings = get_settings()
 logger = get_logger(__name__)
 
@@ -333,6 +340,10 @@ app.include_router(question_docs_router, prefix=settings.API_V1_PREFIX, tags=["A
 # Include recommended courses router if available
 if has_recommended_courses:
     app.include_router(recommended_courses_router, prefix=settings.API_V1_PREFIX, tags=["Recommended Courses"])
+
+# Include learning path router if available
+if has_learning_path:
+    app.include_router(learning_path_router, prefix=settings.API_V1_PREFIX, tags=["Learning Path"])
 
 
 # Metrics endpoint

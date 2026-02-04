@@ -48,6 +48,7 @@ const AssessmentViewContainer: React.FC = () => {
     candidate_name: string | null;
     candidate_email: string | null;
     total_questions: number;
+    answered_questions?: number;
     correct_answers: number | null;
     score_percentage: number | null;
     is_completed: boolean;
@@ -56,17 +57,17 @@ const AssessmentViewContainer: React.FC = () => {
     duration_seconds: number | null;
   }>>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
-  // RAG upload/generation UI removed from view page; functionality moved to Create/Edit flow
   const [selectedResult, setSelectedResult] = useState<{
     session_id: string;
     question_set_id: string;
     skill: string;
     level: string;
-    score_percentage: number;
+    score_percentage: number | null;
     correct_answers: number;
     total_questions: number;
-    completed_at: string;
-    time_taken_seconds: number;
+    completed_at: string | null;
+    time_taken_seconds: number | null;
+    is_partial?: boolean;
     detailed_results: Array<{
       question_id: number;
       question_text: string;
@@ -74,6 +75,9 @@ const AssessmentViewContainer: React.FC = () => {
       correct_answer: string;
       is_correct: boolean;
       options: Array<{ option_id: string; text: string }>;
+      points?: number;
+      suggestion?: string;
+      explanation?: string;
     }>;
   } | null>(null);
   const [loadingResult, setLoadingResult] = useState(false);
@@ -101,18 +105,62 @@ const AssessmentViewContainer: React.FC = () => {
   const viewDetailedResult = async (sessionId: string) => {
     try {
       setLoadingResult(true);
+      // Primary attempt: QuestionSet results endpoint
       const result = await quizService.getQuestionSetTestResults(sessionId);
       setSelectedResult(result);
+      return;
     } catch (err: any) {
       const status = err?.response?.status;
       const serverMsg = err?.response?.data?.error || err?.response?.data?.message;
 
       if (status === 401 || status === 403) {
         setToast({ type: "error", message: "Authentication required. Please log in as an admin." });
-        // Redirect to login so admin can re-authenticate
         setTimeout(() => window.location.href = '/login', 800);
-      } else if (status === 404) {
-        setToast({ type: "error", message: serverMsg || "Results not yet available" });
+        return;
+      }
+
+      // If primary endpoint returned 404, try fallback to test-sessions endpoint
+      if (status === 404) {
+        try {
+          const alt = await quizService.getTestResults(sessionId);
+          // Map alt shape to selectedResult expected shape
+          const mapped = {
+            session_id: alt.session_id,
+            question_set_id: (alt as any).question_set_id || "",
+            skill: (alt as any).skill || "",
+            level: (alt as any).level || "",
+            score_percentage: alt.score_percentage,
+            correct_answers: alt.correct_answers,
+            total_questions: alt.total_questions,
+            completed_at: alt.completed_at,
+            time_taken_seconds: (alt as any).time_taken_seconds || 0,
+            detailed_results: (alt.detailed_results || []).map((q: any) => ({
+              question_id: q.question_id,
+              question_text: q.question_text,
+              your_answer: q.your_answer,
+              correct_answer: q.correct_answer,
+              is_correct: q.is_correct,
+              options: q.options ? Object.entries(q.options).map(([k, v]) => ({ option_id: k, text: v })) : [],
+              points: q.points,
+              suggestion: q.suggestion,
+            }))
+          };
+
+          setSelectedResult(mapped as any);
+          return;
+        } catch (altErr: any) {
+          const altStatus = altErr?.response?.status;
+          if (altStatus === 404) {
+            setToast({ type: "error", message: "Results not found for this session (fallback tried)." });
+          } else {
+            setToast({ type: "error", message: altErr?.response?.data?.error || "Unable to fetch detailed results from fallback endpoint" });
+          }
+          return;
+        }
+      }
+
+      if (status === 400) {
+        setToast({ type: "info", message: serverMsg || "Test not yet completed. Detailed results will appear after submission." });
       } else {
         setToast({ type: "error", message: serverMsg || "Unable to fetch detailed results" });
       }
@@ -121,12 +169,9 @@ const AssessmentViewContainer: React.FC = () => {
     }
   };
 
-  const initiateLearningPath = async (_sessionId: string) => {
-    // TODO: Implement learning path initiation
-    setToast({
-      type: "info",
-      message: "Learning path initiation is coming soon!"
-    });
+  const initiateLearningPath = async (sessionId: string) => {
+    console.log("Navigating to learning path for session:", sessionId);
+    navigate(`/admin/learning-path/${sessionId}`);
   };
 
   useEffect(() => {
@@ -1812,6 +1857,40 @@ const AssessmentViewContainer: React.FC = () => {
                                     )}
                                   </div>
 
+                                  {/* Progress Bar for Incomplete Sessions */}
+                                  {!session.is_completed && (
+                                    <div style={{ marginTop: '0.75rem', marginBottom: '0.75rem' }}>
+                                      <div style={{ 
+                                        display: 'flex', 
+                                        justifyContent: 'space-between', 
+                                        alignItems: 'center',
+                                        marginBottom: '0.5rem',
+                                        fontSize: '0.75rem',
+                                        color: '#64748b'
+                                      }}>
+                                        <span>Test Progress</span>
+                                        <span style={{ fontWeight: '600', color: '#f59e0b' }}>
+                                          {Math.round(((session.answered_questions || 0) / session.total_questions) * 100)}% Complete
+                                        </span>
+                                      </div>
+                                      <div style={{
+                                        width: '100%',
+                                        height: '8px',
+                                        backgroundColor: '#e2e8f0',
+                                        borderRadius: '4px',
+                                        overflow: 'hidden'
+                                      }}>
+                                        <div style={{
+                                          width: `${((session.answered_questions || 0) / session.total_questions) * 100}%`,
+                                          height: '100%',
+                                          background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 100%)',
+                                          transition: 'width 0.3s ease',
+                                          borderRadius: '4px'
+                                        }} />
+                                      </div>
+                                    </div>
+                                  )}
+
                                   {/* Test Details */}
                                   <div style={{ 
                                     display: 'grid', 
@@ -1850,10 +1929,28 @@ const AssessmentViewContainer: React.FC = () => {
                                     )}
                                     <div>
                                       <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                        <FiActivity size={12} /> Questions
+                                        <FiActivity size={12} /> {session.is_completed ? 'Questions' : 'Progress'}
                                       </div>
                                       <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1e293b' }}>
-                                        {session.correct_answers || 0} / {session.total_questions} correct
+                                        {session.is_completed ? (
+                                          `${session.correct_answers || 0} / ${session.total_questions} correct`
+                                        ) : (
+                                          <>
+                                            {session.answered_questions || 0} / {session.total_questions} answered
+                                            <span style={{ 
+                                              display: 'inline-block',
+                                              marginLeft: '0.5rem',
+                                              fontSize: '0.75rem',
+                                              padding: '0.125rem 0.5rem',
+                                              backgroundColor: '#fef3c7',
+                                              color: '#f59e0b',
+                                              borderRadius: '4px',
+                                              fontWeight: '500'
+                                            }}>
+                                              {Math.round(((session.answered_questions || 0) / session.total_questions) * 100)}%
+                                            </span>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -1916,7 +2013,7 @@ const AssessmentViewContainer: React.FC = () => {
                                   }}
                                 >
                                   <FiAward size={16} />
-                                  View Detailed Results
+                                  {session.is_completed ? 'View Detailed Results' : 'View Partial Results'}
                                 </button>
                                 <button
                                   className="btn btn-secondary"
@@ -1968,7 +2065,7 @@ const AssessmentViewContainer: React.FC = () => {
                   padding: '2rem',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h3>Detailed Results</h3>
+                    <h3>{selectedResult.is_partial ? 'Partial Results (Incomplete)' : 'Detailed Results'}</h3>
                     <button
                       onClick={() => setSelectedResult(null)}
                       style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}
@@ -1977,13 +2074,41 @@ const AssessmentViewContainer: React.FC = () => {
                     </button>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '2rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                    <div style={{ textAlign: 'center', minWidth: '100px' }}>
-                      <p style={{ fontSize: '2rem', fontWeight: 'bold', color: selectedResult.score_percentage >= 70 ? '#4caf50' : selectedResult.score_percentage >= 50 ? '#ff9800' : '#f44336' }}>
-                        {selectedResult.score_percentage.toFixed(1)}%
-                      </p>
-                      <p style={{ color: '#666', fontSize: '0.875rem' }}>Score</p>
+                  {/* Warning banner for partial results */}
+                  {selectedResult.is_partial && (
+                    <div style={{
+                      backgroundColor: '#fff3cd',
+                      border: '1px solid #ffc107',
+                      borderRadius: '8px',
+                      padding: '1rem',
+                      marginBottom: '1.5rem',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.75rem'
+                    }}>
+                      <FiAlertCircle size={20} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '2px' }} />
+                      <div>
+                        <strong style={{ color: '#f59e0b', display: 'block', marginBottom: '0.25rem' }}>
+                          Incomplete Assessment
+                        </strong>
+                        <p style={{ margin: 0, fontSize: '0.875rem', color: '#856404' }}>
+                          This candidate has not submitted their assessment yet. 
+                          Showing answers for {selectedResult.detailed_results.length} of {selectedResult.total_questions} questions answered so far.
+                          Results may not reflect final performance.
+                        </p>
+                      </div>
                     </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '2rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                    {selectedResult.score_percentage !== null && (
+                      <div style={{ textAlign: 'center', minWidth: '100px' }}>
+                        <p style={{ fontSize: '2rem', fontWeight: 'bold', color: selectedResult.score_percentage >= 70 ? '#4caf50' : selectedResult.score_percentage >= 50 ? '#ff9800' : '#f44336' }}>
+                          {selectedResult.score_percentage.toFixed(1)}%
+                        </p>
+                        <p style={{ color: '#666', fontSize: '0.875rem' }}>Score</p>
+                      </div>
+                    )}
                     <div style={{ textAlign: 'center', minWidth: '100px' }}>
                       <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#4caf50' }}>
                         {selectedResult.correct_answers}
@@ -1992,9 +2117,15 @@ const AssessmentViewContainer: React.FC = () => {
                     </div>
                     <div style={{ textAlign: 'center', minWidth: '100px' }}>
                       <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#f44336' }}>
-                        {selectedResult.total_questions - selectedResult.correct_answers}
+                        {selectedResult.detailed_results.length - selectedResult.correct_answers}
                       </p>
                       <p style={{ color: '#666', fontSize: '0.875rem' }}>Incorrect</p>
+                    </div>
+                    <div style={{ textAlign: 'center', minWidth: '100px' }}>
+                      <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#2196f3' }}>
+                        {selectedResult.detailed_results.length} / {selectedResult.total_questions}
+                      </p>
+                      <p style={{ color: '#666', fontSize: '0.875rem' }}>Answered</p>
                     </div>
                     <div style={{ textAlign: 'center', minWidth: '100px' }}>
                       <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#1976d2' }}>
@@ -2002,12 +2133,14 @@ const AssessmentViewContainer: React.FC = () => {
                       </p>
                       <p style={{ color: '#666', fontSize: '0.875rem' }}>Total</p>
                     </div>
-                    <div style={{ textAlign: 'center', minWidth: '100px' }}>
-                      <p style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#666' }}>
-                        {Math.floor(selectedResult.time_taken_seconds / 60)}m {selectedResult.time_taken_seconds % 60}s
-                      </p>
-                      <p style={{ color: '#666', fontSize: '0.875rem' }}>Time Taken</p>
-                    </div>
+                    {selectedResult.time_taken_seconds !== null && selectedResult.time_taken_seconds !== undefined && (
+                      <div style={{ textAlign: 'center', minWidth: '100px' }}>
+                        <p style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#666' }}>
+                          {Math.floor(selectedResult.time_taken_seconds / 60)}m {selectedResult.time_taken_seconds % 60}s
+                        </p>
+                        <p style={{ color: '#666', fontSize: '0.875rem' }}>Time Taken</p>
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '8px', marginBottom: '1.5rem' }}>
@@ -2056,6 +2189,16 @@ const AssessmentViewContainer: React.FC = () => {
                                     {opt.option_id === q.your_answer && !q.is_correct && <span style={{ color: '#f44336', marginLeft: '0.5rem' }}>✗ Your Answer</span>}
                                   </div>
                                 ))}
+
+                                <div style={{ marginTop: '0.5rem', color: '#333' }}>
+                                  <strong>Points:</strong> {typeof q.points === 'number' ? q.points : (q.is_correct ? 1 : 0)} / 1
+                                </div>
+
+                                {q.suggestion && (
+                                  <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: '#fff8e1', borderRadius: '6px', color: '#6b4f00' }}>
+                                    <strong>Suggestion:</strong> {q.suggestion}
+                                  </div>
+                                )}
                               </div>
                             )}
                             {(!q.options || q.options.length === 0) && (
@@ -2067,6 +2210,14 @@ const AssessmentViewContainer: React.FC = () => {
                                   <p style={{ margin: '0.25rem 0', color: '#4caf50' }}>
                                     <strong>Expected Answer:</strong> {q.correct_answer}
                                   </p>
+                                )}
+                                <p style={{ margin: '0.25rem 0', color: '#333' }}>
+                                  <strong>Points:</strong> {typeof q.points === 'number' ? q.points : (q.is_correct ? 1 : 0)} / 1
+                                </p>
+                                {q.suggestion && (
+                                  <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: '#fff8e1', borderRadius: '6px', color: '#6b4f00' }}>
+                                    <strong>Suggestion:</strong> {q.suggestion}
+                                  </div>
                                 )}
                               </div>
                             )}

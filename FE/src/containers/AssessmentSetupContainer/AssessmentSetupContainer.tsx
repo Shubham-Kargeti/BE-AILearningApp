@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./AssessmentSetupContainer.scss";
@@ -15,6 +16,7 @@ import { uploadService, assessmentService, questionGenService } from "../../API/
 import { parseResume, getExtractionConfidence } from "../../utils/resumeParser";
 import type { QuestionDistribution } from "./components/QuestionnaireConfig";
 import AssessmentConfigurationBlock from "./components/AssessmentConfigurationBlock";
+import AssessmentQuestionEditor, { type Question } from "./components/AssessmentQuestionEditor";
 
 
 
@@ -79,6 +81,7 @@ const AssessmentSetupContainer: React.FC = () => {
   const [screeningQuestions, setScreeningQuestions] =
     useState<string[]>([""]);
 
+  const [manualQuestions, setManualQuestions] = useState<Question[]>([]);
 
   const [cutoffMarks, setCutoffMarks] = useState<number>(70);
 
@@ -277,7 +280,7 @@ const AssessmentSetupContainer: React.FC = () => {
   };
 
   const handleSubmit = async (skipValidation = false) => {
-    // Skip validation when called from RAG buttons with minimal info
+    // Skip validation when called from Question Bank buttons with minimal info
     if (!skipValidation && !formValid) {
       setToast({ type: "error", message: "Please complete all required fields" });
       return;
@@ -361,15 +364,15 @@ const AssessmentSetupContainer: React.FC = () => {
       : "Assessment created successfully!",
   });
 
-  // If a RAG file was selected during create, upload it automatically (but do NOT auto-generate)
+  // If a Question Bank file was selected during create, upload it automatically (but do NOT auto-generate)
   if (ragFile && resultAssessmentId) {
     try {
       setRagUploadProgress(0);
       const res = await uploadService.uploadQuestionDoc(ragFile, resultAssessmentId, (p) => setRagUploadProgress(p));
       setRagUploadedDocId(res.doc_id);
-      setToast({ type: "success", message: `RAG document uploaded (doc id: ${res.doc_id})` });
+      setToast({ type: "success", message: `Question Bank document uploaded (doc id: ${res.doc_id})` });
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || "Failed to upload RAG document";
+      const errorMessage = err.response?.data?.detail || "Failed to upload Question Bank document";
       setToast({ type: "error", message: errorMessage });
     } finally {
       setRagUploadProgress(null);
@@ -494,7 +497,6 @@ const AssessmentSetupContainer: React.FC = () => {
 
 
 
-
       <AssessmentConfigurationBlock
         questionDistribution={questionDistribution}
         onQuestionDistributionChange={setQuestionDistribution}
@@ -510,6 +512,17 @@ const AssessmentSetupContainer: React.FC = () => {
         onDifficultyDistributionChange={setDifficultyDistribution}
       />
 
+      <section className="card questions-card">
+        <div className="card-header">
+          <h2>Manual Question Management</h2>
+          <p className="hint">Add, edit, or reorder questions manually for this assessment</p>
+        </div>
+
+        <AssessmentQuestionEditor
+          questions={manualQuestions}
+          onQuestionsChange={setManualQuestions}
+        />
+      </section>
 
       <section className="card method-card">
         <div className="card-header">
@@ -555,12 +568,12 @@ const AssessmentSetupContainer: React.FC = () => {
 
       <section className="card">
         <div className="card-header">
-          <h2>RAG Document (Optional)</h2>
+          <h2>Question Bank Document (Optional)</h2>
           <p className="hint">Upload a document to generate questions using RAG (Retrieval-Augmented Generation)</p>
         </div>
 
         <div className="upload-grid">
-          <FileUpload label="RAG Document (Optional)" onFileSelect={setRagFile} />
+          <FileUpload label="Question Bank Document (Optional)" onFileSelect={setRagFile} />
         </div>
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12 }}>
@@ -568,7 +581,7 @@ const AssessmentSetupContainer: React.FC = () => {
             className="btn"
             onClick={async () => {
               if (!ragFile) {
-                setToast({ type: 'error', message: 'Select a RAG document first' });
+                setToast({ type: 'error', message: 'Select a Question Bank document first' });
                 return;
               }
               
@@ -577,20 +590,20 @@ const AssessmentSetupContainer: React.FC = () => {
               if (!targetAssessmentId) {
                 // Check minimum required fields
                 if (!role.trim()) {
-                  setToast({ type: 'error', message: 'Please enter Role before uploading RAG' });
+                  setToast({ type: 'error', message: 'Please enter Role before uploading Question Bank document' });
                   return;
                 }
                 if (skills.length === 0) {
-                  setToast({ type: 'error', message: 'Please add at least one Skill before uploading RAG' });
+                  setToast({ type: 'error', message: 'Please add at least one Skill before uploading Question Bank document' });
                   return;
                 }
                 if (!cvFile && !candidateInfo.email) {
-                  setToast({ type: 'error', message: 'Please upload CV or enter candidate email before uploading RAG' });
+                  setToast({ type: 'error', message: 'Please upload CV or enter candidate email before uploading Question Bank document' });
                   return;
                 }
                 
                 setToast({ type: 'info', message: 'Creating assessment first...' });
-                await handleSubmit(true); // Skip strict validation for RAG auto-create
+                await handleSubmit(true); // Skip strict validation for Question Bank auto-create
                 // After handleSubmit, createdAssessmentId should be set
                 targetAssessmentId = createdAssessmentId;
                 if (!targetAssessmentId) {
@@ -603,16 +616,16 @@ const AssessmentSetupContainer: React.FC = () => {
                 setRagUploadProgress(0);
                 const res = await uploadService.uploadQuestionDoc(ragFile, targetAssessmentId, (p) => setRagUploadProgress(p));
                 setRagUploadedDocId(res.doc_id);
-                setToast({ type: 'success', message: `RAG uploaded (doc: ${res.doc_id})` });
+                setToast({ type: 'success', message: `Question Bank uploaded (doc: ${res.doc_id})` });
               } catch (err: any) {
-                const msg = err.response?.data?.detail || 'Failed to upload RAG document';
+                const msg = err.response?.data?.detail || 'Failed to upload Question Bank document';
                 setToast({ type: 'error', message: msg });
               } finally {
                 setRagUploadProgress(null);
               }
             }}
           >
-            Upload RAG
+            Upload Question bank
           </button>
 
           <button
@@ -636,7 +649,7 @@ const AssessmentSetupContainer: React.FC = () => {
                 }
                 
                 setToast({ type: 'info', message: 'Creating assessment first...' });
-                await handleSubmit(true); // Skip strict validation for RAG auto-create
+                await handleSubmit(true); // Skip strict validation for Question Bank auto-create
                 // After handleSubmit, createdAssessmentId should be set
                 targetAssessmentId = createdAssessmentId;
                 if (!targetAssessmentId) {
@@ -646,7 +659,7 @@ const AssessmentSetupContainer: React.FC = () => {
               }
               
               try {
-                const res = await questionGenService.startGenerationForAssessment(targetAssessmentId, totalQuestions, 'rag');
+                const res = await questionGenService.startGenerationForAssessment(targetAssessmentId, totalQuestions, 'question_bank');
                 setToast({ type: 'success', message: `Generation queued (task: ${res.task_id})` });
               } catch (err: any) {
                 const msg = err.response?.data?.detail || 'Failed to start generation';
@@ -655,7 +668,7 @@ const AssessmentSetupContainer: React.FC = () => {
             }}
             disabled={!ragUploadedDocId && !ragFile}
           >
-            Generate Questions (RAG)
+            Generate Questions (From Question Bank)
           </button>
 
           {ragUploadProgress !== null && <div style={{ marginLeft: 'auto' }}>{ragUploadProgress}%</div>}

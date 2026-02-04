@@ -283,6 +283,7 @@ async def submit_questionset_answers(
     session = result.scalar_one_or_none()
 
     if not session:
+        print(f"⚠️ start_questionset_test: session not found when validating start/ownership: {request.session_id if hasattr(request, 'session_id') else 'n/a'}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Test session not found"
@@ -456,6 +457,21 @@ async def submit_questionset_answers(
             # For non-mcq question types, return empty-string as placeholder for correct_answer
             correct_answer = ""
 
+        # Compute points and suggestion
+        is_correct_flag = (answer_submit.selected_answer == correct_answer)
+        points = 1 if is_correct_flag else 0
+        if is_correct_flag:
+            suggestion_text = "Good work!"
+        else:
+            # Prefer explicit topic-based guidance when available
+            topic = getattr(question, 'topic', None)
+            if topic:
+                suggestion_text = f"Review topic: {topic}. Consider revisiting the basics and example problems."
+            elif qtype == 'coding':
+                suggestion_text = "For coding questions, review algorithmic complexity, edge cases, and test-driven approaches."
+            else:
+                suggestion_text = "Review this topic and try related practice problems to improve understanding."
+
         detailed_results.append(
             QuestionResultDetailed(
                 question_id=question.id,
@@ -463,7 +479,9 @@ async def submit_questionset_answers(
                 options=options,
                 your_answer=answer_submit.selected_answer,
                 correct_answer=correct_answer,
-                is_correct=answer_submit.selected_answer == correct_answer
+                is_correct=is_correct_flag,
+                points=points,
+                suggestion=suggestion_text
             )
         )
 
@@ -670,6 +688,20 @@ async def submit_questionset_answers_anonymous(
             # For non-mcq question types, return empty-string as placeholder for correct_answer
             correct_answer = ""
 
+        # Compute points and suggestion
+        is_correct_flag = (answer_submit.selected_answer == correct_answer)
+        points = 1 if is_correct_flag else 0
+        if is_correct_flag:
+            suggestion_text = "Good work!"
+        else:
+            topic = getattr(question, 'topic', None)
+            if topic:
+                suggestion_text = f"Review topic: {topic}. Consider revisiting the basics and example problems."
+            elif qtype == 'coding':
+                suggestion_text = "For coding questions, review algorithmic complexity, edge cases, and test-driven approaches."
+            else:
+                suggestion_text = "Review this topic and try related practice problems to improve understanding."
+
         detailed_results.append(
             QuestionResultDetailed(
                 question_id=question.id,
@@ -677,7 +709,9 @@ async def submit_questionset_answers_anonymous(
                 options=options,
                 your_answer=answer_submit.selected_answer,
                 correct_answer=correct_answer,
-                is_correct=answer_submit.selected_answer == correct_answer
+                is_correct=is_correct_flag,
+                points=points,
+                suggestion=suggestion_text
             )
         )
 
@@ -743,16 +777,15 @@ async def get_questionset_test_results(
     session = result.scalar_one_or_none()
 
     if not session:
+        print(f"⚠️ get_questionset_test_results: session not found for id {session_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Test session not found"
         )
 
-    if not session.is_completed:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Test not yet completed"
-        )
+    # Allow viewing results even for incomplete sessions (for admin review)
+    # If incomplete, we'll show partial results with a flag
+    is_partial = not session.is_completed
 
     if not session.question_set_id:
         raise HTTPException(
@@ -798,6 +831,20 @@ async def get_questionset_test_results(
                 opt_text = str(v)
             options.append(MCQOption(option_id=k, text=opt_text))
 
+        # Compute points and derive a suggestion
+        is_correct_flag = bool(answer.is_correct)
+        points = 1 if is_correct_flag else 0
+        if is_correct_flag:
+            suggestion_text = "Good work!"
+        else:
+            topic = getattr(question, 'topic', None)
+            if topic:
+                suggestion_text = f"Review topic: {topic}. Consider revisiting the basics and example problems."
+            elif resolve_question_type(question) == 'coding':
+                suggestion_text = "For coding questions, review algorithmic complexity, edge cases, and test-driven approaches."
+            else:
+                suggestion_text = "Review this topic and try related practice problems to improve understanding."
+
         detailed_results.append(
             QuestionResultDetailed(
                 question_id=question.id,
@@ -805,7 +852,9 @@ async def get_questionset_test_results(
                 options=options,
                 your_answer=answer.selected_answer,
                 correct_answer=question.correct_answer,
-                is_correct=answer.is_correct
+                is_correct=is_correct_flag,
+                points=points,
+                suggestion=suggestion_text
             )
         )
 
@@ -815,11 +864,12 @@ async def get_questionset_test_results(
         skill=question_set.skill,
         level=question_set.level,
         total_questions=session.total_questions,
-        correct_answers=session.correct_answers,
-        score_percentage=session.score_percentage,
+        correct_answers=session.correct_answers if session.is_completed else len(detailed_results),
+        score_percentage=session.score_percentage if session.is_completed else None,
         completed_at=session.completed_at,
         time_taken_seconds=session.duration_seconds,
-        detailed_results=detailed_results
+        detailed_results=detailed_results,
+        is_partial=is_partial  # Add flag for incomplete sessions
     )
 
 
@@ -906,11 +956,21 @@ async def list_assessment_test_sessions(
     
     sessions_data = []
     for session in sessions:
+        # Count answered questions for incomplete sessions
+        answered_count = session.total_questions  # Default to total if completed
+        if not session.is_completed:
+            # Count how many questions have answers
+            answers_result = await db.execute(
+                select(Answer).where(Answer.session_id == session.session_id)
+            )
+            answered_count = len(answers_result.scalars().all())
+        
         sessions_data.append({
             "session_id": session.session_id,
             "candidate_name": session.candidate_name,
             "candidate_email": session.candidate_email,
             "total_questions": session.total_questions,
+            "answered_questions": answered_count,
             "correct_answers": session.correct_answers,
             "score_percentage": session.score_percentage,
             "is_completed": session.is_completed,

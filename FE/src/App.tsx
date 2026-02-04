@@ -23,6 +23,8 @@ import AdminLayout from "./containers/AdminLayout";
 import AdminAddCandidate from "./containers/AdminAddCandidate/AdminAddCandidate";
 import AdminRequirement from "./containers/AdminRequirement/AdminRequirement";
 import AdminSettings from "./containers/AdminSettings/AdminSettings";
+import QuestionBankContainer from "./containers/QuestionBankContainer";
+import LearningPathContainer from "./containers/LearningPathContainer/LearningPathContainer";
 
 import Logout from "./components/Logout";
 
@@ -87,6 +89,8 @@ function App() {
           <Route path="assessment" element={<AssessmentSetupContainer />} />
           <Route path="assessment/:id/view" element={<AssessmentViewContainer />} />
           <Route path="assessment/:id/edit" element={<AssessmentSetupContainer />} />
+          <Route path="questions" element={<QuestionBankContainer />} />
+          <Route path="learning-path/:sessionId" element={<LearningPathContainer />} />
           <Route path="add-candidate" element={<AdminAddCandidate />} />
           <Route path="requirement" element={<AdminRequirement />} />
           <Route path="settings" element={<AdminSettings />} />

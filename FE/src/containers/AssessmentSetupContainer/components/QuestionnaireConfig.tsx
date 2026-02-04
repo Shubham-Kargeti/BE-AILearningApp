@@ -11,6 +11,7 @@ interface Props {
   value: QuestionDistribution;
   totalQuestions: number;
   onChange: (value: QuestionDistribution) => void;
+  totalQuestions?: number;
 }
 
 const QuestionnaireConfig: React.FC<Props> = ({ value, totalQuestions, onChange }) => {
@@ -82,6 +83,15 @@ const QuestionnaireConfig: React.FC<Props> = ({ value, totalQuestions, onChange 
 
       <div className="questionnaire-summary">
         Total Questions: <strong>{total}</strong>
+        {mismatch && (
+          <span style={{ 
+            color: '#f44336', 
+            marginLeft: '1rem', 
+            fontSize: '0.9rem' 
+          }}>
+            ⚠️ Should match {totalQuestions} (adjust question types above)
+          </span>
+        )}
       </div>
 
       {isInValid && (

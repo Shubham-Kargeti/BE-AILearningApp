@@ -96,7 +96,14 @@ const AdminDashboard: React.FC = () => {
           if (!a.is_published) {
             return "pending";
           }
-          return "active";
+          // Check if assessment has candidate activity
+          if ((a.completed_sessions || 0) > 0) {
+            return "completed";  // At least one candidate completed
+          }
+          if ((a.in_progress_sessions || 0) > 0) {
+            return "in_progress";  // Candidates are taking it
+          }
+          return "active";  // Published but no candidates yet
         };
 
         const getDisplaySkills = (skills: Record<string, string>): { name: string; level: string; isCore: boolean }[] => {
