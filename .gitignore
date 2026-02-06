@@ -326,3 +326,11 @@ START_HERE_ADMIN_SKILL_EXTRACTION.md
 # ============================================================================
 # END OF GITIGNORE
 # ============================================================================
+
+
+.env.example
+.env.development.example
+.env.production.example
+requirements.txt
+setup.py
+setup.ps1
