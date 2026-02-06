@@ -27,6 +27,7 @@ from app.api import auth, users, admin, dashboard, test_sessions
 from app.api.questionset_tests import router as questionset_tests_router
 from app.api.subskills import router as subskill_router
 from app.api.candidates import router as candidates_router
+from app.api.candidate_assessments import router as candidate_assessments_router
 from app.api.assessments import router as assessments_router
 from app.api.skills import router as skills_router
 from app.api.admin_skill_extraction import router as admin_skill_extraction_router
@@ -328,6 +329,7 @@ app.include_router(upload_router, prefix=settings.API_V1_PREFIX, tags=["Job Desc
 app.include_router(mcq_generation_router, prefix=settings.API_V1_PREFIX, tags=["Questions"])
 app.include_router(subskill_router, prefix=settings.API_V1_PREFIX, tags=["Subskills"])
 app.include_router(candidates_router, tags=["Candidates"])
+app.include_router(candidate_assessments_router, tags=["Candidates"])
 app.include_router(assessments_router, tags=["Assessments"])
 app.include_router(assessment_progress_router, prefix=settings.API_V1_PREFIX, tags=["Assessment Progress"])
 app.include_router(skills_router, tags=["skills-roles"])

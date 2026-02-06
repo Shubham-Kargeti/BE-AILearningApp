@@ -25,6 +25,7 @@ import AdminRequirement from "./containers/AdminRequirement/AdminRequirement";
 import AdminSettings from "./containers/AdminSettings/AdminSettings";
 import QuestionBankContainer from "./containers/QuestionBankContainer";
 import LearningPathContainer from "./containers/LearningPathContainer/LearningPathContainer";
+import LearningPathsContainer from "./containers/LearningPathsContainer/LearningPathsContainer";
 
 import Logout from "./components/Logout";
 
@@ -66,6 +67,7 @@ function App() {
           <Route path={client.STREAK} element={<StreakContainer />} />
           <Route path={client.SETTINGS} element={<SettingsContainer />} />
           <Route path={client.ASSESSMENTS} element={<AssessmentsListContainer />} />
+          <Route path="learning-paths" element={<LearningPathsContainer />} />
         </Route>
 
         <Route

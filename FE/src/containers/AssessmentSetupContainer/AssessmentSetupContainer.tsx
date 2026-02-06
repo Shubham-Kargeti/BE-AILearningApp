@@ -16,6 +16,8 @@ import { uploadService, assessmentService, questionGenService } from "../../API/
 import { parseResume, getExtractionConfidence } from "../../utils/resumeParser";
 import type { QuestionDistribution } from "./components/QuestionnaireConfig";
 import AssessmentConfigurationBlock from "./components/AssessmentConfigurationBlock";
+import type { GenerationPolicy } from "./components/GenerationPolicySelector";
+import GenerationPolicySelector from "./components/GenerationPolicySelector";
 import AssessmentQuestionEditor, { type Question } from "./components/AssessmentQuestionEditor";
 
 
@@ -94,6 +96,18 @@ const AssessmentSetupContainer: React.FC = () => {
     hard: 0.2,
   });
 
+  const [generationPolicy, setGenerationPolicy] = useState<GenerationPolicy>({
+    mode: "llm",
+    rag_pct: 0,
+    llm_pct: 100,
+  });
+
+  useEffect(() => {
+    if (!ragUploadedDocId) {
+      setGenerationPolicy({ mode: "llm", rag_pct: 0, llm_pct: 100 });
+    }
+  }, [ragUploadedDocId]);
+
   const [processLoading, setProcessLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formValid, setFormValid] = useState(false);
@@ -163,6 +177,17 @@ const AssessmentSetupContainer: React.FC = () => {
           if (nameMatch) {
             setCandidateInfo(prev => ({ ...prev, name: nameMatch[1].trim() }));
           }
+        }
+
+        if (assessment.generation_policy) {
+          const ragPct = typeof assessment.generation_policy.rag_pct === "number"
+            ? assessment.generation_policy.rag_pct
+            : 100;
+          const llmPct = typeof assessment.generation_policy.llm_pct === "number"
+            ? assessment.generation_policy.llm_pct
+            : Math.max(0, 100 - ragPct);
+          const mode = assessment.generation_policy.mode || (ragPct === 100 ? "rag" : llmPct === 100 ? "llm" : "mix");
+          setGenerationPolicy({ rag_pct: ragPct, llm_pct: llmPct, mode });
         }
 
         setToast({ type: "info", message: "Loaded assessment data for editing" });
@@ -320,7 +345,8 @@ const AssessmentSetupContainer: React.FC = () => {
     question_type_mix: questionDistribution, // This maps to the backend's question_type_mix
     passing_score_threshold: cutoffMarks,
     auto_adjust_by_experience: autoAdjustByExperience,
-    difficulty_distribution: difficultyDistribution
+    difficulty_distribution: difficultyDistribution,
+    generation_policy: generationPolicy,
   };
 
   // Only add candidate_info if we have email (required by backend)
@@ -367,6 +393,7 @@ const AssessmentSetupContainer: React.FC = () => {
   // If a Question Bank file was selected during create, upload it automatically (but do NOT auto-generate)
   if (ragFile && resultAssessmentId) {
     try {
+      setToast({ type: "info", message: "Uploading Question Bank document..." });
       setRagUploadProgress(0);
       const res = await uploadService.uploadQuestionDoc(ragFile, resultAssessmentId, (p) => setRagUploadProgress(p));
       setRagUploadedDocId(res.doc_id);
@@ -584,35 +611,10 @@ const AssessmentSetupContainer: React.FC = () => {
                 setToast({ type: 'error', message: 'Select a Question Bank document first' });
                 return;
               }
-              
-              // If assessment doesn't exist, create it first
-              let targetAssessmentId = isEditMode ? assessmentId : createdAssessmentId;
-              if (!targetAssessmentId) {
-                // Check minimum required fields
-                if (!role.trim()) {
-                  setToast({ type: 'error', message: 'Please enter Role before uploading Question Bank document' });
-                  return;
-                }
-                if (skills.length === 0) {
-                  setToast({ type: 'error', message: 'Please add at least one Skill before uploading Question Bank document' });
-                  return;
-                }
-                if (!cvFile && !candidateInfo.email) {
-                  setToast({ type: 'error', message: 'Please upload CV or enter candidate email before uploading Question Bank document' });
-                  return;
-                }
-                
-                setToast({ type: 'info', message: 'Creating assessment first...' });
-                await handleSubmit(true); // Skip strict validation for Question Bank auto-create
-                // After handleSubmit, createdAssessmentId should be set
-                targetAssessmentId = createdAssessmentId;
-                if (!targetAssessmentId) {
-                  setToast({ type: 'error', message: 'Failed to create assessment. Please try again.' });
-                  return;
-                }
-              }
-              
+              const targetAssessmentId = isEditMode ? assessmentId : createdAssessmentId;
+
               try {
+                setToast({ type: "info", message: "Uploading Question Bank document..." });
                 setRagUploadProgress(0);
                 const res = await uploadService.uploadQuestionDoc(ragFile, targetAssessmentId, (p) => setRagUploadProgress(p));
                 setRagUploadedDocId(res.doc_id);
@@ -674,6 +676,13 @@ const AssessmentSetupContainer: React.FC = () => {
           {ragUploadProgress !== null && <div style={{ marginLeft: 'auto' }}>{ragUploadProgress}%</div>}
         </div>
       </section>
+
+      {ragUploadedDocId && (
+        <GenerationPolicySelector
+          value={generationPolicy}
+          onChange={setGenerationPolicy}
+        />
+      )}
 
       {validationErrors.length > 0 && (
         <div className="validation-summary">

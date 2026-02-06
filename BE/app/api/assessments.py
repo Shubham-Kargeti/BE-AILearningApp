@@ -153,6 +153,7 @@ async def list_assessments(
                 passing_score_threshold=a.passing_score_threshold,
                 auto_adjust_by_experience=a.auto_adjust_by_experience,
                 difficulty_distribution=a.difficulty_distribution,
+                generation_policy=a.generation_policy,
                 # Session statistics
                 total_sessions=total_sessions,
                 completed_sessions=completed_sessions,
@@ -161,6 +162,64 @@ async def list_assessments(
         )
     
     return assessment_responses
+
+
+@router.get("/with-questions", response_model=List[dict])
+async def list_assessments_with_questions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    show_all: bool = Query(False, description="Show all assessments including inactive/unpublished (admin only)"),
+) -> List[dict]:
+    """
+    Admin-only: list assessments with their questions.
+    Includes screening questions appended at the end.
+    """
+    await check_admin(current_user)
+
+    query = select(Assessment)
+
+    if not show_all:
+        query = query.where(Assessment.is_active == True)
+
+    query = query.order_by(desc(Assessment.created_at))
+
+    result = await db.execute(query)
+    assessments = result.scalars().all()
+
+    payload: List[dict] = []
+
+    for assessment in assessments:
+        questions_payload: List[dict] = []
+
+        if assessment.question_set_id:
+            q_stmt = select(Question).where(
+                Question.question_set_id == assessment.question_set_id
+            )
+            q_result = await db.execute(q_stmt)
+            questions = q_result.scalars().all()
+            questions_payload = [serialize_question(q) for q in questions]
+
+        screening_questions = extract_screening_questions(assessment.description)
+        for idx, sq in enumerate(screening_questions):
+            questions_payload.append({
+                "id": f"screening_{idx}",
+                "question_type": "screening",
+                "question_text": sq,
+                "required": True,
+            })
+
+        payload.append({
+            "assessment_id": assessment.assessment_id,
+            "title": assessment.title,
+            "job_title": assessment.job_title,
+            "question_set_id": assessment.question_set_id,
+            "is_active": assessment.is_active,
+            "is_published": assessment.is_published,
+            "total_questions": len(questions_payload),
+            "questions": questions_payload,
+        })
+
+    return payload
 
 
 @router.get("/{assessment_id}", response_model=dict)
@@ -219,6 +278,7 @@ async def get_assessment(
         "expires_at": assessment.expires_at,
         "created_at": assessment.created_at,
         "updated_at": assessment.updated_at,
+        "generation_policy": assessment.generation_policy,
     }
     if assessment.jd_id:
         jd_stmt = select(JobDescription).where(JobDescription.jd_id == assessment.jd_id)
@@ -421,6 +481,7 @@ async def create_assessment(
         is_published=True,
         expires_at=request.expires_at,
         created_by=current_user.id,
+        generation_policy=request.generation_policy or {"mode": "rag", "rag_pct": 100, "llm_pct": 0},
     )
     
     db.add(assessment)
@@ -452,6 +513,7 @@ async def create_assessment(
     passing_score_threshold=assessment.passing_score_threshold,
     auto_adjust_by_experience=assessment.auto_adjust_by_experience,
     difficulty_distribution=assessment.difficulty_distribution,
+    generation_policy=assessment.generation_policy,
 )
 
 
@@ -530,6 +592,7 @@ async def publish_assessment(
         passing_score_threshold=assessment.passing_score_threshold,
         auto_adjust_by_experience=assessment.auto_adjust_by_experience,
         difficulty_distribution=assessment.difficulty_distribution,
+        generation_policy=assessment.generation_policy,
     )
 
 
@@ -585,6 +648,8 @@ async def update_assessment(
         assessment.auto_adjust_by_experience = request.auto_adjust_by_experience
     if request.difficulty_distribution is not None:
         assessment.difficulty_distribution = request.difficulty_distribution
+    if request.generation_policy is not None:
+        assessment.generation_policy = request.generation_policy
     
     assessment.updated_at = datetime.utcnow()
     await db.commit()
@@ -615,6 +680,7 @@ async def update_assessment(
         passing_score_threshold=assessment.passing_score_threshold,
         auto_adjust_by_experience=assessment.auto_adjust_by_experience,
         difficulty_distribution=assessment.difficulty_distribution,
+        generation_policy=assessment.generation_policy,
     )
 
 

@@ -93,11 +93,14 @@ class Settings(BaseSettings):
     AZURE_TENANT_ID: str = ""
     AZURE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/sso/azure/callback"
     
-    # Email
-    SMTP_HOST: str = "smtp.gmail.com"
+    # Email Configuration (Brevo - formerly Sendinblue)
+    # Free tier: 300 emails/day
+    # SMTP: smtp-relay.brevo.com:587
+    # Get credentials: https://app.brevo.com/settings/keys/smtp
+    SMTP_HOST: str = "smtp-relay.brevo.com"
     SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
+    SMTP_USER: str = ""  # Your Brevo login email
+    SMTP_PASSWORD: str = ""  # Your Brevo SMTP key (not account password)
     SMTP_FROM_EMAIL: str = "noreply@learningapp.com"
     SMTP_FROM_NAME: str = "AI Learning App"
     

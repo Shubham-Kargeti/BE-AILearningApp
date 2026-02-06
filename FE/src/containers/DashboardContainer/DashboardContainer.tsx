@@ -14,7 +14,7 @@ import {
   Paper
 } from "@mui/material";
 import "./DashboardContainer.scss";
-import { coursesService, quizService } from "../../API/services";
+import { coursesService, quizService, candidateService } from "../../API/services";
 import type { RecommendedCourse as ServiceRecommendedCourse } from "../../API/services";
 import { isValidUrl } from "./helper";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
@@ -72,6 +72,24 @@ const DashboardContainer = () => {
     duration_seconds: number | null;
   }>>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  const [myAssessments, setMyAssessments] = useState<Array<{
+    assessment_id: string;
+    title: string;
+    description?: string;
+    job_title?: string;
+    duration_minutes: number;
+    total_questions: number;
+    is_published: boolean;
+    is_expired: boolean;
+    expires_at?: string;
+    created_at: string;
+    session_id?: string;
+    is_completed: boolean;
+    score_percentage?: number;
+    completed_at?: string;
+    attempts_count: number;
+  }>>([]);
+  const [loadingAssessments, setLoadingAssessments] = useState(false);
 
   const navigate = useNavigate();
   
@@ -153,7 +171,21 @@ const DashboardContainer = () => {
   useEffect(() => {
     getRecommendedCourses();
     fetchTestSessions();
+    fetchMyAssessments();
   }, []);
+
+  const fetchMyAssessments = async () => {
+    try {
+      setLoadingAssessments(true);
+      const assessments = await candidateService.getMyAssessments();
+      setMyAssessments(assessments);
+    } catch (error) {
+      console.error("Error fetching my assessments:", error);
+    } finally {
+      setLoadingAssessments(false);
+    }
+  };
+  
   return (
     <>
       <Box sx={{ 
@@ -362,7 +394,161 @@ const DashboardContainer = () => {
             </Grid>
           )}
 
-          {/* Assessment Results Section */}
+          {/* My Assigned Assessments Section */}
+          {!loadingAssessments && myAssessments.length > 0 && (
+            <Paper sx={{ 
+              padding: '2.5rem', 
+              borderRadius: '24px', 
+              backgroundColor: 'white',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+              marginBottom: '2rem'
+            }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                <Box>
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b', marginBottom: '0.25rem' }}>
+                    📋 My Assessments
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.875rem', color: '#64748b' }}>
+                    Assessments assigned to you
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Grid container spacing={2}>
+                {myAssessments.map((assessment) => (
+                  <Grid size={{ xs: 12, md: 6 }} key={assessment.assessment_id}>
+                    <Card sx={{
+                      border: '2px solid',
+                      borderColor: assessment.is_completed ? '#10b981' : '#f59e0b',
+                      borderRadius: '16px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                      transition: 'all 0.3s',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                      }
+                    }}>
+                      <CardContent sx={{ padding: '1.5rem' }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b', flex: 1 }}>
+                            {assessment.title}
+                          </Typography>
+                          {assessment.is_completed ? (
+                            <Chip 
+                              icon={<CheckCircleIcon sx={{ fontSize: 16 }} />}
+                              label="Completed"
+                              size="small"
+                              sx={{ 
+                                backgroundColor: '#dcfce7',
+                                color: '#16a34a',
+                                fontWeight: 600,
+                              }}
+                            />
+                          ) : (
+                            <Chip 
+                              icon={<AccessTimeIcon sx={{ fontSize: 16 }} />}
+                              label="Pending"
+                              size="small"
+                              sx={{ 
+                                backgroundColor: '#fef3c7',
+                                color: '#ca8a04',
+                                fontWeight: 600,
+                              }}
+                            />
+                          )}
+                        </Box>
+
+                        <Typography sx={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1rem' }}>
+                          {assessment.job_title}
+                        </Typography>
+
+                        <Box sx={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <AccessTimeIcon sx={{ fontSize: 16, color: '#64748b' }} />
+                            <Typography sx={{ fontSize: '0.875rem', color: '#64748b' }}>
+                              {assessment.duration_minutes} min
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <AssessmentIcon sx={{ fontSize: 16, color: '#64748b' }} />
+                            <Typography sx={{ fontSize: '0.875rem', color: '#64748b' }}>
+                              {assessment.total_questions} questions
+                            </Typography>
+                          </Box>
+                          {assessment.is_completed && assessment.score_percentage !== null && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <EmojiEventsIcon sx={{ fontSize: 16, color: '#f59e0b' }} />
+                              <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: assessment.score_percentage >= 70 ? '#16a34a' : '#dc2626' }}>
+                                Score: {assessment.score_percentage.toFixed(1)}%
+                              </Typography>
+                            </Box>
+                          )}
+                        </Box>
+
+                        <Box sx={{ display: 'flex', gap: '0.75rem' }}>
+                          {assessment.is_completed && assessment.session_id ? (
+                            <>
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<CheckCircleIcon />}
+                                onClick={() => navigate(`/app/results/${assessment.session_id}`)}
+                                sx={{
+                                  flex: 1,
+                                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                  textTransform: 'none',
+                                  fontWeight: 600,
+                                  boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                                }}
+                              >
+                                View Results
+                              </Button>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={<SchoolIcon />}
+                                onClick={() => navigate(`/learning-path/${assessment.session_id}`)}
+                                sx={{
+                                  flex: 1,
+                                  borderColor: '#667eea',
+                                  color: '#667eea',
+                                  textTransform: 'none',
+                                  fontWeight: 600,
+                                  '&:hover': {
+                                    borderColor: '#764ba2',
+                                    background: 'rgba(102, 126, 234, 0.05)',
+                                  }
+                                }}
+                              >
+                                Learning Path
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              variant="contained"
+                              fullWidth
+                              size="small"
+                              disabled={assessment.is_expired}
+                              sx={{
+                                background: assessment.is_expired ? '#9ca3af' : 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)',
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                boxShadow: assessment.is_expired ? 'none' : '0 4px 12px rgba(245, 158, 11, 0.3)',
+                              }}
+                            >
+                              {assessment.is_expired ? 'Expired' : 'Start Assessment'}
+                            </Button>
+                          )}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            </Paper>
+          )}
+
+          {/* Completed Assessment History Section */}
           <Paper sx={{ 
             padding: '2.5rem', 
             borderRadius: '24px', 
@@ -373,7 +559,7 @@ const DashboardContainer = () => {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
               <Box>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b', marginBottom: '0.25rem' }}>
-                  My Assessments
+                  Completed Tests History
                 </Typography>
                 <Typography sx={{ fontSize: '0.875rem', color: '#64748b' }}>
                   {testSessions.length > 0 

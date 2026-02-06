@@ -11,7 +11,6 @@ interface Props {
   value: QuestionDistribution;
   totalQuestions: number;
   onChange: (value: QuestionDistribution) => void;
-  totalQuestions?: number;
 }
 
 const QuestionnaireConfig: React.FC<Props> = ({ value, totalQuestions, onChange }) => {
@@ -28,7 +27,8 @@ const QuestionnaireConfig: React.FC<Props> = ({ value, totalQuestions, onChange 
   const total =
     value.mcq + value.coding + value.architecture;
   
-  const isInValid = total !== totalQuestions || total === 0;
+  const mismatch = total !== totalQuestions;
+  const isInValid = mismatch || total === 0;
 
   return (
     <section className="card questionnaire-card">

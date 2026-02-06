@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, validator
 import re
 
 from app.core.dependencies import get_db, get_current_user, optional_user
-from app.db.models import Candidate, User, UploadedDocument
+from app.db.models import Candidate, User, UploadedDocument, Assessment, TestSession
 from app.models.schemas import CandidateCreate, CandidateUpdate, CandidateResponse, FieldError, ValidationErrorResponse
 
 # Response schemas for new endpoints

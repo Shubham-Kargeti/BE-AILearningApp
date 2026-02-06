@@ -266,6 +266,7 @@ class AssessmentCreate(BaseModel):
     passing_score_threshold: int = 70  # percentage
     auto_adjust_by_experience: bool = True
     difficulty_distribution: Optional[Dict[str, float]] = None  # {"easy": 0.2, "medium": 0.5, "hard": 0.3}
+    generation_policy: Optional[Dict[str, Any]] = None
 
 
 
@@ -292,6 +293,7 @@ class AssessmentUpdate(BaseModel):
     passing_score_threshold: Optional[int] = None
     auto_adjust_by_experience: Optional[bool] = None
     difficulty_distribution: Optional[Dict[str, float]] = None
+    generation_policy: Optional[Dict[str, Any]] = None
 
 
 class AssessmentResponse(BaseModel):
@@ -322,6 +324,7 @@ class AssessmentResponse(BaseModel):
     passing_score_threshold: int
     auto_adjust_by_experience: bool
     difficulty_distribution: dict
+    generation_policy: dict
     created_at: datetime
     updated_at: datetime
     

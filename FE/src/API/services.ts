@@ -86,6 +86,11 @@ export interface Assessment {
   passing_score_threshold: number;
   auto_adjust_by_experience: boolean;
   difficulty_distribution: Record<string, number>;
+  generation_policy?: {
+    mode: "rag" | "llm" | "mix";
+    rag_pct: number;
+    llm_pct: number;
+  };
   // Session statistics (for admin dashboard)
   total_sessions?: number;
   completed_sessions?: number;
@@ -117,6 +122,11 @@ export interface AssessmentCreateRequest {
   passing_score_threshold?: number;
   auto_adjust_by_experience?: boolean;
   difficulty_distribution?: Record<string, number>;
+  generation_policy?: {
+    mode: "rag" | "llm" | "mix";
+    rag_pct: number;
+    llm_pct: number;
+  };
 }
 
 export interface Candidate {
@@ -412,6 +422,27 @@ export const candidateService = {
     const response = await apiClient.get<Candidate[]>(
       `/candidates?skip=${skip}&limit=${limit}`
     );
+    return response.data;
+  },
+
+  getMyAssessments: async (): Promise<Array<{
+    assessment_id: string;
+    title: string;
+    description?: string;
+    job_title?: string;
+    duration_minutes: number;
+    total_questions: number;
+    is_published: boolean;
+    is_expired: boolean;
+    expires_at?: string;
+    created_at: string;
+    session_id?: string;
+    is_completed: boolean;
+    score_percentage?: number;
+    completed_at?: string;
+    attempts_count: number;
+  }>> => {
+    const response = await apiClient.get("/candidates/my-assessments");
     return response.data;
   },
 };
