@@ -1,60 +1,92 @@
-import { Box, Typography, Avatar, Grid } from "@mui/material";
-import StarIcon from "@mui/icons-material/Star";
-import StarHalfIcon from "@mui/icons-material/StarHalf";
+import { Box, Typography, Grid } from "@mui/material";
+import FilePresentIcon from "@mui/icons-material/FilePresent";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import PsychologyIcon from "@mui/icons-material/Psychology";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import SchoolIcon from "@mui/icons-material/School";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import { useEffect, useState, useRef } from "react";
 import "./CommunitySection.scss";
 
-const testimonials = [
+const architectureSteps = [
   {
-    name: "Puneet Banga",
-    image: "/assets/avatars/user1.jpg",
-    rating: 5,
-    text: "The community here is incredible. I've made more friends on this platform in a month than years on others. Truly game-changing.",
+    icon: <FilePresentIcon />,
+    title: "Ingest Documents",
+    text: "Upload JD, CV, and question bank documents to extract skills and context.",
   },
   {
-    name: "Arjun Singha",
-    image: "/assets/avatars/user2.jpg",
-    rating: 4.5,
-    text: "Finally, a platform that just works. Seamless cross-play is a dream. Highly recommended.",
+    icon: <AutoAwesomeIcon />,
+    title: "RAG Indexing",
+    text: "Build FAISS vectors for grounded retrieval during question generation.",
   },
   {
-    name: "Pintoo",
-    image: "/assets/avatars/user3.jpg",
-    rating: 5,
-    text: "Exclusive content and progression system keeps me coming back. Always something to achieve!",
+    icon: <PsychologyIcon />,
+    title: "AI Question Generation",
+    text: "Blend RAG and LLM to generate role-specific, difficulty-aware questions.",
+  },
+  {
+    icon: <AssessmentIcon />,
+    title: "Assessment Delivery",
+    text: "Tokenized assessment links, timed tests, and secure session tracking.",
+  },
+  {
+    icon: <SchoolIcon />,
+    title: "Learning Path",
+    text: "Score analytics and personalized course recommendations for upskilling.",
   },
 ];
 
 const CommunitySection = () => {
+  const [isVisible, setIsVisible] = useState(false);
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.2 }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <Box className="community-section">
+    <Box className="community-section" ref={sectionRef}>
       <Typography variant="h4" className="community-title">
-        Join Our Thriving Community
+        End-to-End Architecture
       </Typography>
 
-        <Grid container spacing={4} className="testimonial-grid">
-        {testimonials.map((t) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={t.name}>
-            <Box className="testimonial-card">
-              <Box className="testimonial-header">
-                <Avatar src={t.image} className="testimonial-avatar" />
-                <Box>
-                  <Typography className="testimonial-name">{t.name}</Typography>
-                  <Box className="testimonial-stars">
-                    {Array.from({ length: Math.floor(t.rating) }).map(
-                      (_, i) => (
-                        <StarIcon key={i} className="star" />
-                      )
-                    )}
-                    {t.rating % 1 !== 0 && <StarHalfIcon className="star" />}
-                  </Box>
-                </Box>
-              </Box>
+      <Typography className="community-subtitle">
+        A complete workflow from document ingestion to learning path outcomes.
+      </Typography>
 
-              <Typography className="testimonial-text">{t.text}</Typography>
+      <Box className="architecture-flow">
+        {architectureSteps.map((step, idx) => (
+          <Box key={step.title} className="flow-item-wrapper">
+            <Box className={`testimonial-card ${isVisible ? 'fade-in-up' : ''}`}
+                 style={{ animationDelay: `${idx * 0.15}s` }}>
+              <Box className="step-number">{idx + 1}</Box>
+              <Box className="testimonial-header">
+                <Box className="testimonial-icon pulse-animation">{step.icon}</Box>
+                <Typography className="testimonial-name">{step.title}</Typography>
+              </Box>
+              <Typography className="testimonial-text">{step.text}</Typography>
             </Box>
-          </Grid>
+            {idx < architectureSteps.length - 1 && (
+              <Box className="flow-connector">
+                <ArrowForwardIcon className="arrow-icon" />
+              </Box>
+            )}
+          </Box>
         ))}
-      </Grid>
+      </Box>
     </Box>
   );
 };

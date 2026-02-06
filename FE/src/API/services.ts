@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { AxiosError, AxiosResponse } from "axios";
+import type { AxiosError, AxiosResponse, AxiosRequestConfig } from "axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/";
 const API_V1 = `${API_BASE_URL}api/v1`;
@@ -12,11 +12,53 @@ const apiClient = axios.create({
   },
 });
 
+type CacheEntry = {
+  expiresAt: number;
+  response: AxiosResponse;
+};
+
+const GET_CACHE_TTL_MS = 60_000;
+const getCache = new Map<string, CacheEntry>();
+
+const serializeParams = (params: AxiosRequestConfig["params"]) => {
+  if (!params) return "";
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    if (Array.isArray(value)) {
+      value.forEach((v) => search.append(key, String(v)));
+      return;
+    }
+    search.append(key, String(value));
+  });
+  return search.toString();
+};
+
+const getCacheKey = (config: AxiosRequestConfig) => {
+  const token = localStorage.getItem("authToken") || "";
+  const base = config.baseURL || "";
+  const url = config.url || "";
+  const params = serializeParams(config.params);
+  return `${base}${url}?${params}::${token}`;
+};
+
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("authToken");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    const method = (config.method || "get").toLowerCase();
+    if (method === "get" && !config.headers?.["x-cache-skip"]) {
+      const key = getCacheKey(config);
+      const cached = getCache.get(key);
+      if (cached && cached.expiresAt > Date.now()) {
+        config.adapter = async () => ({
+          ...cached.response,
+          config,
+        });
+      }
     }
     return config;
   },
@@ -24,7 +66,20 @@ apiClient.interceptors.request.use(
 );
 
 apiClient.interceptors.response.use(
-  (response: AxiosResponse) => response,
+  (response: AxiosResponse) => {
+    const method = (response.config.method || "get").toLowerCase();
+    if (method === "get" && !response.config.headers?.["x-cache-skip"]) {
+      const key = getCacheKey(response.config);
+      getCache.set(key, {
+        expiresAt: Date.now() + GET_CACHE_TTL_MS,
+        response,
+      });
+    } else if (["post", "put", "patch", "delete"].includes(method)) {
+      getCache.clear();
+    }
+
+    return response;
+  },
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       localStorage.clear();

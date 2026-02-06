@@ -7,6 +7,8 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
 import json
+from config import get_settings
+from app.core.redis import get_redis, RedisService
 from app.utils.generate_admin_assessment import generate_assessment_question_set
 from app.core.dependencies import get_db, get_current_user, optional_auth
 from app.core.security import check_admin, is_admin_user
@@ -19,6 +21,34 @@ from app.models.schemas import ScreeningResponseCreate, ScreeningResponseRespons
 from app.db.models import ScreeningResponse
 
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
+settings = get_settings()
+CACHE_TTL_SECONDS = 120
+
+
+async def _get_cache_service() -> Optional[RedisService]:
+    try:
+        return RedisService(get_redis())
+    except Exception:
+        return None
+
+
+def _list_cache_key(is_published: Optional[bool], skip: int, limit: int, show_all: bool) -> str:
+    return f"assessments:list:{show_all}:{is_published}:{skip}:{limit}"
+
+
+def _with_questions_cache_key(show_all: bool) -> str:
+    return f"assessments:with_questions:{show_all}"
+
+
+async def _clear_assessment_cache() -> None:
+    try:
+        redis = get_redis()
+    except Exception:
+        return
+
+    pattern = f"{settings.REDIS_CACHE_PREFIX}assessments:*"
+    async for key in redis.scan_iter(match=pattern):
+        await redis.delete(key)
 
 # ------------------------------------------------------------
 # Question Helpers 
@@ -91,6 +121,13 @@ async def list_assessments(
     - limit: Number of records to return
     - show_all: If true, shows all assessments (for admin dashboard)
     """
+    cache_service = await _get_cache_service()
+    cache_key = _list_cache_key(is_published, skip, limit, show_all)
+    if cache_service:
+        cached = await cache_service.cache_get(cache_key)
+        if cached:
+            return cached
+
     query = select(Assessment).where(Assessment.is_active == True)
     
     if show_all:
@@ -161,6 +198,10 @@ async def list_assessments(
             )
         )
     
+    if cache_service:
+        cached_payload = [a.model_dump(mode="json") for a in assessment_responses]
+        await cache_service.cache_set(cache_key, cached_payload, expiry=CACHE_TTL_SECONDS)
+
     return assessment_responses
 
 
@@ -175,6 +216,13 @@ async def list_assessments_with_questions(
     Includes screening questions appended at the end.
     """
     await check_admin(current_user)
+
+    cache_service = await _get_cache_service()
+    cache_key = _with_questions_cache_key(show_all)
+    if cache_service:
+        cached = await cache_service.cache_get(cache_key)
+        if cached:
+            return cached
 
     query = select(Assessment)
 
@@ -218,6 +266,9 @@ async def list_assessments_with_questions(
             "total_questions": len(questions_payload),
             "questions": questions_payload,
         })
+
+    if cache_service:
+        await cache_service.cache_set(cache_key, payload, expiry=CACHE_TTL_SECONDS)
 
     return payload
 
@@ -488,6 +539,8 @@ async def create_assessment(
     await db.commit()
     await db.refresh(assessment)
 
+    await _clear_assessment_cache()
+
     return AssessmentResponse(
     id=assessment.id,
     assessment_id=assessment.assessment_id,
@@ -539,6 +592,8 @@ async def delete_assessment(
     assessment.is_active = False
     assessment.updated_at = datetime.utcnow()
     await db.commit()
+
+    await _clear_assessment_cache()
     
     return None
 
@@ -566,6 +621,8 @@ async def publish_assessment(
     assessment.updated_at = datetime.utcnow()
     await db.commit()
     await db.refresh(assessment)
+
+    await _clear_assessment_cache()
     
     return AssessmentResponse(
         id=assessment.id,
@@ -654,6 +711,8 @@ async def update_assessment(
     assessment.updated_at = datetime.utcnow()
     await db.commit()
     await db.refresh(assessment)
+
+    await _clear_assessment_cache()
     
     return AssessmentResponse(
         id=assessment.id,

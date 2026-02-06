@@ -20,13 +20,13 @@ const Navbar = () => {
       <Box className="navbar-left">
         <Box className="navbar-logo" />
         <Typography variant="h6" className="navbar-title">
-          Learning Platform
+          AI Learning App
         </Typography>
       </Box>
 
       <Box className="navbar-links">
         <span onClick={() => scrollToSection("hero")}>Home</span>
-        <span onClick={() => scrollToSection("community")}>Community</span>
+        <span onClick={() => scrollToSection("architecture")}>Architecture</span>
         <span onClick={() => scrollToSection("features")}>Features</span>
       </Box>
 

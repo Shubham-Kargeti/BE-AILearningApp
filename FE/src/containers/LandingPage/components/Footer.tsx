@@ -11,12 +11,12 @@ const Footer = () => {
         <Box className="footer-brand">
           <Box className="footer-logo" />
           <Typography variant="h6" className="footer-title">
-            Learning Platform
+            AI Learning App
           </Typography>
         </Box>
 
         <Typography className="footer-description">
-          Your universe for gaming, community, and limitless play.
+          End-to-end assessment platform for skill validation and learning paths.
         </Typography>
 
         <Box className="footer-socials">
@@ -35,7 +35,7 @@ const Footer = () => {
       <Box className="footer-divider" />
 
       <Typography className="footer-copy">
-        © {new Date().getFullYear()} Learning Platform. All rights reserved.
+        © {new Date().getFullYear()} AI Learning App. All rights reserved.
       </Typography>
     </Box>
   );

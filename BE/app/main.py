@@ -13,7 +13,7 @@ import structlog
 
 from config import get_settings
 from app.db.session import init_db, close_db
-# from app.core.redis import init_redis, close_redis  # DISABLED - Redis not in use
+from app.core.redis import init_redis, close_redis
 from app.core.logging import configure_logging, get_logger
 from app.core.sentry import init_sentry
 from app.core.metrics import setup_metrics
@@ -62,12 +62,11 @@ async def lifespan(app: FastAPI):
     configure_logging()
     init_sentry()
     
-    # Redis - DISABLED
-    # try:
-    #     await init_redis()
-    #     logger.info("redis_initialized")
-    # except Exception as e:
-    #     logger.error("redis_initialization_failed", error=str(e))
+    try:
+        await init_redis()
+        logger.info("redis_initialized")
+    except Exception as e:
+        logger.error("redis_initialization_failed", error=str(e))
     
     try:
         await init_db()
@@ -79,7 +78,7 @@ async def lifespan(app: FastAPI):
     
     logger.info("shutting_down_application")
     
-    # await close_redis()  # Redis not in use
+    await close_redis()
     await close_db()
     
     logger.info("application_shutdown_complete")

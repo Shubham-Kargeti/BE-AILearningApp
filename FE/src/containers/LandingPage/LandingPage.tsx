@@ -15,7 +15,7 @@ const LandingPage = () => {
       {/* <div id="featured">
         <FeaturedSection />
       </div> */}
-      <div id="community">
+      <div id="architecture">
         <CommunitySection />
       </div>
       <div id="features">

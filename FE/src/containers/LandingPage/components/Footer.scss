@@ -1,6 +1,6 @@
 .footer {
-  background: #0d0c1d;
-  color: #ffffff;
+  background: #0f172a;
+  color: #f8fafc;
   padding: 50px 40px 25px;
   text-align: center;
 }
@@ -22,7 +22,7 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: #3b2bee;
+  background: linear-gradient(135deg, #2563eb 0%, #22c55e 100%);
 }
 
 .footer-title {
@@ -30,7 +30,7 @@
 }
 
 .footer-description {
-  color: #c7c6d9;
+  color: #cbd5f5;
   font-size: 14px;
   margin-bottom: 25px;
 }
@@ -43,7 +43,7 @@
 }
 
 .social-btn {
-  color: #d4d3ea !important;
+  color: #cbd5f5 !important;
   transition: 0.25s ease;
 
   &:hover {
@@ -60,5 +60,5 @@
 
 .footer-copy {
   font-size: 12px;
-  color: #8b89a7;
+  color: #94a3b8;
 }
