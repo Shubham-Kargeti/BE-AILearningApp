@@ -60,37 +60,37 @@ services:
       - ai_learning_network
 
   # FastAPI Application
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: ai_learning_api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/ai_learning_db
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://redis:6379/2
-      - S3_ENDPOINT_URL=http://minio:9000
-      - S3_ACCESS_KEY=minioadmin
-      - S3_SECRET_KEY=minioadmin
-      - HF_HOME=/app/.cache/huggingface
-      - TRANSFORMERS_CACHE=/app/.cache/huggingface
-      - HF_HUB_DISABLE_SYMLINKS_WARNING=1
-    ports:
-      - "8000:8000"
-    volumes:
-      - .:/app
-      - huggingface_cache:/app/.cache/huggingface
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    networks:
-      - ai_learning_network
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: ai_learning_api
+  #   command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+  #   environment:
+  #     - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/ai_learning_db
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - CELERY_BROKER_URL=redis://redis:6379/1
+  #     - CELERY_RESULT_BACKEND=redis://redis:6379/2
+  #     - S3_ENDPOINT_URL=http://minio:9000
+  #     - S3_ACCESS_KEY=minioadmin
+  #     - S3_SECRET_KEY=minioadmin
+  #     - HF_HOME=/app/.cache/huggingface
+  #     - TRANSFORMERS_CACHE=/app/.cache/huggingface
+  #     - HF_HUB_DISABLE_SYMLINKS_WARNING=1
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - .:/app
+  #     - huggingface_cache:/app/.cache/huggingface
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #   networks:
+  #     - ai_learning_network
 
   # Celery Worker
   celery_worker:
