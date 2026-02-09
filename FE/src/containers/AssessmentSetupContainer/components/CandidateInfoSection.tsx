@@ -102,19 +102,6 @@ const CandidateInfoSection: React.FC<CandidateInfoSectionProps> = ({
 
         <div className="info-field">
           <label>
-            <FiBriefcase className="field-icon" />
-            Current Role
-          </label>
-          <input
-            type="text"
-            value={candidateInfo.currentRole}
-            onChange={(e) => handleChange("currentRole", e.target.value)}
-            placeholder="e.g., Senior Software Engineer"
-          />
-        </div>
-
-        <div className="info-field">
-          <label>
             <FiClock className="field-icon" />
             Experience
           </label>

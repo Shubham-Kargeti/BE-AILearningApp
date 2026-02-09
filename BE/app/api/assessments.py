@@ -509,6 +509,36 @@ async def create_assessment(
         questionnaire_config=request.questionnaire_config
     )
 
+    # ------------------------------------------------------
+    # ✅ NEW: Add manual questions to the question set
+    # ------------------------------------------------------
+    if request.manual_questions and len(request.manual_questions) > 0:
+        from app.db.models import Question
+        
+        for manual_q in request.manual_questions:
+            # Skip empty questions
+            if not manual_q.get('question_text', '').strip():
+                continue
+                
+            new_question = Question(
+                question_set_id=question_set_id,
+                question_text=manual_q['question_text'],
+                question_type=manual_q.get('type', 'mcq'),
+                difficulty=manual_q.get('difficulty', 'medium'),
+                topic=manual_q.get('skill', ''),
+                options=manual_q.get('options', {}),
+                correct_answer=manual_q.get('correct_answer', ''),
+                code_template=manual_q.get('code_template'),
+                constraints=manual_q.get('constraints'),
+                test_cases=manual_q.get('test_cases'),
+                time_limit_minutes=manual_q.get('time_limit', 30),
+                source_type='manual',  # Mark as manually added
+                quality_score=100,  # Manual questions are pre-approved
+            )
+            db.add(new_question)
+        
+        await db.flush()  # Save manual questions to database
+
     # --------------------------------------------
     # Store screening questions inside description
     # --------------------------------------------

@@ -530,7 +530,6 @@ const AdminDashboard: React.FC = () => {
                   <th className="col-candidate">Candidate</th>
                   <th className="col-role">Role</th>
                   <th className="col-skills">Top Skills</th>
-                  <th className="col-config">Configuration</th>
                   <th className="col-status">Status</th>
                   <th className="col-dates">Dates</th>
                   <th className="col-actions">Actions</th>
@@ -576,22 +575,6 @@ const AdminDashboard: React.FC = () => {
                           )}
                         </div>
                       </td>
-                      <td className="col-config">
-                        <div className="config-cell">
-                          <div className="config-item">
-                            <span className="config-label">Questions:</span>
-                            <span className="config-value">{assessment.total_questions || 'N/A'}</span>
-                          </div>
-                          <div className="config-item">
-                            <span className="config-label">Auto-adjust:</span>
-                            <span className="config-value">{assessment.auto_adjust_by_experience ? 'Yes' : 'No'}</span>
-                          </div>
-                          <div className="config-item">
-                            <span className="config-label">Pass threshold:</span>
-                            <span className="config-value">{assessment.passing_score_threshold ? `${assessment.passing_score_threshold}%` : 'N/A'}</span>
-                          </div>
-                        </div>
-                      </td>
                       <td className="col-status">
                         <div className={`status-badge ${statusInfo.color}`}>
                           {statusInfo.icon}
@@ -613,7 +596,7 @@ const AdminDashboard: React.FC = () => {
                         </div>
                       </td>
                       <td className="col-actions">
-                        <div className="action-buttons">
+                        <div className="action-buttons" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'nowrap', minWidth: 'fit-content' }}>
                           <button 
                             className="action-btn view" 
                             title="View assessment"

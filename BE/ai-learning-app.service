@@ -1,0 +1,32 @@
+[Unit]
+Description=AI Learning App - FastAPI Backend
+After=network.target postgresql.service redis.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/BE-AILearningApp/BE
+Environment="PATH=/home/ubuntu/BE-AILearningApp/BE/venv/bin"
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=/home/ubuntu/BE-AILearningApp/BE/.env
+
+ExecStart=/home/ubuntu/BE-AILearningApp/BE/venv/bin/uvicorn app.main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --workers 4 \
+    --log-level info \
+    --access-log \
+    --proxy-headers
+
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/ai-learning-app/app.log
+StandardError=append:/var/log/ai-learning-app/error.log
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

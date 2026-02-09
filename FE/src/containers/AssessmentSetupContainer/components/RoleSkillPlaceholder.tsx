@@ -15,6 +15,8 @@ interface Props {
   extractedSkills?: string[];
   jdSkills?: string[];
   skillDurations?: Record<string, number>;
+  skillPriorities?: Record<string, 'must-have' | 'good-to-have'>;  // ✅ NEW
+  onSkillPriorityChange?: (skill: string, priority: 'must-have' | 'good-to-have') => void;  // ✅ NEW
   onClearExtraction?: () => void;
 }
 
@@ -54,6 +56,8 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
   extractedSkills,
   jdSkills = [],
   skillDurations = {},
+  skillPriorities = {},
+  onSkillPriorityChange,
   onClearExtraction: _onClearExtraction,
 }) => {
   const [tempSkill, setTempSkill] = useState("");
@@ -277,6 +281,29 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
                 <span className="skill-name">{skillData.name}</span>
                 {skillData.duration > 0 && (
                   <span className="skill-duration">{skillData.duration}+ yrs</span>
+                )}
+                {onSkillPriorityChange && (
+                  <button
+                    className="priority-badge"
+                    onClick={() => {
+                      const current = skillPriorities[skillData.name] || 'must-have';
+                      const newPriority = current === 'must-have' ? 'good-to-have' : 'must-have';
+                      onSkillPriorityChange(skillData.name, newPriority);
+                    }}
+                    style={{
+                      padding: '2px 6px',
+                      fontSize: '0.7em',
+                      borderRadius: '4px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: skillPriorities[skillData.name] === 'must-have' ? '#e3f2fd' : '#fff3e0',
+                      color: skillPriorities[skillData.name] === 'must-have' ? '#1976d2' : '#f57c00',
+                      marginLeft: '4px',
+                    }}
+                    title="Toggle must-have/good-to-have"
+                  >
+                    {skillPriorities[skillData.name] === 'must-have' ? 'M' : 'G'}
+                  </button>
                 )}
                 {isExtracted && !skillData.isMatched && <span className="source-label">auto</span>}
                 <button

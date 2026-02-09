@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_db
 from app.db.models import User, RefreshToken
-from app.core.security import decode_token
+from app.core.security import decode_token, is_admin_user
 from datetime import datetime
 
 security = HTTPBearer()
@@ -209,3 +209,26 @@ async def optional_user(
         pass
     
     return None
+
+
+async def admin_required(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """
+    Require admin privileges for endpoint access.
+    
+    Args:
+        current_user: Current authenticated user
+    
+    Returns:
+        User: Admin user
+    
+    Raises:
+        HTTPException: If user is not an admin
+    """
+    if not is_admin_user(current_user.email):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
+    return current_user

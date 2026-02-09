@@ -5,7 +5,6 @@ import "./AssessmentSetupContainer.scss";
 import FileUpload from "./components/FileUpload";
 import CandidateInfoSection from "./components/CandidateInfoSection";
 import type { CandidateInfoData } from "./components/CandidateInfoSection";
-import AvailabilitySelector from "./components/AvailabilitySelector";
 import RoleSkillPlaceholder from "./components/RoleSkillPlaceholder";
 import AssessmentMethodSelector from "./components/AssessmentMethodSelector";
 import AssessmentSetupSubmitButton from "./components/AssessmentSetupSubmitButton";
@@ -61,7 +60,6 @@ const AssessmentSetupContainer: React.FC = () => {
   const [emailValid, setEmailValid] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [isAutoFilled, setIsAutoFilled] = useState(false);
-  const [availability, setAvailability] = useState(50);
 
   const [role, setRole] = useState("");
   const [roleError, setRoleError] = useState("");
@@ -69,6 +67,8 @@ const AssessmentSetupContainer: React.FC = () => {
   const [skillsError, setSkillsError] = useState("");
   const [jdSkills, setJdSkills] = useState<string[]>([]);
   const [skillDurations, setSkillDurations] = useState<Record<string, number>>({});
+  const [skillPriorities, setSkillPriorities] = useState<Record<string, 'must-have' | 'good-to-have'>>({});
+  const [isDraft, setIsDraft] = useState(false);
 
   const [assessmentMethod, setAssessmentMethod] = useState("questionnaire");
   const [expiresAt, setExpiresAt] = useState<string>("");
@@ -329,6 +329,10 @@ const AssessmentSetupContainer: React.FC = () => {
       return { ...acc, [skill]: level };
     }, {}),
 
+    skill_priorities: skillPriorities,  // ✅ NEW: Add skill priorities (must-have / good-to-have)
+    is_draft: isDraft,  // ✅ NEW: Mark as draft
+    is_published: !isDraft,  // Don't publish drafts
+
     required_roles: [role.trim()],
     duration_minutes: 30,
 
@@ -339,6 +343,20 @@ const AssessmentSetupContainer: React.FC = () => {
     screening_questions: screeningQuestions
       .map(q => q.trim())
       .filter(Boolean),
+
+    // ✅ NEW: Include manual questions in the payload
+    manual_questions: manualQuestions.map(q => ({
+      question_text: q.question_text,
+      type: q.type,
+      difficulty: q.difficulty,
+      skill: q.skill || '',
+      options: q.options || [],
+      correct_answer: q.correct_answer || '',
+      code_template: q.code_template,
+      constraints: q.constraints,
+      test_cases: q.test_cases,
+      time_limit: q.time_limit,
+    })),
 
     // NEW: Experience-based question configuration
     total_questions: totalQuestions,
@@ -498,6 +516,10 @@ const AssessmentSetupContainer: React.FC = () => {
           setSkillsError={setSkillsError}
           jdSkills={jdSkills}
           skillDurations={skillDurations}
+          skillPriorities={skillPriorities}
+          onSkillPriorityChange={(skill, priority) => {
+            setSkillPriorities({ ...skillPriorities, [skill]: priority });
+          }}
         />
       </section>
 
@@ -516,10 +538,6 @@ const AssessmentSetupContainer: React.FC = () => {
           setEmailError={setEmailError}
           isAutoFilled={isAutoFilled}
         />
-
-        <div className="field" style={{ marginTop: "16px" }}>
-          <AvailabilitySelector value={availability} setValue={setAvailability} />
-        </div>
       </section>
 
 
@@ -527,8 +545,6 @@ const AssessmentSetupContainer: React.FC = () => {
       <AssessmentConfigurationBlock
         questionDistribution={questionDistribution}
         onQuestionDistributionChange={setQuestionDistribution}
-        screeningQuestions={screeningQuestions}
-        onScreeningQuestionsChange={setScreeningQuestions}
         cutoffMarks={cutoffMarks}
         onCutoffMarksChange={setCutoffMarks}
         totalQuestions={totalQuestions}
@@ -698,12 +714,27 @@ const AssessmentSetupContainer: React.FC = () => {
       )}
 
       <div className="footer-actions">
+        <button
+          className="btn btn-secondary"
+          onClick={() => {
+            setIsDraft(true);
+            handleSubmit(true);
+          }}
+          disabled={submitLoading}
+          style={{ marginRight: '1rem' }}
+        >
+          {submitLoading && isDraft ? 'Saving Draft...' : 'Save as Draft'}
+        </button>
+        
         <AssessmentSetupSubmitButton
           disabled={!formValid || submitLoading}
-          loading={submitLoading}
-          onClick={handleSubmit}
+          loading={submitLoading && !isDraft}
+          onClick={() => {
+            setIsDraft(false);
+            handleSubmit();
+          }}
           validationCount={validationErrors.length}
-          label={isEditMode ? "Update Assessment" : "Set Assessment"}
+          label={isEditMode ? "Update Assessment" : "Create Assessment"}
           loadingLabel={isEditMode ? "Updating Assessment..." : "Creating Assessment..."}
         />
       </div>

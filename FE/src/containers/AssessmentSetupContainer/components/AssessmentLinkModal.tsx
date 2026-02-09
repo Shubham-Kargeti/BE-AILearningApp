@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { FiCopy, FiMail } from "react-icons/fi";
+import { FiCopy, FiMail, FiX } from "react-icons/fi";
 import "./AssessmentLinkModal.scss";
 
 interface Props {
@@ -36,8 +36,30 @@ const AssessmentLinkModal: React.FC<Props> = ({ open, link, email, onClose }) =>
   };
 
   return (
-    <div className="assessment-modal-overlay">
-      <div className="assessment-modal">
+    <div className="assessment-modal-overlay" onClick={onClose}>
+      <div className="assessment-modal" onClick={(e) => e.stopPropagation()}>
+        <button 
+          className="modal-close-btn" 
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: '1rem',
+            right: '1rem',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '0.5rem',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'background 0.2s',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#f0f0f0'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+        >
+          <FiX size={24} />
+        </button>
         <h3 className="modal-title">Assessment Link</h3>
         <p className="modal-description">Share this link with the candidate to start their assessment.</p>
 

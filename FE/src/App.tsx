@@ -26,6 +26,7 @@ import AdminSettings from "./containers/AdminSettings/AdminSettings";
 import QuestionBankContainer from "./containers/QuestionBankContainer";
 import LearningPathContainer from "./containers/LearningPathContainer/LearningPathContainer";
 import LearningPathsContainer from "./containers/LearningPathsContainer/LearningPathsContainer";
+import DetailedResultsView from "./containers/DetailedResultsView/DetailedResultsView";
 
 import Logout from "./components/Logout";
 
@@ -93,6 +94,7 @@ function App() {
           <Route path="assessment/:id/edit" element={<AssessmentSetupContainer />} />
           <Route path="questions" element={<QuestionBankContainer />} />
           <Route path="learning-path/:sessionId" element={<LearningPathContainer />} />
+          <Route path="assessment-results/:sessionId" element={<DetailedResultsView />} />
           <Route path="add-candidate" element={<AdminAddCandidate />} />
           <Route path="requirement" element={<AdminRequirement />} />
           <Route path="settings" element={<AdminSettings />} />

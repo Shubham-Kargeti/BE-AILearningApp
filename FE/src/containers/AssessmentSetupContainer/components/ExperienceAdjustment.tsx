@@ -4,9 +4,19 @@ import "./ExperienceAdjustment.scss";
 interface Props {
   value: boolean;
   onChange: (value: boolean) => void;
+  cutoffMarks?: number;
+  onCutoffChange?: (value: number) => void;
 }
 
-const ExperienceAdjustment: React.FC<Props> = ({ value, onChange }) => {
+const ExperienceAdjustment: React.FC<Props> = ({ value, onChange, cutoffMarks, onCutoffChange }) => {
+  const handleToggle = (checked: boolean) => {
+    onChange(checked);
+    // Reset cutoff to 70 when enabling auto-adjust
+    if (checked && onCutoffChange) {
+      onCutoffChange(70);
+    }
+  };
+
   return (
     <div className="experience-adjustment-container">
       <div className="toggle-container">
@@ -14,7 +24,7 @@ const ExperienceAdjustment: React.FC<Props> = ({ value, onChange }) => {
           <input
             type="checkbox"
             checked={value}
-            onChange={(e) => onChange(e.target.checked)}
+            onChange={(e) => handleToggle(e.target.checked)}
             className="toggle-input"
           />
           <span className="toggle-slider"></span>

@@ -41,7 +41,8 @@ export interface Question {
   difficulty: "easy" | "medium" | "hard";
   skill?: string;
   options?: QuestionOption[];
-  correct_answer?: string;
+  correct_answer?: string | string[];  // ✅ Support multiple correct answers
+  is_multi_select?: boolean;  // ✅ NEW: Flag for multi-select MCQ
   code_template?: string;
   constraints?: string[];
   test_cases?: any[];

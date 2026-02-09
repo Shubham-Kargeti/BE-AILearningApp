@@ -792,4 +792,115 @@ export const assessmentProgressService = {
   },
 };
 
+// Assessment Results Service (Admin)
+export const assessmentResultsService = {
+  getAssessmentDetailedResults: async (
+    assessmentId: string,
+    includeIncomplete: boolean = false
+  ): Promise<Array<{
+    session_id: string;
+    candidate_name: string | null;
+    candidate_email: string | null;
+    assessment_id: string;
+    assessment_title: string;
+    job_title: string | null;
+    started_at: string | null;
+    completed_at: string | null;
+    duration_seconds: number | null;
+    total_questions: number;
+    answered_questions: number;
+    correct_answers: number;
+    score_percentage: number | null;
+    is_completed: boolean;
+    is_scored: boolean;
+    questions: Array<{
+      question_id: number;
+      question_text: string;
+      topic: string | null;
+      difficulty: string | null;
+      candidate_answer: string;
+      correct_answer: string;
+      is_correct: boolean;
+      options: Record<string, string> | null;
+      time_taken_seconds: number | null;
+    }>;
+    application_status: string | null;
+  }>> => {
+    const response = await apiClient.get(
+      `/admin/assessment-results/${assessmentId}/results`,
+      { params: { include_incomplete: includeIncomplete } }
+    );
+    return response.data;
+  },
+
+  getSessionDetailedResult: async (sessionId: string): Promise<{
+    session_id: string;
+    candidate_name: string | null;
+    candidate_email: string | null;
+    assessment_id: string;
+    assessment_title: string;
+    job_title: string | null;
+    started_at: string | null;
+    completed_at: string | null;
+    duration_seconds: number | null;
+    total_questions: number;
+    answered_questions: number;
+    correct_answers: number;
+    score_percentage: number | null;
+    is_completed: boolean;
+    is_scored: boolean;
+    questions: Array<{
+      question_id: number;
+      question_text: string;
+      topic: string | null;
+      difficulty: string | null;
+      candidate_answer: string;
+      correct_answer: string;
+      is_correct: boolean;
+      options: Record<string, string> | null;
+      time_taken_seconds: number | null;
+    }>;
+    application_status: string | null;
+  }> => {
+    const response = await apiClient.get(`/admin/assessment-results/session/${sessionId}`);
+    return response.data;
+  },
+
+  shareSessionResult: async (
+    sessionId: string,
+    data: {
+      recipient_emails: string[];
+      include_answers?: boolean;
+      message?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    message: string;
+    share_link: string | null;
+  }> => {
+    const response = await apiClient.post(
+      `/admin/assessment-results/session/${sessionId}/share`,
+      data
+    );
+    return response.data;
+  },
+
+  updateCandidateStatus: async (
+    sessionId: string,
+    newStatus: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    application_id: string;
+    new_status: string;
+  }> => {
+    const response = await apiClient.patch(
+      `/admin/assessment-results/session/${sessionId}/status`,
+      null,
+      { params: { new_status: newStatus } }
+    );
+    return response.data;
+  },
+};
+
 export default apiClient;

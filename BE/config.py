@@ -109,6 +109,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_OTP: str = "3/minute"
     RATE_LIMIT_API: str = "100/minute"
     
+    # Frontend/Application URLs
+    FRONTEND_URL: str = "http://localhost:5173"
+    APP_URL: str = "http://localhost:5173"  # Used for generating share links
+    
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
     CORS_ALLOW_CREDENTIALS: bool = True

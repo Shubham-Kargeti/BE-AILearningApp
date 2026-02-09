@@ -23,10 +23,57 @@ import {
   FiPieChart,
   FiTrendingUp,
 } from "react-icons/fi";
-import { assessmentService, quizService } from "../../API/services";
+import { assessmentService, quizService, assessmentResultsService } from "../../API/services";
 import type { Assessment } from "../../API/services";
 import Toast from "../../components/Toast/Toast";
 import "./AssessmentViewContainer.scss";
+
+// Simple QR Code generator component
+const QRCodeCanvas: React.FC<{ value: string; size?: number; level?: 'L' | 'M' | 'Q' | 'H' }> = ({ 
+  value, 
+  size = 128,
+  level = 'M' 
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Simple QR code generation using a library-free approach
+    // For production, consider using 'qrcode' npm package
+    const generateQR = async () => {
+      try {
+        // Dynamic import of qrcode library
+        const QRCode = (await import('qrcode')).default;
+        await QRCode.toCanvas(canvas, value, {
+          width: size,
+          margin: 1,
+          errorCorrectionLevel: level,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+      } catch (err) {
+        // Fallback: Draw a simple placeholder
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fillRect(0, 0, size, size);
+        ctx.fillStyle = '#666';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('QR Code', size / 2, size / 2);
+      }
+    };
+
+    generateQR();
+  }, [value, size, level]);
+
+  return <canvas ref={canvasRef} width={size} height={size} style={{ borderRadius: '8px' }} />;
+};
 
 interface ToastMessage {
   type: "success" | "error" | "info";
@@ -88,15 +135,33 @@ const AssessmentViewContainer: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [resultsFilter, setResultsFilter] = useState<'all' | 'completed' | 'incomplete' | 'passed' | 'failed'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'score' | 'name'>('date');
+  const qrCodeRef = useRef<HTMLCanvasElement>(null);
 
   const fetchTestSessions = async () => {
     if (!id) return;
     try {
       setLoadingSessions(true);
-      const sessions = await quizService.listAssessmentTestSessions(id);
+      // Use the assessment results endpoint which includes test session data with scores
+      const results = await assessmentResultsService.getAssessmentDetailedResults(id, false);
+      // Transform to match the expected format
+      const sessions = results.map(r => ({
+        session_id: r.session_id,
+        candidate_name: r.candidate_name,
+        candidate_email: r.candidate_email,
+        total_questions: r.total_questions,
+        answered_questions: r.answered_questions,
+        correct_answers: r.correct_answers,
+        score_percentage: r.score_percentage,
+        is_completed: r.is_completed,
+        started_at: r.started_at,
+        completed_at: r.completed_at,
+        duration_seconds: r.duration_seconds,
+      }));
       setTestSessions(sessions);
     } catch (err) {
       console.error("Error fetching test sessions:", err);
+      // Fallback to empty array if admin endpoint fails (e.g., permissions issue)
+      setTestSessions([]);
     } finally {
       setLoadingSessions(false);
     }
@@ -651,28 +716,46 @@ const AssessmentViewContainer: React.FC = () => {
                     Avg. Time/Question
                   </div>
                   <div style={{ fontSize: '1.75rem', fontWeight: '700', color: '#00838f' }}>
-                    {assessment.total_questions > 0
-                      ? Math.round(assessment.duration_minutes / assessment.total_questions * 10) / 10
-                      : 0} min
+                    {(() => {
+                      const completedSessions = testSessions.filter(s => s.is_completed && s.duration_seconds && s.total_questions > 0);
+                      if (completedSessions.length === 0) return '0';
+                      const avgSeconds = completedSessions.reduce((sum, s) => sum + (s.duration_seconds! / s.total_questions), 0) / completedSessions.length;
+                      return Math.round(avgSeconds / 60 * 10) / 10;
+                    })()} min
                   </div>
                 </div>
 
                 {/* Difficulty estimate */}
                 <div style={{
                   padding: '1.25rem',
-                  background: assessment.passing_score_threshold >= 80 
-                    ? 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)'
-                    : assessment.passing_score_threshold >= 70
-                    ? 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)'
-                    : 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',
+                  background: (() => {
+                    const completedSessions = testSessions.filter(s => s.is_completed && s.score_percentage !== null);
+                    if (completedSessions.length === 0) {
+                      return 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)';
+                    }
+                    const avgScore = completedSessions.reduce((sum, s) => sum + (s.score_percentage || 0), 0) / completedSessions.length;
+                    return avgScore >= 80 
+                      ? 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)'
+                      : avgScore >= 60
+                      ? 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)'
+                      : 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)';
+                  })(),
                   borderRadius: '8px',
-                  border: `2px solid ${assessment.passing_score_threshold >= 80 ? '#f44336' 
-                    : assessment.passing_score_threshold >= 70 ? '#ff9800' : '#4caf50'}`,
+                  border: `2px solid ${(() => {
+                    const completedSessions = testSessions.filter(s => s.is_completed && s.score_percentage !== null);
+                    if (completedSessions.length === 0) return '#bdbdbd';
+                    const avgScore = completedSessions.reduce((sum, s) => sum + (s.score_percentage || 0), 0) / completedSessions.length;
+                    return avgScore >= 80 ? '#4caf50' : avgScore >= 60 ? '#ff9800' : '#f44336';
+                  })()}`,
                 }}>
                   <div style={{ 
                     fontSize: '0.75rem', 
-                    color: assessment.passing_score_threshold >= 80 ? '#c62828' 
-                      : assessment.passing_score_threshold >= 70 ? '#e65100' : '#2e7d32',
+                    color: (() => {
+                      const completedSessions = testSessions.filter(s => s.is_completed && s.score_percentage !== null);
+                      if (completedSessions.length === 0) return '#757575';
+                      const avgScore = completedSessions.reduce((sum, s) => sum + (s.score_percentage || 0), 0) / completedSessions.length;
+                      return avgScore >= 80 ? '#2e7d32' : avgScore >= 60 ? '#e65100' : '#c62828';
+                    })(),
                     marginBottom: '0.5rem',
                     fontWeight: '600',
                   }}>
@@ -681,11 +764,19 @@ const AssessmentViewContainer: React.FC = () => {
                   <div style={{ 
                     fontSize: '1.25rem', 
                     fontWeight: '700',
-                    color: assessment.passing_score_threshold >= 80 ? '#c62828' 
-                      : assessment.passing_score_threshold >= 70 ? '#e65100' : '#2e7d32',
+                    color: (() => {
+                      const completedSessions = testSessions.filter(s => s.is_completed && s.score_percentage !== null);
+                      if (completedSessions.length === 0) return '#757575';
+                      const avgScore = completedSessions.reduce((sum, s) => sum + (s.score_percentage || 0), 0) / completedSessions.length;
+                      return avgScore >= 80 ? '#2e7d32' : avgScore >= 60 ? '#e65100' : '#c62828';
+                    })(),
                   }}>
-                    {assessment.passing_score_threshold >= 80 ? 'Advanced' 
-                      : assessment.passing_score_threshold >= 70 ? 'Intermediate' : 'Beginner'}
+                    {(() => {
+                      const completedSessions = testSessions.filter(s => s.is_completed && s.score_percentage !== null);
+                      if (completedSessions.length === 0) return 'N/A';
+                      const avgScore = completedSessions.reduce((sum, s) => sum + (s.score_percentage || 0), 0) / completedSessions.length;
+                      return avgScore >= 80 ? 'Easy' : avgScore >= 60 ? 'Medium' : 'Hard';
+                    })()}
                   </div>
                 </div>
 
@@ -992,30 +1083,23 @@ const AssessmentViewContainer: React.FC = () => {
                   )}
                 </div>
 
-                {/* QR Code placeholder */}
+                {/* QR Code */}
                 <div style={{
                   padding: '1.5rem',
                   background: 'white',
                   borderRadius: '10px',
-                  border: '2px dashed #dee2e6',
+                  border: '2px solid #e0e0e0',
                   textAlign: 'center',
                   minWidth: '140px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                 }}>
-                  <div style={{
-                    width: '100px',
-                    height: '100px',
-                    margin: '0 auto',
-                    background: 'linear-gradient(135deg, #f0f0f0 0%, #e0e0e0 100%)',
-                    borderRadius: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: '0.75rem',
-                  }}>
-                    <FiLink size={32} style={{ color: '#999' }} />
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#999', fontWeight: '600' }}>
-                    QR Code
+                  <QRCodeCanvas
+                    value={`${window.location.origin}/candidate/assessment/${assessment.assessment_id}`}
+                    size={100}
+                    level="M"
+                  />
+                  <div style={{ fontSize: '0.75rem', color: '#666', fontWeight: '600' }}>
+                    Scan to Access
                   </div>
                 </div>
               </div>
@@ -1998,6 +2082,22 @@ const AssessmentViewContainer: React.FC = () => {
                               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
                                 <button
                                   className="btn btn-primary"
+                                  onClick={() => navigate(`/admin/assessment-results/${session.session_id}`)}
+                                  style={{ 
+                                    flex: 1,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.5rem',
+                                    fontSize: '0.875rem',
+                                    padding: '0.75rem 1.5rem',
+                                  }}
+                                >
+                                  <FiAward size={16} />
+                                  {session.is_completed ? 'View Detailed Results' : 'View Partial Results'}
+                                </button>
+                                <button
+                                  className="btn btn-secondary"
                                   onClick={() => viewDetailedResult(session.session_id)}
                                   disabled={loadingResult}
                                   style={{ 
@@ -2007,13 +2107,13 @@ const AssessmentViewContainer: React.FC = () => {
                                     justifyContent: 'center',
                                     gap: '0.5rem',
                                     fontSize: '0.875rem',
-                                    padding: '0.75rem 1.5rem',
+                                    padding: '0.75rem 1rem',
                                     cursor: loadingResult ? 'not-allowed' : 'pointer',
                                     opacity: loadingResult ? 0.6 : 1,
                                   }}
                                 >
-                                  <FiAward size={16} />
-                                  {session.is_completed ? 'View Detailed Results' : 'View Partial Results'}
+                                  <FiActivity size={16} />
+                                  Quick View
                                 </button>
                                 <button
                                   className="btn btn-secondary"
@@ -2025,11 +2125,11 @@ const AssessmentViewContainer: React.FC = () => {
                                     justifyContent: 'center',
                                     gap: '0.5rem',
                                     fontSize: '0.875rem',
-                                    padding: '0.75rem 1.5rem',
+                                    padding: '0.75rem 1rem',
                                   }}
                                 >
                                   <FiBookOpen size={16} />
-                                  Generate Learning Path
+                                  Learning Path
                                 </button>
                               </div>
                             </div>

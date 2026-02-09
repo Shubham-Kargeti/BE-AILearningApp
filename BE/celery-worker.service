@@ -1,0 +1,29 @@
+[Unit]
+Description=AI Learning App - Celery Worker
+After=network.target postgresql.service redis.service ai-learning-app.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/BE-AILearningApp/BE
+Environment="PATH=/home/ubuntu/BE-AILearningApp/BE/venv/bin"
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=/home/ubuntu/BE-AILearningApp/BE/.env
+
+ExecStart=/home/ubuntu/BE-AILearningApp/BE/venv/bin/celery -A app.core.celery_app worker \
+    --loglevel=info \
+    --concurrency=4 \
+    --queues=default,questions,scores,emails
+
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/ai-learning-app/celery.log
+StandardError=append:/var/log/ai-learning-app/celery-error.log
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

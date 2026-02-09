@@ -2,7 +2,6 @@ import React from "react";
 import QuestionnaireConfig, {
     type QuestionDistribution,
 } from "./QuestionnaireConfig";
-import AdditionalScreeningQuestions from "./AdditionalScreeningQuestions";
 import CutoffMarks from "./CutoffMarks";
 import TotalQuestions from "./TotalQuestions";
 import DifficultyDistribution from "./DifficultyDistribution";
@@ -11,9 +10,6 @@ import ExperienceAdjustment from "./ExperienceAdjustment";
 interface Props {
     questionDistribution: QuestionDistribution;
     onQuestionDistributionChange: (v: QuestionDistribution) => void;
-
-    screeningQuestions: string[];
-    onScreeningQuestionsChange: (v: string[]) => void;
 
     cutoffMarks: number;
     onCutoffMarksChange: (v: number) => void;
@@ -34,8 +30,6 @@ interface Props {
 const AssessmentConfigurationBlock: React.FC<Props> = ({
     questionDistribution,
     onQuestionDistributionChange,
-    screeningQuestions,
-    onScreeningQuestionsChange,
     cutoffMarks,
     onCutoffMarksChange,
     totalQuestions,
@@ -76,17 +70,14 @@ const AssessmentConfigurationBlock: React.FC<Props> = ({
                 <ExperienceAdjustment
                     value={autoAdjustByExperience}
                     onChange={onAutoAdjustByExperienceChange}
+                    cutoffMarks={cutoffMarks}
+                    onCutoffChange={onCutoffMarksChange}
                 />
-
-                <AdditionalScreeningQuestions
-                    value={screeningQuestions}
-                    onChange={onScreeningQuestionsChange}
-                />
-
 
                 <CutoffMarks
                     value={cutoffMarks}
                     onChange={onCutoffMarksChange}
+                    disabled={autoAdjustByExperience}
                 />
             </div>
         </section>

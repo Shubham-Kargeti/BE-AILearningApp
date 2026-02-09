@@ -34,6 +34,7 @@ from app.api.admin_skill_extraction import router as admin_skill_extraction_rout
 from app.api.assessment_progress import router as assessment_progress_router
 from app.api.question_bank import router as question_bank_router
 from app.api.generator_jobs import router as generator_jobs_router
+from app.api.assessment_results import router as assessment_results_router
 
 
 # Import for recommended courses if it exists
@@ -337,6 +338,7 @@ app.include_router(admin_skill_extraction_router, tags=["Admin Skill Extraction"
 app.include_router(question_bank_router, prefix=settings.API_V1_PREFIX, tags=["Questions"])
 app.include_router(generator_jobs_router, prefix=settings.API_V1_PREFIX, tags=["Questions"])
 app.include_router(question_docs_router, prefix=settings.API_V1_PREFIX, tags=["Admin"])
+app.include_router(assessment_results_router, tags=["Assessment Results"])
 
 # Include recommended courses router if available
 if has_recommended_courses:

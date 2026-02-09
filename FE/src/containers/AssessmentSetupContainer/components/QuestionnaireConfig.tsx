@@ -5,6 +5,8 @@ export interface QuestionDistribution {
   mcq: number;
   coding: number;
   architecture: number;
+  scenario?: number;  // ✅ NEW: For PM/BA roles
+  design?: number;    // ✅ NEW: For UI/UX roles
 }
 
 interface Props {
