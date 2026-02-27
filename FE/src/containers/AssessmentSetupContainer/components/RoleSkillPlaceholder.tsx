@@ -61,6 +61,7 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
   onClearExtraction: _onClearExtraction,
 }) => {
   const [tempSkill, setTempSkill] = useState("");
+  const [tempSkillPriority, setTempSkillPriority] = useState<'must-have' | 'good-to-have'>('must-have');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
   const [showAllSkills, setShowAllSkills] = useState(false);
@@ -112,14 +113,23 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
     }
   };
 
-  const addSkill = (skillName: string) => {
+  const addSkill = (skillName: string, priority?: 'must-have' | 'good-to-have') => {
     const trimmed = skillName.trim();
     if (!trimmed || skills.includes(trimmed)) return;
 
     setSkills([...skills, trimmed]);
+    
+    // Set priority for the newly added skill
+    if (onSkillPriorityChange) {
+      const priorityToUse = priority || tempSkillPriority;
+      onSkillPriorityChange(trimmed, priorityToUse);
+    }
+    
     setTempSkill("");
     setShowSuggestions(false);
     setSkillsError?.("");
+    // Reset to default priority
+    setTempSkillPriority('must-have');
   };
 
   const handleSkillKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -152,6 +162,15 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
       ];
       setSkills(newSkills);
       setSkillsError?.("");
+      
+      // Set all extracted skills as "must-have" by default
+      if (onSkillPriorityChange) {
+        extractedSkills.forEach(skill => {
+          if (!skills.includes(skill)) {
+            onSkillPriorityChange(skill, 'must-have');
+          }
+        });
+      }
     }
   };
 
@@ -221,16 +240,60 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
         </div>
 
         {/* Skill Input with Suggestions */}
-        <div className="skill-input-container">
-          <input
-            type="text"
-            className="form-input"
-            placeholder="Type skill name or press Ctrl+Space for suggestions"
-            value={tempSkill}
-            onChange={(e) => handleSkillInput(e.target.value)}
-            onKeyDown={handleSkillKeyDown}
-            onFocus={() => tempSkill && setShowSuggestions(true)}
-          />
+        <div className="skill-input-container" style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Type skill name or press Ctrl+Space for suggestions"
+              value={tempSkill}
+              onChange={(e) => handleSkillInput(e.target.value)}
+              onKeyDown={handleSkillKeyDown}
+              onFocus={() => tempSkill && setShowSuggestions(true)}
+              style={{ flex: 1 }}
+            />
+            
+            {/* Priority Selector */}
+            <select
+              value={tempSkillPriority}
+              onChange={(e) => setTempSkillPriority(e.target.value as 'must-have' | 'good-to-have')}
+              style={{
+                padding: '0.5rem',
+                borderRadius: '6px',
+                border: '1px solid #ddd',
+                background: tempSkillPriority === 'must-have' ? '#e3f2fd' : '#fff3e0',
+                color: tempSkillPriority === 'must-have' ? '#1976d2' : '#f57c00',
+                fontWeight: 600,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                minWidth: '130px',
+              }}
+            >
+              <option value="must-have" style={{ background: '#fff' }}>Must Have</option>
+              <option value="good-to-have" style={{ background: '#fff' }}>Good to Have</option>
+            </select>
+            
+            {/* Add Button */}
+            {tempSkill.trim() && (
+              <button
+                type="button"
+                onClick={() => addSkill(tempSkill)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: '#1976d2',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Add
+              </button>
+            )}
+          </div>
 
           {/* Suggestions Dropdown */}
           {showSuggestions && filteredSuggestions.length > 0 && (
