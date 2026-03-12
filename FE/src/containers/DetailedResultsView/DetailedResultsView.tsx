@@ -89,6 +89,47 @@ const DetailedResultsView: React.FC = () => {
   const [shareMessage, setShareMessage] = useState("");
   const [sharing, setSharing] = useState(false);
 
+  // tracks which question(s) are being updated to disable buttons
+  const [updatingQuestions, setUpdatingQuestions] = useState<Set<number>>(new Set());
+
+  const handleToggleCorrect = async (questionId: number, currentStatus: boolean) => {
+    if (!sessionId) return;
+    setUpdatingQuestions(prev => new Set(prev).add(questionId));
+    try {
+      const resp = await assessmentResultsService.updateAnswerCorrectness(
+        sessionId,
+        questionId,
+        !currentStatus
+      );
+      // update local result state
+      setResult(prev => {
+        if (!prev) return prev;
+        const updatedQuestions = prev.questions.map(q => {
+          if (q.question_id === questionId) {
+            return { ...q, is_correct: !currentStatus };
+          }
+          return q;
+        });
+        return {
+          ...prev,
+          questions: updatedQuestions,
+          correct_answers: resp.correct_answers,
+          score_percentage: resp.score_percentage,
+        };
+      });
+      setToast({ type: "success", message: "Answer updated successfully" });
+    } catch (err: any) {
+      console.error("Error updating answer correctness:", err);
+      setToast({ type: "error", message: err?.response?.data?.detail || "Failed to update answer" });
+    } finally {
+      setUpdatingQuestions(prev => {
+        const copy = new Set(prev);
+        copy.delete(questionId);
+        return copy;
+      });
+    }
+  };
+
   useEffect(() => {
     fetchDetailedResult();
   }, [sessionId]);
@@ -490,6 +531,23 @@ const DetailedResultsView: React.FC = () => {
                         </Typography>
                       </Box>
                     )}
+
+                    {/* Admin controls for manual scoring */}
+                    <Box mt={2} display="flex" gap={1}>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color={question.is_correct ? "error" : "success"}
+                        onClick={() => handleToggleCorrect(question.question_id, question.is_correct)}
+                        disabled={updatingQuestions.has(question.question_id)}
+                      >
+                        {updatingQuestions.has(question.question_id) ? (
+                          <CircularProgress size={16} />
+                        ) : question.is_correct ?
+                          "Mark Incorrect" :
+                          "Mark Correct"}
+                      </Button>
+                    </Box>
                   </Box>
                 </AccordionDetails>
               </Accordion>

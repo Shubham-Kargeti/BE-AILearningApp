@@ -137,6 +137,42 @@ const AssessmentViewContainer: React.FC = () => {
   const [sortBy, setSortBy] = useState<'date' | 'score' | 'name'>('date');
   const qrCodeRef = useRef<HTMLCanvasElement>(null);
 
+  // for manual marking when detailed result is open
+  const [updatingQuestions, setUpdatingQuestions] = useState<Set<number>>(new Set());
+  const handleMarkAnswer = async (questionId: number, currentStatus: boolean) => {
+    if (!selectedResult) return;
+    setUpdatingQuestions(prev => new Set(prev).add(questionId));
+    try {
+      const resp = await assessmentResultsService.updateAnswerCorrectness(
+        selectedResult.session_id,
+        questionId,
+        !currentStatus
+      );
+      // update local selectedResult state
+      setSelectedResult(prev => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          detailed_results: prev.detailed_results.map(q =>
+            q.question_id === questionId ? { ...q, is_correct: !currentStatus } : q
+          ),
+          correct_answers: resp.correct_answers,
+          score_percentage: resp.score_percentage,
+        };
+        return updated;
+      });
+    } catch (err: any) {
+      console.error("Failed to update answer correctness", err);
+      setToast({ type: 'error', message: err?.response?.data?.detail || 'Unable to update answer' });
+    } finally {
+      setUpdatingQuestions(prev => {
+        const s = new Set(prev);
+        s.delete(questionId);
+        return s;
+      });
+    }
+  };
+
   const fetchTestSessions = async () => {
     if (!id) return;
     try {
@@ -2267,6 +2303,24 @@ const AssessmentViewContainer: React.FC = () => {
                           ) : (
                             <FiAlertCircle size={20} style={{ color: '#f44336', marginTop: '2px' }} />
                           )}
+                          <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ flex: 1 }}></span>
+                            <button
+                              style={{
+                                fontSize: '0.75rem',
+                                padding: '0.25rem 0.5rem',
+                                borderRadius: '4px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                backgroundColor: q.is_correct ? '#f44336' : '#4caf50',
+                                color: '#fff',
+                              }}
+                              disabled={updatingQuestions.has(q.question_id)}
+                              onClick={() => handleMarkAnswer(q.question_id, q.is_correct)}
+                            >
+                              {updatingQuestions.has(q.question_id) ? '...' : q.is_correct ? 'Mark Incorrect' : 'Mark Correct'}
+                            </button>
+                          </div>
                           <div style={{ flex: 1 }}>
                             <p style={{ fontWeight: '600', margin: '0 0 0.5rem 0' }}>
                               Q{idx + 1}. {q.question_text}

@@ -67,6 +67,11 @@ class ShareResultResponse(BaseModel):
     share_link: Optional[str] = None
 
 
+class UpdateAnswerRequest(BaseModel):
+    """Request payload for updating an individual answer's correctness."""
+    is_correct: bool
+
+
 @router.get("/{assessment_id}/results", response_model=List[CandidateResultDetail])
 async def get_assessment_detailed_results(
     assessment_id: str,
@@ -399,4 +404,76 @@ async def update_candidate_status(
         "message": f"Candidate status updated to: {new_status}",
         "application_id": application.application_id,
         "new_status": new_status
+    }
+
+
+@router.patch("/session/{session_id}/answer/{question_id}")
+async def update_answer_correctness(
+    session_id: str,
+    question_id: int,
+    payload: UpdateAnswerRequest,
+    current_user: User = Depends(admin_required),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Manually mark a candidate's answer as correct or incorrect.
+
+    This endpoint allows admins to override the automatic scoring for a
+    specific question.  It updates the `Answer.is_correct` flag and then
+    recalculates the parent `TestSession`'s correct_answers and
+    score_percentage.  The session is marked as scored afterwards.
+    """
+    # fetch answer record
+    ans_result = await db.execute(
+        select(Answer)
+        .join(TestSession)
+        .where(
+            and_(
+                Answer.session_id == session_id,
+                Answer.question_id == question_id
+            )
+        )
+    )
+    answer = ans_result.scalar_one_or_none()
+    if not answer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Answer not found for given session/question"
+        )
+
+    # update correctness
+    answer.is_correct = payload.is_correct
+
+    # recalc session aggregates
+    session_result = await db.execute(
+        select(TestSession).options(selectinload(TestSession.answers))
+        .where(TestSession.session_id == session_id)
+    )
+    session = session_result.scalar_one_or_none()
+    if not session:
+        # should not happen since answer joined session above,
+        # but guard for safety
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Test session not found"
+        )
+
+    # compute totals
+    correct_count = sum(1 for a in session.answers if a.is_correct)
+    session.correct_answers = correct_count
+    if session.total_questions and session.total_questions > 0:
+        session.score_percentage = (correct_count / session.total_questions) * 100
+    else:
+        session.score_percentage = None
+    session.is_scored = True
+
+    await db.commit()
+
+    return {
+        "success": True,
+        "session_id": session.session_id,
+        "question_id": question_id,
+        "is_correct": payload.is_correct,
+        "correct_answers": session.correct_answers,
+        "score_percentage": session.score_percentage,
     }

@@ -901,6 +901,25 @@ export const assessmentResultsService = {
     );
     return response.data;
   },
+
+  updateAnswerCorrectness: async (
+    sessionId: string,
+    questionId: number,
+    isCorrect: boolean
+  ): Promise<{
+    success: boolean;
+    session_id: string;
+    question_id: number;
+    is_correct: boolean;
+    correct_answers: number;
+    score_percentage: number | null;
+  }> => {
+    const response = await apiClient.patch(
+      `/admin/assessment-results/session/${sessionId}/answer/${questionId}`,
+      { is_correct: isCorrect }
+    );
+    return response.data;
+  },
 };
 
 export default apiClient;
