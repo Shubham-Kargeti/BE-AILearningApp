@@ -1,5 +1,5 @@
 import React from "react";
-import { FiUser, FiMail, FiBriefcase, FiClock } from "react-icons/fi";
+import { FiUser, FiMail, FiClock } from "react-icons/fi";
 import "./CandidateInfoSection.scss";
 
 export interface CandidateInfoData {

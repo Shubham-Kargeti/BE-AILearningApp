@@ -519,24 +519,66 @@ async def create_assessment(
             # Skip empty questions
             if not manual_q.get('question_text', '').strip():
                 continue
-                
+
+            raw_options = manual_q.get('options')
+            q_type = manual_q.get("type", "mcq")
+
+            if q_type == "mcq" and isinstance(raw_options, list):
+                options_data = {}
+                for idx, opt in enumerate(raw_options):
+                    option_id = opt.get("id") or opt.get("option_id") or chr(65 + idx)
+                    option_text = opt.get("text") or opt.get("label") or str(opt)
+                    options_data[option_id] = option_text
+
+            elif isinstance(raw_options, dict):
+                options_data = raw_options
+                options_data["type"] = q_type
+
+            else:
+                options_data = {"type": q_type}
+
+            if manual_q.get("code_template"):
+                options_data["code_template"] = manual_q.get("code_template")
+
+            if manual_q.get("constraints"):
+                options_data["constraints"] = manual_q.get("constraints")
+
+            if manual_q.get("test_cases"):
+                options_data["test_cases"] = manual_q.get("test_cases")
+            
+    
+
+            # --------------------------------------------------
+            # Create question (same as before)
+            # --------------------------------------------------
+            # new_question = Question(
+            #     question_set_id=question_set_id,
+            #     question_text=manual_q['question_text'],
+            #     difficulty=(manual_q.get('difficulty') or 'medium').lower(),
+            #     topic=manual_q.get('skill', ''),
+            #     options=options_data,
+            #     correct_answer=manual_q.get('correct_answer', ''),
+            #     code_template=manual_q.get('code_template'),
+            #     constraints=manual_q.get('constraints'),
+            #     test_cases=manual_q.get('test_cases'),
+            #     time_limit_minutes=manual_q.get('time_limit', 30),
+            #     source_type='manual',
+            #     quality_score=100,
+            # )
             new_question = Question(
-                question_set_id=question_set_id,
-                question_text=manual_q['question_text'],
-                question_type=manual_q.get('type', 'mcq'),
-                difficulty=manual_q.get('difficulty', 'medium'),
-                topic=manual_q.get('skill', ''),
-                options=manual_q.get('options', {}),
-                correct_answer=manual_q.get('correct_answer', ''),
-                code_template=manual_q.get('code_template'),
-                constraints=manual_q.get('constraints'),
-                test_cases=manual_q.get('test_cases'),
-                time_limit_minutes=manual_q.get('time_limit', 30),
-                source_type='manual',  # Mark as manually added
-                quality_score=100,  # Manual questions are pre-approved
+            question_set_id=question_set_id,
+            question_text=manual_q['question_text'],
+            difficulty=(manual_q.get('difficulty') or 'medium').lower(),
+            topic=manual_q.get('skill', ''),
+            options=options_data,
+            correct_answer=manual_q.get('correct_answer', ''),
+            #time_limit_minutes=manual_q.get('time_limit', 30),
+            source_type='manual',
+            quality_score=100,
             )
+
             db.add(new_question)
-        
+
         await db.flush()  # Save manual questions to database
 
     # --------------------------------------------

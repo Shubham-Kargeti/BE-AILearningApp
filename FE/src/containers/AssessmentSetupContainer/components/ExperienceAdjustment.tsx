@@ -8,7 +8,7 @@ interface Props {
   onCutoffChange?: (value: number) => void;
 }
 
-const ExperienceAdjustment: React.FC<Props> = ({ value, onChange, cutoffMarks, onCutoffChange }) => {
+const ExperienceAdjustment: React.FC<Props> = ({ value, onChange, onCutoffChange }) => {
   const handleToggle = (checked: boolean) => {
     onChange(checked);
     // Reset cutoff to 70 when enabling auto-adjust

@@ -15,7 +15,7 @@ import {
   Divider,
   Alert,
   IconButton,
-  Tooltip,
+  //Tooltip,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -303,7 +303,7 @@ const DetailedResultsView: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Box display="flex" alignItems="center" gap={1} mb={2}>
                 <PersonIcon color="primary" />
                 <Typography variant="h6">Candidate Information</Typography>
@@ -325,7 +325,7 @@ const DetailedResultsView: React.FC = () => {
               )}
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{xs:12, md:6}}>
               <Box display="flex" alignItems="center" gap={1} mb={2}>
                 <AssignmentIcon color="primary" />
                 <Typography variant="h6">Assessment Details</Typography>
@@ -355,7 +355,7 @@ const DetailedResultsView: React.FC = () => {
           </Box>
 
           <Grid container spacing={3}>
-            <Grid item xs={12} md={3}>
+            <Grid size= {{xs:12, md:3}}>
               <Paper elevation={0} sx={{ p: 2, bgcolor: "primary.50", textAlign: "center" }}>
                 <Typography variant="h3" color="primary">
                   {scorePercentage.toFixed(1)}%
@@ -366,7 +366,7 @@ const DetailedResultsView: React.FC = () => {
               </Paper>
             </Grid>
 
-            <Grid item xs={12} md={3}>
+            <Grid size={{xs:12, md:3}}>
               <Paper elevation={0} sx={{ p: 2, bgcolor: "success.50", textAlign: "center" }}>
                 <Typography variant="h3" color="success.main">
                   {result.correct_answers}
@@ -377,7 +377,7 @@ const DetailedResultsView: React.FC = () => {
               </Paper>
             </Grid>
 
-            <Grid item xs={12} md={3}>
+            <Grid size= {{xs:12, md:3}}>
               <Paper elevation={0} sx={{ p: 2, bgcolor: "info.50", textAlign: "center" }}>
                 <Typography variant="h3" color="info.main">
                   {result.answered_questions}/{result.total_questions}
@@ -388,7 +388,7 @@ const DetailedResultsView: React.FC = () => {
               </Paper>
             </Grid>
 
-            <Grid item xs={12} md={3}>
+            <Grid size={{xs:12, md:3}}>
               <Paper elevation={0} sx={{ p: 2, bgcolor: "warning.50", textAlign: "center" }}>
                 <Typography variant="h3" color="warning.main">
                   {formatDuration(result.duration_seconds)}
@@ -505,7 +505,7 @@ const DetailedResultsView: React.FC = () => {
                     <Divider sx={{ my: 2 }} />
 
                     <Grid container spacing={2}>
-                      <Grid item xs={12} md={6}>
+                      <Grid size= {{xs:12, md:6}}>
                         <Typography variant="body2">
                           <strong>Candidate's Answer:</strong>
                         </Typography>
@@ -513,7 +513,7 @@ const DetailedResultsView: React.FC = () => {
                           <Typography variant="body2">{question.candidate_answer}</Typography>
                         </Paper>
                       </Grid>
-                      <Grid item xs={12} md={6}>
+                      <Grid size={{xs:12, md:6}}>
                         <Typography variant="body2">
                           <strong>Correct Answer:</strong>
                         </Typography>

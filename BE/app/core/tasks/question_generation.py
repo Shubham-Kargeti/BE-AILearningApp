@@ -217,7 +217,17 @@ def index_question_document_task(self, doc_id: str, text: str, metadata: dict = 
 
     try:
         from app.services.doc_ingest import index_document
-        index_document(doc_id, text, metadata or {})
+        #index_document(doc_id, text, metadata or {})
+        ######################################################
+        index_document(
+        doc_id,
+        text,
+        metadata={
+        **(metadata or {}),
+        "assessment_id": (metadata or {}).get("assessment_id")
+        }
+        )
+        ########################################################
 
         # mark SUCCESS
         try:

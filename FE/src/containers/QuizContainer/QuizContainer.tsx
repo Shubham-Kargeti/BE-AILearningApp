@@ -1962,17 +1962,26 @@ const QuizContainer = () => {
     Array.isArray(question.options);
 
   const mcqOptions: NormalizedMCQOption[] = isMcq
-    ? Array.isArray(question.options)
-      ? question.options
-      : question.options
-        ? Object.entries(question.options).map(
+  ? Array.isArray(question.options)
+    ? question.options.map((opt: any, idx: number) => ({
+        option_id: opt.option_id || opt.id || String(idx),
+        text:
+          typeof opt === "string"
+            ? opt
+            : opt.text || opt.label || JSON.stringify(opt),
+      }))
+    : question.options
+      ? Object.entries(question.options).map(
           ([option_id, text]) => ({
             option_id,
-            text: String(text),
+            text:
+              typeof text === "string"
+                ? text
+                : (text as any)?.text || JSON.stringify(text),
           })
         )
-        : []
-    : [];
+      : []
+  : [];
 
   const attemptedCount = Object.values(questionStatus).filter(s => s === 'answered').length;
   const notAttemptedCount = mcqQuestions.questions.length - attemptedCount;

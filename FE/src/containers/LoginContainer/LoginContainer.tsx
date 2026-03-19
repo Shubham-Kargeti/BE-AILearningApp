@@ -3,7 +3,7 @@ import { Box, TextField, Button, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import "./LoginContainer.scss";
 import { apiCall } from "../../API";
-import { allowedUsers, HTTP_POST, LOGIN } from "../../API/constants";
+import { HTTP_POST, LOGIN } from "../../API/constants";
 import Loader from "../../components/Loader";
 import {isAdmin} from "../../utils/adminUsers"
 
@@ -51,10 +51,10 @@ const LoginContainer = () => {
   const handleSubmit = async () => {
     if (!values.email) return;
 
-    if (!allowedUsers.includes(values.email)) {
+    /*if (!allowedUsers.includes(values.email)) {
       alert("Unauthorized user. Please use a valid email.");
       return;
-    }
+    }*/
 
     await generateAuthToken();
     localStorage.setItem("loggedInUser", values.email);

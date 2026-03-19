@@ -135,7 +135,7 @@ const AssessmentViewContainer: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [resultsFilter, setResultsFilter] = useState<'all' | 'completed' | 'incomplete' | 'passed' | 'failed'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'score' | 'name'>('date');
-  const qrCodeRef = useRef<HTMLCanvasElement>(null);
+  /*const qrCodeRef = useRef<HTMLCanvasElement>(null);*/
 
   // for manual marking when detailed result is open
   const [updatingQuestions, setUpdatingQuestions] = useState<Set<number>>(new Set());

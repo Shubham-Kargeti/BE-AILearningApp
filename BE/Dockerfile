@@ -20,6 +20,7 @@ COPY requirements.txt .
 # Using --no-cache-dir to reduce image size
 # AI/ML packages (torch, transformers, etc.) will take longer to install
 RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application code

@@ -380,16 +380,33 @@ async def submit_questionset_answers(
             correct_count += 1
 
         # Ensure selected_answer fits into DB column (truncate if excessively long)
-        selected_value = answer_submit.selected_answer
-        if selected_value is None:
-            selected_value = ""
-        if not isinstance(selected_value, str):
-            selected_value = str(selected_value)
-        selected_value = selected_value.strip()
-        MAX_ANSWER_LEN = 10000
-        if len(selected_value) > MAX_ANSWER_LEN:
-            # Truncate long answers to prevent DB errors and log the truncation
-            selected_value = selected_value[:MAX_ANSWER_LEN]
+        # selected_value = answer_submit.selected_answer
+        # if selected_value is None:
+        #     selected_value = ""
+        # if not isinstance(selected_value, str):
+        #     selected_value = str(selected_value)
+        # selected_value = selected_value.strip()
+        # MAX_ANSWER_LEN = 10000
+        # if len(selected_value) > MAX_ANSWER_LEN:
+        #     # Truncate long answers to prevent DB errors and log the truncation
+        #     selected_value = selected_value[:MAX_ANSWER_LEN]
+        selected_value_raw = answer_submit.selected_answer
+        qtype = resolve_question_type(question)
+
+        if not selected_value_raw or selected_value_raw == "NOT_ANSWERED":
+            selected_value = "SKIPPED"
+
+        elif qtype == "mcq":
+            selected_value = str(selected_value_raw).strip()[:10]
+
+        elif qtype == "coding":
+            selected_value = "CODE"
+
+        elif qtype == "architecture":
+            selected_value = "ARCH"
+
+        else:
+            selected_value = str(selected_value_raw).strip()[:10]
 
         answer_records.append(
             Answer(

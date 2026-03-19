@@ -478,8 +478,8 @@ const DashboardContainer = () => {
                           {assessment.is_completed && assessment.score_percentage !== null && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                               <EmojiEventsIcon sx={{ fontSize: 16, color: '#f59e0b' }} />
-                              <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: assessment.score_percentage >= 70 ? '#16a34a' : '#dc2626' }}>
-                                Score: {assessment.score_percentage.toFixed(1)}%
+                              <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: (assessment.score_percentage ?? 0) >= 70 ? '#16a34a' : '#dc2626' }}>
+                                Score: {(assessment.score_percentage ?? 0).toFixed(1)}%
                               </Typography>
                             </Box>
                           )}

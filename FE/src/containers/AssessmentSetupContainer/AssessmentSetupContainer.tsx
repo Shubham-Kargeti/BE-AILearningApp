@@ -80,7 +80,7 @@ const AssessmentSetupContainer: React.FC = () => {
       architecture: 2,
     });
 
-  const [screeningQuestions, setScreeningQuestions] =
+  const [screeningQuestions] =
     useState<string[]>([""]);
 
   const [manualQuestions, setManualQuestions] = useState<Question[]>([]);
@@ -632,7 +632,7 @@ const AssessmentSetupContainer: React.FC = () => {
               try {
                 setToast({ type: "info", message: "Uploading Question Bank document..." });
                 setRagUploadProgress(0);
-                const res = await uploadService.uploadQuestionDoc(ragFile, targetAssessmentId, (p) => setRagUploadProgress(p));
+                const res = await uploadService.uploadQuestionDoc(ragFile, targetAssessmentId ?? undefined, (p) => setRagUploadProgress(p));
                 setRagUploadedDocId(res.doc_id);
                 setToast({ type: 'success', message: `Question Bank uploaded (doc: ${res.doc_id})` });
               } catch (err: any) {
