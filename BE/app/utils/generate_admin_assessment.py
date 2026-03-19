@@ -12,6 +12,7 @@ from uuid import uuid4
 import json
 import asyncio
 import time
+from app.services.doc_ingest import query_text
 
 # ------------------------------------------------------------
 # Difficulty normalization (ADMIN → DB)
