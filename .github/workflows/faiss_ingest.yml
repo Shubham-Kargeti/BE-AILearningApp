@@ -6,6 +6,7 @@ on:
     branches:
       - phase3.1
       - main
+      - phase-4
 
 permissions: read-all
 
