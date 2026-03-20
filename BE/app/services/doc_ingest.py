@@ -35,7 +35,7 @@ def index_document(doc_id: str, text: str, metadata: Optional[Dict[str, Any]] = 
     try:
         # If index exists, load and add documents
         if os.path.exists(INDEX_DIR) and os.listdir(INDEX_DIR):
-            vs = FAISS.load_local(INDEX_DIR, embedding_model)
+            vs = FAISS.load_local(INDEX_DIR, embedding_model, allow_dangerous_deserialization=True)
             vs.add_documents(documents)
             vs.save_local(INDEX_DIR)
             logger.info("Appended %d chunks to existing FAISS index", len(documents))
