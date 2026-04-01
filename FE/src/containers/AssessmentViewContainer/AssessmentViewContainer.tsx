@@ -173,6 +173,21 @@ const AssessmentViewContainer: React.FC = () => {
     }
   };
 
+  const handleDeleteQuestion = async (questionId: number) => {
+  try {
+    await assessmentService.deleteQuestion(questionId); // call your BE API
+    setQuestions((prev) =>
+      prev.filter((q: any) => q.id !== questionId)
+    );
+    setToast({ type: "success", message: "Question deleted successfully" });
+  } catch (err: any) {
+    setToast({
+      type: "error",
+      message: err.response?.data?.detail || "Failed to delete question",
+    });
+  }
+};
+
   const fetchTestSessions = async () => {
     if (!id) return;
     try {
@@ -2513,6 +2528,20 @@ const AssessmentViewContainer: React.FC = () => {
                                 <span style={{ color: '#999', fontSize: '0.875rem' }}>
                                   Question #{idx + 1}
                                 </span>
+
+                                <button type="button" onClick={() => handleDeleteQuestion(q.id)}
+                                style={{
+                                      padding: "0.35rem 0.75rem",
+                                      backgroundColor: "#fee2e2",
+                                      color: "#dc2626",
+                                      border: "1px solid #fecaca",
+                                      borderRadius: "6px",
+                                      fontSize: "0.8rem",
+                                      fontWeight: "600",
+                                      cursor: "pointer",
+                                      }} >
+                                  Delete
+                                </button>
                               </div>
                               <p style={{ margin: '0.75rem 0', fontSize: '1rem', fontWeight: '500', lineHeight: '1.5' }}>
                                 {q.question_text}

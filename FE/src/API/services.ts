@@ -539,10 +539,14 @@ export const assessmentService = {
     data: Partial<AssessmentCreateRequest>
   ): Promise<Assessment> => {
     const response = await apiClient.put<Assessment>(
-      `/assessments/${assessmentId}`,
+      `/assessments/${assessmentId}/metadata`,
       data
     );
     return response.data;
+  },
+
+  deleteQuestion: async (questionId: number): Promise<void> => {
+  await apiClient.delete(`/assessments/questions/${questionId}`);
   },
 
   deleteAssessment: async (assessmentId: string): Promise<void> => {

@@ -458,7 +458,7 @@ const AssessmentSetupContainer: React.FC = () => {
         <h1>{isEditMode ? "Edit Assessment" : "Assessment Setup"}</h1>
         <p className="subtitle">
           {isEditMode
-            ? "Update assessment details, role, skills, and settings."
+            ? "Update assessment details, role, and settings."
             : "Upload documents, review role & skills, and generate assessment link."
           }
         </p>
@@ -471,6 +471,7 @@ const AssessmentSetupContainer: React.FC = () => {
         </div>
       )}
 
+     {!isEditMode && (
       <section className="card upload-card">
         <div className="card-header">
           <h2>Upload Documents</h2>
@@ -499,6 +500,7 @@ const AssessmentSetupContainer: React.FC = () => {
           </button>
         </div>
       </section>
+     )}
 
       <section className="card details-card">
         <div className="card-header">
@@ -542,6 +544,7 @@ const AssessmentSetupContainer: React.FC = () => {
 
 
 
+      {!isEditMode && (
       <AssessmentConfigurationBlock
         questionDistribution={questionDistribution}
         onQuestionDistributionChange={setQuestionDistribution}
@@ -554,10 +557,11 @@ const AssessmentSetupContainer: React.FC = () => {
         difficultyDistribution={difficultyDistribution}
         onDifficultyDistributionChange={setDifficultyDistribution}
       />
+     )}
 
       <section className="card questions-card">
         <div className="card-header">
-          <h2>Manual Question Management</h2>
+          <h2>{isEditMode ? "Add Questions" : "Manual Question Management"}</h2>
           <p className="hint">Add, edit, or reorder questions manually for this assessment</p>
         </div>
 
@@ -609,7 +613,7 @@ const AssessmentSetupContainer: React.FC = () => {
         </div>
       </section>
 
-      <section className="card">
+      {/* <section className="card">
         <div className="card-header">
           <h2>Question Bank Document (Optional)</h2>
           <p className="hint">Upload a document to generate questions using RAG (Retrieval-Augmented Generation)</p>
@@ -698,7 +702,7 @@ const AssessmentSetupContainer: React.FC = () => {
           value={generationPolicy}
           onChange={setGenerationPolicy}
         />
-      )}
+      )} */}
 
       {validationErrors.length > 0 && (
         <div className="validation-summary">
