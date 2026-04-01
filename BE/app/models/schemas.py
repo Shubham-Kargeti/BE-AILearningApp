@@ -287,6 +287,7 @@ class AssessmentUpdate(BaseModel):
     is_published: Optional[bool] = None
     expires_at: Optional[datetime] = None
     screening_questions: Optional[List[str]] = None
+    manual_questions: Optional[List[Dict[str, Any]]] = None
     
     # Question configuration (experience-based)
     total_questions: Optional[int] = None

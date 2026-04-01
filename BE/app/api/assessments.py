@@ -725,94 +725,120 @@ async def publish_assessment(
     )
 
 
-@router.put("/{assessment_id}", response_model=AssessmentResponse)
-async def update_assessment(
+@router.put("/{assessment_id}/metadata", response_model=AssessmentResponse)
+async def update_assessment_metadata(
     assessment_id: str,
     request: AssessmentUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> AssessmentResponse:
-    """Update assessment (Admin only)."""
+):
     await check_admin(current_user)
-    
-    stmt = select(Assessment).where(Assessment.assessment_id == assessment_id)
-    result = await db.execute(stmt)
+
+    result = await db.execute(
+        select(Assessment).where(Assessment.assessment_id == assessment_id)
+    )
     assessment = result.scalars().first()
-    
+
     if not assessment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Assessment not found"
-        )
-    
-    if request.title is not None:
-        assessment.title = request.title
-    if request.description is not None:
-        assessment.description = request.description
-    if request.job_title is not None:
-        assessment.job_title = request.job_title
-    if request.required_skills is not None:
-        assessment.required_skills = request.required_skills
-    if request.required_roles is not None:
-        assessment.required_roles = request.required_roles
-    if request.duration_minutes is not None:
-        assessment.duration_minutes = request.duration_minutes
-    if request.is_questionnaire_enabled is not None:
-        assessment.is_questionnaire_enabled = request.is_questionnaire_enabled
-    if request.is_interview_enabled is not None:
-        assessment.is_interview_enabled = request.is_interview_enabled
-    if request.is_active is not None:
-        assessment.is_active = request.is_active
-    if request.is_published is not None:
-        assessment.is_published = request.is_published
-    if request.expires_at is not None:
-        assessment.expires_at = request.expires_at
-    if request.total_questions is not None:
-        assessment.total_questions = request.total_questions
-    if request.question_type_mix is not None:
-        assessment.question_type_mix = request.question_type_mix
-    if request.passing_score_threshold is not None:
-        assessment.passing_score_threshold = request.passing_score_threshold
-    if request.auto_adjust_by_experience is not None:
-        assessment.auto_adjust_by_experience = request.auto_adjust_by_experience
-    if request.difficulty_distribution is not None:
-        assessment.difficulty_distribution = request.difficulty_distribution
-    if request.generation_policy is not None:
-        assessment.generation_policy = request.generation_policy
-    
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    # -------------------------
+    # ✅ 1. Update metadata
+    # -------------------------
+    update_fields = [
+        "title", "description", "job_title",
+        "required_skills", "required_roles",
+        "duration_minutes", "expires_at",
+        "is_active", "is_published"
+    ]
+
+    for field in update_fields:
+        value = getattr(request, field, None)
+        if value is not None:
+            setattr(assessment, field, value)
+
+    # -------------------------
+    # ✅ 2. Add Questions (ONLY if flag is true)
+    # -------------------------
+    if request.manual_questions and len(request.manual_questions) > 0:
+
+        for manual_q in request.manual_questions:
+
+            if not manual_q.get('question_text', '').strip():
+                continue
+
+            raw_options = manual_q.get('options')
+            q_type = manual_q.get("type", "mcq")
+
+            # -------- normalize options --------
+            if q_type == "mcq" and isinstance(raw_options, list):
+                options_data = {}
+                for idx, opt in enumerate(raw_options):
+                    option_id = opt.get("id") or chr(65 + idx)
+                    option_text = opt.get("text") or str(opt)
+                    options_data[option_id] = option_text
+
+            elif isinstance(raw_options, dict):
+                options_data = raw_options
+                options_data["type"] = q_type
+
+            else:
+                options_data = {"type": q_type}
+
+            # extra fields
+            if manual_q.get("code_template"):
+                options_data["code_template"] = manual_q["code_template"]
+
+            if manual_q.get("constraints"):
+                options_data["constraints"] = manual_q["constraints"]
+
+            if manual_q.get("test_cases"):
+                options_data["test_cases"] = manual_q["test_cases"]
+
+            # -------- create question --------
+            new_question = Question(
+                question_set_id=assessment.question_set_id,  # IMPORTANT FIX
+                question_text=manual_q['question_text'],
+                difficulty=(manual_q.get('difficulty') or 'medium').lower(),
+                topic=manual_q.get('skill', ''),
+                options=options_data,
+                correct_answer=manual_q.get('correct_answer', ''),
+                source_type='manual',
+                quality_score=100,
+            )
+
+            db.add(new_question)
+
+        await db.flush()
+
+
     assessment.updated_at = datetime.utcnow()
+
     await db.commit()
     await db.refresh(assessment)
 
-    await _clear_assessment_cache()
-    
-    return AssessmentResponse(
-        id=assessment.id,
-        assessment_id=assessment.assessment_id,
-        title=assessment.title,
-        description=assessment.description,
-        job_title=assessment.job_title,
-        jd_id=assessment.jd_id,
-        required_skills=assessment.required_skills,
-        required_roles=assessment.required_roles,
-        question_set_id=assessment.question_set_id,
-        assessment_method=assessment.assessment_method,
-        duration_minutes=assessment.duration_minutes,
-        is_questionnaire_enabled=assessment.is_questionnaire_enabled,
-        is_interview_enabled=assessment.is_interview_enabled,
-        is_active=assessment.is_active,
-        is_published=assessment.is_published,
-        is_expired=assessment.is_expired,
-        expires_at=assessment.expires_at,
-        created_at=assessment.created_at,
-        updated_at=assessment.updated_at,
-        total_questions=assessment.total_questions,
-        question_type_mix=assessment.question_type_mix,
-        passing_score_threshold=assessment.passing_score_threshold,
-        auto_adjust_by_experience=assessment.auto_adjust_by_experience,
-        difficulty_distribution=assessment.difficulty_distribution,
-        generation_policy=assessment.generation_policy,
+    return assessment
+
+@router.delete("/questions/{question_id}")
+async def delete_question(
+    question_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await check_admin(current_user)
+
+    result = await db.execute(
+        select(Question).where(Question.id == question_id)
     )
+    question = result.scalars().first()
+
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+
+    await db.delete(question)
+    await db.commit()
+
+    return {"message": "Question deleted successfully"}
 
 
 @router.post("/{assessment_id}/apply", response_model=AssessmentApplicationResponse, status_code=status.HTTP_201_CREATED)
