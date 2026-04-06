@@ -274,48 +274,51 @@ async def generate_assessment_question_set(
     questionnaire_config: dict | None = None
 ):
     start_time = time.time()
-    # ------------------------------------------------------------
-    # RAG SYNCHRONIZATION (WAIT FOR INDEX READY)
-    # ------------------------------------------------------------
     rag_context = ""
-    use_rag = questionnaire_config.get("doc_id") if questionnaire_config else None
+    questionnaire_config = questionnaire_config or {}
 
-    max_retries = 5
-    retry_delay = 2
+    doc_id = questionnaire_config.get("doc_id")  # use doc_id
+    use_rag = bool(doc_id)
 
-    for attempt in range(max_retries):
-        try:
-            rag_chunks = query_text(
-            f"questions about {', '.join(required_skills.keys())}",
-            top_k=10,
-            )
+    print(f"[DEBUG] use_rag={use_rag}, doc_id={doc_id}")
 
-            if rag_chunks and len(rag_chunks) > 0:
-                def extract_text(chunk):
-                    if isinstance(chunk, dict):
-                        return (
-                            chunk.get("text")
-                            or chunk.get("page_content")
-                            or str(chunk)
-                        )
-                    elif isinstance(chunk, tuple):
-                        return str(chunk[0])
-                    else:
+    if use_rag:
+        max_retries = 3
+        retry_delay = 2
+
+        for attempt in range(max_retries):
+            try:
+                rag_chunks = query_text(
+                    f"questions about {', '.join(required_skills.keys())}",
+                    top_k=10,
+                    doc_id=doc_id  # FIX
+                )
+
+                if rag_chunks:
+                    def extract_text(chunk):
+                        if isinstance(chunk, tuple):
+                            chunk = chunk[0]
+
+                        if isinstance(chunk, dict):
+                            return chunk.get("text") or str(chunk)
                         return str(chunk)
 
-                rag_context = "\n\n".join([extract_text(chunk) for chunk in rag_chunks])
-                print(f"[RAG] ✅ Found {len(rag_chunks)} chunks (attempt {attempt+1})")
-                break
-            else:
-                print(f"[RAG] ⏳ No chunks yet (attempt {attempt+1})")
+                    rag_context = "\n\n".join(
+                        [extract_text(chunk) for chunk in rag_chunks]
+                    )
 
-        except Exception as e:
-            print(f"[RAG ERROR] attempt {attempt+1}:", e)
+                    print(f"[RAG] ✅ Found {len(rag_chunks)} chunks")
+                    break
+                else:
+                    print(f"[RAG] ⏳ No chunks (attempt {attempt + 1})")
 
-        await asyncio.sleep(retry_delay)
+            except Exception as e:
+                print("[RAG ERROR]:", e)
 
-    if not rag_context:
-        print("[RAG] ❌ No chunks found after waiting → fallback to LLM")
+            await asyncio.sleep(retry_delay)
+
+    else:
+        print("[RAG] ❌ No doc uploaded → skipping RAG")
 
     # ------------------------------------------------------------
     # Questionnaire configuration (FE-driven, backward-safe)

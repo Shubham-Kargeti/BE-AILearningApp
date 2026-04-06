@@ -382,6 +382,7 @@ const AssessmentSetupContainer: React.FC = () => {
       mcq: questionDistribution.mcq,
       coding: questionDistribution.coding,
       architecture: questionDistribution.architecture,
+      doc_id: ragUploadedDocId,
     };
   }
 

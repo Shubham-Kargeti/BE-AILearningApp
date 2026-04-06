@@ -257,7 +257,7 @@ class AssessmentCreate(BaseModel):
     is_draft: bool = False  # ✅ NEW: Draft support
     expires_at: Optional[datetime] = None
     candidate_info: Optional[CandidateInfoSchema] = None
-    questionnaire_config: Optional[Dict[str, int]] = None
+    questionnaire_config: Optional[Dict[str, Any]] = None
     screening_questions: Optional[List[str]] = None
     manual_questions: Optional[List[Dict[str, Any]]] = None  # ✅ Manual questions
     

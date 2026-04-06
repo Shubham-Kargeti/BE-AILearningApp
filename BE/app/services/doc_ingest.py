@@ -48,20 +48,19 @@ def index_document(doc_id: str, text: str, metadata: Optional[Dict[str, Any]] = 
         raise
 
 
-def query_text(q: str, top_k: int = 5, assessment_id: Optional[str] = None) -> List[Tuple[Dict[str, Any], Optional[float]]]:
-    """Query the FAISS index and return hits as list of tuples (hit_dict, score).
+def query_text(
+    q: str,
+    top_k: int = 5,
+    doc_id: Optional[str] = None
+) -> List[Tuple[Dict[str, Any], Optional[float]]]:
 
-    hit_dict has fields: id (doc_id::chunk_index), meta (metadata), text
-    """
     if not os.path.exists(INDEX_DIR) or not os.listdir(INDEX_DIR):
         return []
 
     embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-    # allow_dangerous_deserialization=True required for loading locally serialized index
     vs = FAISS.load_local(INDEX_DIR, embedding_model, allow_dangerous_deserialization=True)
 
     try:
-        # Perform semantic search
         results = vs.similarity_search_with_score(q, k=top_k)
     except Exception:
         return []
@@ -69,9 +68,20 @@ def query_text(q: str, top_k: int = 5, assessment_id: Optional[str] = None) -> L
     hits = []
     for doc, score in results:
         meta = doc.metadata or {}
-        # Filter by assessment_id if requested (metadata may contain assessment_id)
-        if assessment_id and meta.get("assessment_id") != assessment_id:
+        print("---- DEBUG CHUNK ----")
+        print("Stored doc_id:", meta.get("doc_id"))
+        print("Query doc_id:", doc_id)
+
+        # FILTER BY doc_id
+        if doc_id and meta.get("doc_id") != doc_id:
             continue
-        hit = {"id": f"{meta.get('doc_id')}::chunk:{meta.get('chunk_index')}", "meta": meta, "text": doc.page_content}
+
+        hit = {
+            "id": f"{meta.get('doc_id')}::chunk:{meta.get('chunk_index')}",
+            "meta": meta,
+            "text": doc.page_content
+        }
+
         hits.append((hit, float(score) if score is not None else None))
+
     return hits
