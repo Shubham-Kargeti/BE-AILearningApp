@@ -274,6 +274,48 @@ async def generate_assessment_question_set(
     questionnaire_config: dict | None = None
 ):
     start_time = time.time()
+    # ------------------------------------------------------------
+    # RAG SYNCHRONIZATION (WAIT FOR INDEX READY)
+    # ------------------------------------------------------------
+    rag_context = ""
+    use_rag = questionnaire_config.get("doc_id") if questionnaire_config else None
+
+    max_retries = 5
+    retry_delay = 2
+
+    for attempt in range(max_retries):
+        try:
+            rag_chunks = query_text(
+            f"questions about {', '.join(required_skills.keys())}",
+            top_k=10,
+            )
+
+            if rag_chunks and len(rag_chunks) > 0:
+                def extract_text(chunk):
+                    if isinstance(chunk, dict):
+                        return (
+                            chunk.get("text")
+                            or chunk.get("page_content")
+                            or str(chunk)
+                        )
+                    elif isinstance(chunk, tuple):
+                        return str(chunk[0])
+                    else:
+                        return str(chunk)
+
+                rag_context = "\n\n".join([extract_text(chunk) for chunk in rag_chunks])
+                print(f"[RAG] ✅ Found {len(rag_chunks)} chunks (attempt {attempt+1})")
+                break
+            else:
+                print(f"[RAG] ⏳ No chunks yet (attempt {attempt+1})")
+
+        except Exception as e:
+            print(f"[RAG ERROR] attempt {attempt+1}:", e)
+
+        await asyncio.sleep(retry_delay)
+
+    if not rag_context:
+        print("[RAG] ❌ No chunks found after waiting → fallback to LLM")
 
     # ------------------------------------------------------------
     # Questionnaire configuration (FE-driven, backward-safe)
@@ -300,9 +342,11 @@ async def generate_assessment_question_set(
 
     messages = mcq_prompt.format_messages(
         skills_json=formatted,
-        #total_questions=6
         total_questions=mcq_count
     )
+    # Inject RAG context if available
+    if rag_context:
+        messages[-1].content += f"\n\nContext:\n{rag_context}"
 
     # LLM call (MCQs only)
     llm = _get_llm()
@@ -329,6 +373,8 @@ async def generate_assessment_question_set(
         skills_json=formatted,
         coding_count=coding_count
     )
+    if rag_context:
+        coding_messages[-1].content += f"\n\nContext:\n{rag_context}"
 
     coding_llm = _get_llm()
     coding_response = await asyncio.to_thread(coding_llm.invoke, coding_messages)
@@ -361,6 +407,8 @@ async def generate_assessment_question_set(
         skills_json=formatted,
         architecture_count=architecture_count
     )
+    if rag_context:
+        architecture_messages[-1].content += f"\n\nContext:\n{rag_context}"
 
     architecture_response = await asyncio.to_thread(llm.invoke, architecture_messages)
 

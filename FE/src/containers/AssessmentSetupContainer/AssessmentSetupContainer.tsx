@@ -613,7 +613,7 @@ const AssessmentSetupContainer: React.FC = () => {
         </div>
       </section>
 
-      {/* <section className="card">
+      <section className="card">
         <div className="card-header">
           <h2>Question Bank Document (Optional)</h2>
           <p className="hint">Upload a document to generate questions using RAG (Retrieval-Augmented Generation)</p>
@@ -702,7 +702,7 @@ const AssessmentSetupContainer: React.FC = () => {
           value={generationPolicy}
           onChange={setGenerationPolicy}
         />
-      )} */}
+      )}
 
       {validationErrors.length > 0 && (
         <div className="validation-summary">
