@@ -283,7 +283,7 @@ async def generate_assessment_question_set(
     print(f"[DEBUG] use_rag={use_rag}, doc_id={doc_id}")
 
     if use_rag:
-        max_retries = 3
+        max_retries = 5
         retry_delay = 2
 
         for attempt in range(max_retries):

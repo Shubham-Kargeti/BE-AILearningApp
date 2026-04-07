@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./AssessmentSetupContainer.scss";
@@ -689,7 +688,7 @@ const AssessmentSetupContainer: React.FC = () => {
                 setToast({ type: 'error', message: msg });
               }
             }}
-            disabled={!ragUploadedDocId && !ragFile}
+            disabled={!ragUploadedDocId || submitLoading || (!isEditMode && !createdAssessmentId)}
           >
             Generate Questions (From Question Bank)
           </button>
