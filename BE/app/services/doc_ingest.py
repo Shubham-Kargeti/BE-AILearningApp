@@ -1,5 +1,6 @@
 import os
 import logging
+import re
 from typing import List, Tuple, Optional, Dict, Any
 
 from langchain_community.vectorstores import FAISS
@@ -16,6 +17,17 @@ EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 def _ensure_index_dir():
     os.makedirs(INDEX_DIR, exist_ok=True)
 
+def chunk_text(text, chunk_size=300, overlap=50):
+    words = re.findall(r'\S+', text)
+    chunks = []
+
+    for i in range(0, len(words), chunk_size - overlap):
+        chunk = " ".join(words[i:i + chunk_size])
+        if len(chunk.split()) > 20:  # Only keep chunks with more than 20 words
+            chunks.append(chunk)
+
+    return chunks
+
 
 def index_document(doc_id: str, text: str, metadata: Optional[Dict[str, Any]] = None) -> None:
     """Index a single document (split into chunks) into the FAISS index.
@@ -25,12 +37,8 @@ def index_document(doc_id: str, text: str, metadata: Optional[Dict[str, Any]] = 
     """
     _ensure_index_dir()
 
-    if os.path.exists(INDEX_DIR):
-            shutil.rmtree(INDEX_DIR)
-            os.makedirs(INDEX_DIR, exist_ok=True)
-
     # Simple chunking by paragraph - could be replaced with smarter chunking
-    paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
+    paragraphs = chunk_text(text)
     documents: List[Document] = []
     for i, p in enumerate(paragraphs):
         documents.append(Document(page_content=p, metadata={"doc_id": doc_id, "chunk_index": i, **(metadata or {})}))
@@ -65,12 +73,11 @@ def query_text(
 
     embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
     vs = FAISS.load_local(INDEX_DIR, embedding_model, allow_dangerous_deserialization=True)
-    print("TOTAL DOCS IN INDEX:", len(vs.docstore._dict))
 
-    # 🔥 STEP 1: Extract ALL docs from index
+    #  STEP 1: Extract ALL docs from index
     all_docs = vs.docstore._dict.values()
 
-    # 🔥 STEP 2: Filter ONLY current doc_id BEFORE embedding search
+    #  STEP 2: Filter ONLY current doc_id BEFORE embedding search
     if doc_id:
         filtered_docs = [
             doc for doc in all_docs
@@ -82,7 +89,7 @@ def query_text(
     if not filtered_docs:
         return []
 
-    # 🔥 STEP 3: Create TEMP FAISS index ONLY for this doc
+    #  STEP 3: Create TEMP FAISS index ONLY for this doc
     temp_vs = FAISS.from_documents(filtered_docs, embedding_model)
 
     try:
