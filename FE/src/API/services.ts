@@ -395,6 +395,7 @@ export const quizService = {
     correct_answers: number | null;
     score_percentage: number | null;
     is_completed: boolean;
+    is_scored: boolean;
     started_at: string | null;
     completed_at: string | null;
     duration_seconds: number | null;

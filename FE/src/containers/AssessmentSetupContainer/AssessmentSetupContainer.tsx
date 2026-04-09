@@ -614,7 +614,7 @@ const AssessmentSetupContainer: React.FC = () => {
         </div>
       </section>
 
-      <section className="card">
+      {!isEditMode && (<section className="card">
         <div className="card-header">
           <h2>Question Bank Document (Optional)</h2>
           <p className="hint">Upload a document to generate questions using RAG (Retrieval-Augmented Generation)</p>
@@ -697,6 +697,7 @@ const AssessmentSetupContainer: React.FC = () => {
           {ragUploadProgress !== null && <div style={{ marginLeft: 'auto' }}>{ragUploadProgress}%</div>}
         </div>
       </section>
+      )}
 
       {ragUploadedDocId && (
         <GenerationPolicySelector

@@ -67,6 +67,7 @@ const DashboardContainer = () => {
     correct_answers: number | null;
     score_percentage: number | null;
     is_completed: boolean;
+    is_scored: boolean;
     started_at: string | null;
     completed_at: string | null;
     duration_seconds: number | null;
@@ -718,11 +719,11 @@ const DashboardContainer = () => {
                               )}
                               <Chip 
                                 icon={<CheckCircleIcon sx={{ fontSize: 14 }} />}
-                                label="Completed" 
+                                label={session.is_scored ? 'Completed' : 'Pending Evaluation'} 
                                 size="small" 
                                 sx={{ 
-                                  background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
-                                  color: '#065f46',
+                                  background:  session.is_scored ? 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)': 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                                   color: session.is_scored ? '#065f46' : '#92400e',
                                   fontWeight: 700,
                                   fontSize: '0.6875rem',
                                   height: '24px',

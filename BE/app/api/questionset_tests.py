@@ -437,7 +437,7 @@ async def submit_questionset_answers(
     session.duration_seconds = duration_seconds
     session.correct_answers = correct_count
     session.score_percentage = score_percentage
-    session.is_scored = True
+    session.is_scored = False
     session.score_released_at = completed_at
 
     await db.commit()
@@ -675,7 +675,7 @@ async def submit_questionset_answers_anonymous(
     session.duration_seconds = duration_seconds
     session.correct_answers = correct_count
     session.score_percentage = score_percentage
-    session.is_scored = True
+    session.is_scored = False
     session.score_released_at = completed_at
 
     await db.commit()
@@ -920,6 +920,7 @@ async def list_my_test_sessions(
             "correct_answers": session.correct_answers,
             "score_percentage": session.score_percentage,
             "is_completed": session.is_completed,
+            "is_scored": session.is_scored,
             "started_at": session.started_at.isoformat() if session.started_at else None,
             "completed_at": session.completed_at.isoformat() if session.completed_at else None,
             "duration_seconds": session.duration_seconds,

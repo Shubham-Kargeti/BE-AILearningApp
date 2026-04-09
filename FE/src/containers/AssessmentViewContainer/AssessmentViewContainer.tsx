@@ -444,7 +444,7 @@ const AssessmentViewContainer: React.FC = () => {
   const assessmentLink = `${window.location.origin}/candidate-assessment/${assessment.assessment_id}`;
 
   return (
-    <div className="assessment-view-container">
+    <div className="assessment-view-container" id="print-area">
       {toast && (
         <Toast
           type={toast.type}

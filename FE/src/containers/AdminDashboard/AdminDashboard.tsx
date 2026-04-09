@@ -605,14 +605,14 @@ const AdminDashboard: React.FC = () => {
                           >
                             <FiEye size={16} />
                           </button>
-                          <button 
+                          {/* <button 
                             className="action-btn edit" 
                             title="Edit assessment"
                             aria-label="Edit"
                             onClick={() => handleEditAssessment(assessment)}
                           >
                             <FiEdit2 size={16} />
-                          </button>
+                          </button> */}
                           <button 
                             className={`action-btn delete ${deleteConfirm === assessment.id ? 'confirm' : ''}`}
                             title={deleteConfirm === assessment.id ? "Click again to confirm" : "Delete assessment"}

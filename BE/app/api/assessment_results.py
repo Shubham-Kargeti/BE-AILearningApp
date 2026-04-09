@@ -1,5 +1,5 @@
 """Assessment results API endpoints for admin review and sharing."""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -457,7 +457,9 @@ async def update_answer_correctness(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Test session not found"
         )
-
+    completed_at = datetime.now(timezone.utc)
+    session.is_scored = True
+    session.completed_at = completed_at
     # compute totals
     correct_count = sum(1 for a in session.answers if a.is_correct)
     session.correct_answers = correct_count
