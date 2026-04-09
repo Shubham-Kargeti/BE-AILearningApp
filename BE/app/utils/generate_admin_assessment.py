@@ -279,11 +279,7 @@ async def generate_assessment_question_set(
     job_description = questionnaire_config.get("job_description")
     mode = questionnaire_config.get("mode")
 
-    print("\n========== FLOW DEBUG ==========")
-    print("[FLOW MODE]:", mode)
-    print("[JD PRESENT]:", bool(job_description))
-    print("[JD PREVIEW]:", (job_description[:100] if job_description else None))
-    print("================================\n")
+   
 
     doc_id = questionnaire_config.get("doc_id")  # use doc_id
     use_rag = bool(doc_id)
@@ -355,9 +351,7 @@ async def generate_assessment_question_set(
         skills_json=formatted,
         total_questions=mcq_count
     )
-    print("\n====== BEFORE JD INJECTION ======")
-    print(messages[-1].content[:300])  # preview
-    print("================================\n")
+    
 
     #############NEW CODE##################
     if mode == "requirement" and job_description:
@@ -374,17 +368,13 @@ async def generate_assessment_question_set(
     - Avoid generic questions
     """
     
-    print("\n====== AFTER JD INJECTION ======")
-    print(messages[-1].content[:500])  # preview
-    print("================================\n")
+    
     ##############NEW CODE END################
     # Inject RAG context if available
     if rag_context:
         messages[-1].content += f"\n\nContext:\n{rag_context}"
     
-    print("\n====== FINAL PROMPT SENT TO LLM ======")
-    print(messages[-1].content[:800])
-    print("=====================================\n")
+    
 
     # LLM call (MCQs only)
     llm = _get_llm()
