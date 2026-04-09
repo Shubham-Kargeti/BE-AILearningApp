@@ -276,6 +276,14 @@ async def generate_assessment_question_set(
     start_time = time.time()
     rag_context = ""
     questionnaire_config = questionnaire_config or {}
+    job_description = questionnaire_config.get("job_description")
+    mode = questionnaire_config.get("mode")
+
+    print("\n========== FLOW DEBUG ==========")
+    print("[FLOW MODE]:", mode)
+    print("[JD PRESENT]:", bool(job_description))
+    print("[JD PREVIEW]:", (job_description[:100] if job_description else None))
+    print("================================\n")
 
     doc_id = questionnaire_config.get("doc_id")  # use doc_id
     use_rag = bool(doc_id)
@@ -291,7 +299,7 @@ async def generate_assessment_question_set(
                 rag_chunks = query_text(
                     f"questions about {', '.join(required_skills.keys())}",
                     top_k=10,
-                    doc_id=doc_id  # FIX
+                    doc_id=doc_id if doc_id else None   # FIX
                 )
 
                 if rag_chunks:
@@ -347,9 +355,36 @@ async def generate_assessment_question_set(
         skills_json=formatted,
         total_questions=mcq_count
     )
+    print("\n====== BEFORE JD INJECTION ======")
+    print(messages[-1].content[:300])  # preview
+    print("================================\n")
+
+    #############NEW CODE##################
+    if mode == "requirement" and job_description:
+        messages[-1].content += f"""
+
+    
+
+    JOB DESCRIPTION:
+    {job_description}
+
+    INSTRUCTION:
+    - Use this job description to tailor questions
+    - Focus on real-world responsibilities, tools, and scenarios
+    - Avoid generic questions
+    """
+    
+    print("\n====== AFTER JD INJECTION ======")
+    print(messages[-1].content[:500])  # preview
+    print("================================\n")
+    ##############NEW CODE END################
     # Inject RAG context if available
     if rag_context:
         messages[-1].content += f"\n\nContext:\n{rag_context}"
+    
+    print("\n====== FINAL PROMPT SENT TO LLM ======")
+    print(messages[-1].content[:800])
+    print("=====================================\n")
 
     # LLM call (MCQs only)
     llm = _get_llm()
@@ -376,6 +411,18 @@ async def generate_assessment_question_set(
         skills_json=formatted,
         coding_count=coding_count
     )
+    #######################NEW CODE##################
+    if mode == "requirement" and job_description:
+        coding_messages[-1].content += f"""
+
+    JOB DESCRIPTION:
+    {job_description}
+
+    INSTRUCTION:
+    - Use the job context to design realistic coding problems
+    """
+    #######################NEW CODE END##################
+        
     if rag_context:
         coding_messages[-1].content += f"\n\nContext:\n{rag_context}"
 
@@ -410,6 +457,18 @@ async def generate_assessment_question_set(
         skills_json=formatted,
         architecture_count=architecture_count
     )
+    ########################NEW CODE##################
+    if mode == "requirement" and job_description:
+        architecture_messages[-1].content += f"""
+
+    JOB DESCRIPTION:
+    {job_description}
+
+    INSTRUCTION:
+    - Use this context for system design questions
+    - Focus on real-world architecture decisions
+    """
+    ########################NEW CODE END##################
     if rag_context:
         architecture_messages[-1].content += f"\n\nContext:\n{rag_context}"
 

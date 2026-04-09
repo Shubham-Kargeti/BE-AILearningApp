@@ -500,13 +500,26 @@ async def create_assessment(
             detail="Cannot generate assessment — no skills were extracted. Please extract skills first."
         )
 
-    # ------------------------------------------------------
+    # --------------------------------------------
+    # Prepare questionnaire_config FIRST
+    # --------------------------------------------
+    questionnaire_config = request.questionnaire_config or {}
+
+    # ✅ ONLY apply JD logic for requirement flow
+    if request.jd_id is None and request.candidate_info is None:
+        questionnaire_config = {
+            **questionnaire_config,
+            "job_description": request.description,
+            "mode": "requirement"
+        }
+
+    # --------------------------------------------
     # GENERATE QUESTION SET
-    # ------------------------------------------------------
+    # --------------------------------------------
     question_set_id = await generate_assessment_question_set(
         request.required_skills,
         db,
-        questionnaire_config=request.questionnaire_config
+        questionnaire_config=questionnaire_config
     )
 
     # ------------------------------------------------------
