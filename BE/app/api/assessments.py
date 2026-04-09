@@ -523,7 +523,7 @@ async def create_assessment(
     )
 
     # ------------------------------------------------------
-    # ✅ NEW: Add manual questions to the question set
+    #  Add manual questions to the question set
     # ------------------------------------------------------
     if request.manual_questions and len(request.manual_questions) > 0:
         from app.db.models import Question
