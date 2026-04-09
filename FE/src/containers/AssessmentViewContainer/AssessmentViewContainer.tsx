@@ -2639,7 +2639,7 @@ const AssessmentViewContainer: React.FC = () => {
                       const csv = [
                         Object.keys(csvData[0] || {}).join(','),
                         ...csvData.map(row => Object.values(row).join(','))
-                      ].join('\\n');
+                      ].join('\n');
                       const blob = new Blob([csv], { type: 'text/csv' });
                       const url = window.URL.createObjectURL(blob);
                       const a = document.createElement('a');

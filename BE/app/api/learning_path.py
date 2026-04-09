@@ -89,20 +89,57 @@ async def generate_learning_path(
     weak_questions = answers_result.all()
     
     # Extract topics from weak areas (can be enhanced with more sophisticated topic extraction)
+    # weak_topics = set()
+    # for answer, question in weak_questions:
+    #     # Use question tags or skill if available
+    #     if hasattr(question, 'skill') and question.skill:
+    #         weak_topics.add(question.skill)
+    #     elif hasattr(question, 'topic') and question.topic:
+    #         weak_topics.add(question.topic)
     weak_topics = set()
+
     for answer, question in weak_questions:
-        # Use question tags or skill if available
+        # 1. Existing fields (keep this)
         if hasattr(question, 'skill') and question.skill:
             weak_topics.add(question.skill)
-        elif hasattr(question, 'topic') and question.topic:
+            continue
+
+        if hasattr(question, 'topic') and question.topic:
             weak_topics.add(question.topic)
-    
-    # If no specific weak topics, use the main topic
-    if not weak_topics:
-        weak_topics.add(topic)
-    
+            continue
+
+        # 2. Extract from question.options (THIS IS YOUR MISSING PART)
+        if isinstance(question.options, dict):
+            qtype = question.options.get("type")
+
+            if qtype == "coding":
+                language = question.options.get("language")
+                if language:
+                    weak_topics.add(language)
+
+            elif qtype == "architecture":
+                focus_areas = question.options.get("focus_areas", [])
+                for area in focus_areas:
+                    weak_topics.add(area)
+
+        # 3. Extract from question text (fallback)
+        text = (question.question_text or "").lower()
+
+        keywords = ["python", "java", "javascript", "docker", "kubernetes", "azure", "monitoring"]
+
+        for kw in keywords:
+            if kw in text:
+                weak_topics.add(kw)
+        
+        # If no specific weak topics, use the main topic
+        if not weak_topics:
+            weak_topics.add(topic)
+        
     # Combine weak topics for search query
     search_topic = " ".join(weak_topics) if weak_topics else topic
+    print(f"[LP DEBUG] weak_topics: {weak_topics}")
+    print(f"[LP DEBUG] search_topic: {search_topic}")
+    print(f"[LP DEBUG] learning_level: {learning_level}")
     
     # Use vector search if available
     recommended = []
@@ -113,6 +150,7 @@ async def generate_learning_path(
             results = vectorstore.similarity_search_with_score(
                 search_topic, k=10, filter={"type": "resource"}
             )
+            print(f"[LP DEBUG] raw_results_count: {len(results)}")
             
             for doc, score in results:
                 try:
@@ -152,6 +190,7 @@ async def generate_learning_path(
     
     # Limit to top 10 recommendations
     recommended = recommended[:10]
+    print(f"[LP DEBUG] final_recommendations_count: {len(recommended)}")
     
     safe_response = sanitize_for_json({
         "topic": search_topic,
