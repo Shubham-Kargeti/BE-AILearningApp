@@ -5,6 +5,7 @@ from typing import List, Tuple, Optional, Dict, Any
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,10 @@ def index_document(doc_id: str, text: str, metadata: Optional[Dict[str, Any]] = 
     """
     _ensure_index_dir()
 
+    if os.path.exists(INDEX_DIR):
+            shutil.rmtree(INDEX_DIR)
+            os.makedirs(INDEX_DIR, exist_ok=True)
+
     # Simple chunking by paragraph - could be replaced with smarter chunking
     paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
     documents: List[Document] = []
@@ -33,16 +38,17 @@ def index_document(doc_id: str, text: str, metadata: Optional[Dict[str, Any]] = 
     embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
     try:
-        # If index exists, load and add documents
-        if os.path.exists(INDEX_DIR) and os.listdir(INDEX_DIR):
-            vs = FAISS.load_local(INDEX_DIR, embedding_model, allow_dangerous_deserialization=True)
-            vs.add_documents(documents)
-            vs.save_local(INDEX_DIR)
-            logger.info("Appended %d chunks to existing FAISS index", len(documents))
-        else:
-            vs = FAISS.from_documents(documents, embedding_model)
-            vs.save_local(INDEX_DIR)
-            logger.info("Created new FAISS index with %d chunks", len(documents))
+        # ALWAYS CREATE FRESH INDEX (no append, no old data)
+        if os.path.exists(INDEX_DIR):
+            shutil.rmtree(INDEX_DIR)
+
+        os.makedirs(INDEX_DIR, exist_ok=True)
+
+        vs = FAISS.from_documents(documents, embedding_model)
+        vs.save_local(INDEX_DIR)
+
+        logger.info("Created fresh FAISS index with %d chunks", len(documents))
+
     except Exception as e:
         logger.exception("Failed to index document %s: %s", doc_id, e)
         raise
@@ -59,22 +65,35 @@ def query_text(
 
     embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
     vs = FAISS.load_local(INDEX_DIR, embedding_model, allow_dangerous_deserialization=True)
+    print("TOTAL DOCS IN INDEX:", len(vs.docstore._dict))
+
+    # 🔥 STEP 1: Extract ALL docs from index
+    all_docs = vs.docstore._dict.values()
+
+    # 🔥 STEP 2: Filter ONLY current doc_id BEFORE embedding search
+    if doc_id:
+        filtered_docs = [
+            doc for doc in all_docs
+            if doc.metadata.get("doc_id") == doc_id
+        ]
+    else:
+        filtered_docs = list(all_docs)
+
+    if not filtered_docs:
+        return []
+
+    # 🔥 STEP 3: Create TEMP FAISS index ONLY for this doc
+    temp_vs = FAISS.from_documents(filtered_docs, embedding_model)
 
     try:
-        results = vs.similarity_search_with_score(q, k=top_k)
+        results = temp_vs.similarity_search_with_score(q, k=top_k)
     except Exception:
         return []
 
     hits = []
+
     for doc, score in results:
         meta = doc.metadata or {}
-        print("---- DEBUG CHUNK ----")
-        print("Stored doc_id:", meta.get("doc_id"))
-        print("Query doc_id:", doc_id)
-
-        # FILTER BY doc_id
-        if doc_id and meta.get("doc_id") != doc_id:
-            continue
 
         hit = {
             "id": f"{meta.get('doc_id')}::chunk:{meta.get('chunk_index')}",

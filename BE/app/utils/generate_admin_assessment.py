@@ -292,6 +292,8 @@ async def generate_assessment_question_set(
 
         for attempt in range(max_retries):
             try:
+                await asyncio.sleep(2)
+                
                 rag_chunks = query_text(
                     f"questions about {', '.join(required_skills.keys())}",
                     top_k=10,
@@ -312,6 +314,7 @@ async def generate_assessment_question_set(
                     )
 
                     print(f"[RAG] ✅ Found {len(rag_chunks)} chunks")
+                    print(f"[RAG] Context: {rag_context}")
                     break
                 else:
                     print(f"[RAG] ⏳ No chunks (attempt {attempt + 1})")
