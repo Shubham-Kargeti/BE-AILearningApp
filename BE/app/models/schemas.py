@@ -201,20 +201,24 @@ class CandidateResponse(BaseModel):
     candidate_id: str
     full_name: str
     email: str
-    phone: Optional[str]
-    current_role: Optional[str]
-    location: Optional[str]
-    education: Optional[str]
-    linkedin_url: Optional[str]
-    github_url: Optional[str]
-    portfolio_url: Optional[str]
-    experience_years: Optional[str]
+    phone: Optional[str]=None
+
+    current_role: Optional[str]=None
+    location: Optional[str]=None
+    education: Optional[str]=None
+    linkedin_url: Optional[str]=None
+    github_url: Optional[str]=None
+    portfolio_url: Optional[str]=None
+    experience_years: Optional[str]=None
+
     experience_level: str
     skills: dict
     availability_percentage: int
-    jd_file_id: Optional[str]
-    cv_file_id: Optional[str]
-    portfolio_file_id: Optional[str]
+
+    jd_file_id: Optional[str]=None
+    cv_file_id: Optional[str]=None
+    portfolio_file_id: Optional[str]=None
+
     is_active: bool
     created_at: datetime
     updated_at: datetime
