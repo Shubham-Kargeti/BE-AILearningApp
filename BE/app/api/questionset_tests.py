@@ -405,6 +405,13 @@ async def submit_questionset_answers(
         elif qtype == "architecture":
             selected_value = "ARCH"
 
+        # elif qtype in ["coding", "architecture"]:
+        #     selected_value = str(selected_value_raw).strip()
+
+        #     MAX_LEN = 10000  # safe limit
+        #     if len(selected_value) > MAX_LEN:
+        #         selected_value = selected_value[:MAX_LEN]    
+
         else:
             selected_value = str(selected_value_raw).strip()[:10]
 

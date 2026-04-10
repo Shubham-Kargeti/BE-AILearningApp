@@ -1,4 +1,5 @@
 import io
+import math
 from docx import Document
 import pdfplumber
 
@@ -85,3 +86,59 @@ def extract_text(file_bytes: bytes, name: str) -> str:
         return extract_text_from_pptx(file_bytes)
     else:
         raise ValueError(f"Unsupported file extension: {ext}")
+
+
+def extract_question_type_mix(config: dict, manual_questions: list) -> dict:
+    allowed_keys = ["mcq", "coding", "architecture", "screening"]
+
+    # Step 1: base from config
+    result = {}
+
+    for key in allowed_keys:
+        try:
+            value = int(config.get(key, 0))
+        except (ValueError, TypeError):
+            value = 0
+
+        result[key] = value
+
+    # Step 2: add manual questions
+    for q in manual_questions or []:
+        q_type = None
+
+        # handle dict or ORM
+        if isinstance(q, dict):
+            q_type = q.get("type") or q.get("question_type")
+        else:
+            q_type = getattr(q, "question_type", None)
+
+        if q_type in allowed_keys:
+            result[q_type] += 1
+
+    return result
+
+def calculate_duration_minutes(config: dict) -> int:
+    if not config :
+        return 30  # default duration for unknown config
+    
+    time_map = {
+        "mcq": 30,
+        "architecture": 120,
+        "coding": 600,
+        "screening": 120,
+    }
+
+    total_seconds = 0
+
+    #  1. From questionnaire_config
+    for key in ["mcq", "coding", "architecture", "screening"]:
+        count = config.get(key, 0)
+
+        try:
+            count = int(count)
+        except:
+            count = 0
+
+        total_seconds += count * time_map[key]
+
+    return math.ceil(total_seconds / 60)

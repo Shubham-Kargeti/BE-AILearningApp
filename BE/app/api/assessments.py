@@ -19,6 +19,7 @@ from app.models.schemas import (
 )
 from app.models.schemas import ScreeningResponseCreate, ScreeningResponseResponse
 from app.db.models import ScreeningResponse
+from app.utils.text_extract import calculate_duration_minutes, extract_question_type_mix
 
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
 settings = get_settings()
@@ -521,6 +522,11 @@ async def create_assessment(
         db,
         questionnaire_config=questionnaire_config
     )
+    
+    question_type_mix = extract_question_type_mix(request.questionnaire_config, request.manual_questions)
+    request.duration_minutes = calculate_duration_minutes(
+        question_type_mix
+    )
 
     # ------------------------------------------------------
     #  Add manual questions to the question set
@@ -613,6 +619,7 @@ async def create_assessment(
         assessment_method="questionnaire" if request.is_questionnaire_enabled else "interview",
         duration_minutes=request.duration_minutes,
         is_questionnaire_enabled=request.is_questionnaire_enabled,
+        question_type_mix=question_type_mix,
         is_interview_enabled=request.is_interview_enabled,
         is_published=True,
         expires_at=request.expires_at,
@@ -761,7 +768,7 @@ async def update_assessment_metadata(
     update_fields = [
         "title", "description", "job_title",
         "required_skills", "required_roles",
-        "duration_minutes", "expires_at",
+        "expires_at",
         "is_active", "is_published"
     ]
 
@@ -769,6 +776,13 @@ async def update_assessment_metadata(
         value = getattr(request, field, None)
         if value is not None:
             setattr(assessment, field, value)
+    
+    print("before update:", assessment.question_type_mix)
+    assessment.question_type_mix = extract_question_type_mix(assessment.question_type_mix, request.manual_questions)
+    print("after update:", assessment.question_type_mix)
+    assessment.duration_minutes = calculate_duration_minutes(
+            assessment.question_type_mix
+   )        
 
     # -------------------------
     # ✅ 2. Add Questions (ONLY if flag is true)
