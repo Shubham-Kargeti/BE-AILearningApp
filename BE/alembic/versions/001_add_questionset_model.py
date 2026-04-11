@@ -155,7 +155,7 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('session_id', sa.String(length=100), nullable=False),
         sa.Column('question_id', sa.Integer(), nullable=False),
-        sa.Column('selected_answer', sa.String(length=10), nullable=False),
+        sa.Column('selected_answer', sa.Text(), nullable=False),
         sa.Column('is_correct', sa.Boolean(), nullable=True),
         sa.Column('time_taken_seconds', sa.Integer(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
