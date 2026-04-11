@@ -616,12 +616,12 @@ const AssessmentSetupContainer: React.FC = () => {
 
       {!isEditMode && (<section className="card">
         <div className="card-header">
-          <h2>Question Bank Document (Optional)</h2>
+          <h2>RAG Document (Optional)</h2>
           <p className="hint">Upload a document to generate questions using RAG (Retrieval-Augmented Generation)</p>
         </div>
 
         <div className="upload-grid">
-          <FileUpload label="Question Bank Document (Optional)" onFileSelect={setRagFile} />
+          <FileUpload label="RAG Document (Optional)" onFileSelect={setRagFile} />
         </div>
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12 }}>
@@ -651,7 +651,7 @@ const AssessmentSetupContainer: React.FC = () => {
             Upload Question bank
           </button>
 
-          <button
+          {/*<button
             className="btn btn-primary"
             onClick={async () => {
               // If assessment doesn't exist, create it first
@@ -692,7 +692,7 @@ const AssessmentSetupContainer: React.FC = () => {
             disabled={!ragUploadedDocId && !ragFile}
           >
             Generate Questions (From Question Bank)
-          </button>
+          </button>*/}
 
           {ragUploadProgress !== null && <div style={{ marginLeft: 'auto' }}>{ragUploadProgress}%</div>}
         </div>
