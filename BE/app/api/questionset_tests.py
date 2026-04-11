@@ -393,27 +393,31 @@ async def submit_questionset_answers(
         selected_value_raw = answer_submit.selected_answer
         qtype = resolve_question_type(question)
 
-        if not selected_value_raw or selected_value_raw == "NOT_ANSWERED":
+        # Normalize input
+        if selected_value_raw is None:
+            selected_value = ""
+        elif not isinstance(selected_value_raw, str):
+            selected_value = str(selected_value_raw)
+        else:
+            selected_value = selected_value_raw.strip()
+
+        # Handle skipped
+        if not selected_value or selected_value == "NOT_ANSWERED":
             selected_value = "SKIPPED"
 
+        # MCQ → short values only
         elif qtype == "mcq":
-            selected_value = str(selected_value_raw).strip()[:10]
+            selected_value = selected_value[:10]
 
-        elif qtype == "coding":
-            selected_value = "CODE"
+        # Coding + Architecture → FULL TEXT (IMPORTANT FIX)
+        elif qtype in ["coding", "architecture"]:
+            MAX_ANSWER_LEN = 10000   # safety limit
+            if len(selected_value) > MAX_ANSWER_LEN:
+                selected_value = selected_value[:MAX_ANSWER_LEN]
 
-        elif qtype == "architecture":
-            selected_value = "ARCH"
-
-        # elif qtype in ["coding", "architecture"]:
-        #     selected_value = str(selected_value_raw).strip()
-
-        #     MAX_LEN = 10000  # safe limit
-        #     if len(selected_value) > MAX_LEN:
-        #         selected_value = selected_value[:MAX_LEN]    
-
+        # Fallback
         else:
-            selected_value = str(selected_value_raw).strip()[:10]
+            selected_value = selected_value[:10]
 
         answer_records.append(
             Answer(
