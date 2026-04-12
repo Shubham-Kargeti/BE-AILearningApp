@@ -11,7 +11,7 @@ import AssessmentSetupSubmitButton from "./components/AssessmentSetupSubmitButto
 import AssessmentLinkModal from "./components/AssessmentLinkModal";
 import Toast from "../../components/Toast/Toast";
 import { isAdmin } from "../../utils/adminUsers";
-import { uploadService, assessmentService, questionGenService } from "../../API/services";
+import { uploadService, assessmentService} from "../../API/services";
 import { parseResume, getExtractionConfidence } from "../../utils/resumeParser";
 import type { QuestionDistribution } from "./components/QuestionnaireConfig";
 import AssessmentConfigurationBlock from "./components/AssessmentConfigurationBlock";

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-  FiPlus, FiSearch, FiFilter, FiEye, FiEdit2, FiTrash2, 
+  FiPlus, FiSearch, FiFilter, FiEye, FiTrash2, 
   FiAlertCircle, FiX, FiCheckCircle, FiClock, FiActivity, FiRefreshCw,
   FiUsers, FiTrendingUp, FiCalendar
 } from "react-icons/fi";
@@ -226,9 +226,9 @@ const AdminDashboard: React.FC = () => {
     navigate(`/admin/assessment/${assessment.assessment_id}/view`);
   };
 
-  const handleEditAssessment = (assessment: DisplayAssessment) => {
-    navigate(`/admin/assessment/${assessment.assessment_id}/edit`);
-  };
+  // const handleEditAssessment = (assessment: DisplayAssessment) => {
+  //   navigate(`/admin/assessment/${assessment.assessment_id}/edit`);
+  // };
 
   const handleDeleteAssessment = async (assessment: DisplayAssessment) => {
     if (deleteConfirm !== assessment.id) {
