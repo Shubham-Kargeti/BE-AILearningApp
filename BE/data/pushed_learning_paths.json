@@ -95,5 +95,52 @@
       }
     ],
     "pushed_at": "2026-04-12T06:46:42.940131"
+  },
+  "bhavneet.singh01@nagarro.com": {
+    "session_id": "session_4ad394da4b6c4696a930ac630a403f10",
+    "topic": "monitoring",
+    "recommended_courses": [
+      {
+        "name": "CLD105 - AWS data analytics",
+        "topic": "AWS data analytics",
+        "collection": "Cloud",
+        "category": "Technology",
+        "description": "In this collection, we have compiled a list of skills that are considered to be good to have skills for cloud",
+        "url": "https://nagarro.sharepoint.com/sites/university/SitePages/Pathways.aspx?pathways=AWS data analytics",
+        "score": 1.4719014167785645,
+        "course_level": "Beginner/Intermediate/Advanced"
+      },
+      {
+        "name": "BIA103 - Amazon QuickSight",
+        "topic": "Amazon QuickSight",
+        "collection": "BI and Analytics",
+        "category": "Technology",
+        "description": "In this collection, we have compiled a list of skills that are considered to be good to have skills for BI and analytics",
+        "url": "https://nagarro.sharepoint.com/sites/university/SitePages/Pathways.aspx?pathways=Amazon QuickSight",
+        "score": 1.4791178703308105,
+        "course_level": "Beginner/Intermediate/Advanced"
+      },
+      {
+        "name": "BIA113 - Datawarehouse concept and ETL",
+        "topic": "Datawarehouse concept and ETL",
+        "collection": "BI and Analytics",
+        "category": "Technology",
+        "description": "In this collection, we have compiled a list of skills that are considered to be good to have skills for BI and analytics",
+        "url": "https://nagarro.sharepoint.com/sites/university/SitePages/Pathways.aspx?pathways=Datawarehouse concept and ETL",
+        "score": 1.4907761812210083,
+        "course_level": "Intermediate/Advanced"
+      },
+      {
+        "name": "BIA106 - AWS data analytics",
+        "topic": "AWS data analytics",
+        "collection": "BI and Analytics",
+        "category": "Technology",
+        "description": "In this collection, we have compiled a list of skills that are considered to be good to have skills for BI and analytics",
+        "url": "https://nagarro.sharepoint.com/sites/university/SitePages/Pathways.aspx?pathways=AWS data analytics",
+        "score": 1.4946264028549194,
+        "course_level": "Beginner/Intermediate/Advanced"
+      }
+    ],
+    "pushed_at": "2026-04-12T08:02:37.459624"
   }
 }

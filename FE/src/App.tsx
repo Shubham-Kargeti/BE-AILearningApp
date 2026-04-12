@@ -16,7 +16,7 @@ import AssessmentViewContainer from "./containers/AssessmentViewContainer/Assess
 import CandidateAssessmentContainer from "./containers/CandidateAssessmentContainer";
 import AssessmentsListContainer from "./containers/AssessmentsListContainer/AssessmentsListContainer";
 import SettingsContainer from "./containers/SettingsContainer/SettingsContainer";
-
+import EmployeeLearningPath from "./containers/LearningPathsContainer/EmployeeLearningPath";
 import AdminProtectedRoute from "./components/adminProtectedRoute/AdminProtectedRoute";
 import AdminDashboard from "./containers/AdminDashboard";
 import AdminLayout from "./containers/AdminLayout";
@@ -25,7 +25,7 @@ import AdminRequirement from "./containers/AdminRequirement/AdminRequirement";
 import AdminSettings from "./containers/AdminSettings/AdminSettings";
 import QuestionBankContainer from "./containers/QuestionBankContainer";
 import LearningPathContainer from "./containers/LearningPathContainer/LearningPathContainer";
-import LearningPathsContainer from "./containers/LearningPathsContainer/LearningPathsContainer";
+//import LearningPathsContainer from "./containers/LearningPathsContainer/LearningPathsContainer";
 import DetailedResultsView from "./containers/DetailedResultsView/DetailedResultsView";
 
 import Logout from "./components/Logout";
@@ -68,7 +68,8 @@ function App() {
           <Route path={client.STREAK} element={<StreakContainer />} />
           <Route path={client.SETTINGS} element={<SettingsContainer />} />
           <Route path={client.ASSESSMENTS} element={<AssessmentsListContainer />} />
-          <Route path="learning-paths" element={<LearningPathsContainer />} />
+          {/*<Route path="learning-paths" element={<LearningPathsContainer />} /> */}
+          <Route path="learning-paths" element={<EmployeeLearningPath />} />
         </Route>
 
         <Route

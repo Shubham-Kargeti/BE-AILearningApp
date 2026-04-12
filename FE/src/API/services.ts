@@ -501,6 +501,10 @@ export const candidateService = {
     const response = await apiClient.get("/candidates/my-assessments");
     return response.data;
   },
+  getEmployeeLearningPath: async () => {
+    const response = await apiClient.get("/learning-path/employee");
+    return response.data;
+  },
 };
 
 export const assessmentService = {
