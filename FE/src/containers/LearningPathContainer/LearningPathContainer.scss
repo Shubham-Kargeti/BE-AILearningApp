@@ -44,7 +44,7 @@
       .header-subtitle {
         font-size: 1.1rem;
         opacity: 0.9;
-        
+
         strong {
           color: #ffd700;
         }
@@ -245,5 +245,34 @@
         grid-template-columns: 1fr;
       }
     }
+  }
+}
+
+.push-button-container {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: center;
+}
+
+.push-button {
+  background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+  }
+
+  &:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    box-shadow: none;
   }
 }

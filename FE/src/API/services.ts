@@ -547,7 +547,7 @@ export const assessmentService = {
   },
 
   deleteQuestion: async (questionId: number): Promise<void> => {
-  await apiClient.delete(`/assessments/questions/${questionId}`);
+    await apiClient.delete(`/assessments/questions/${questionId}`);
   },
 
   deleteAssessment: async (assessmentId: string): Promise<void> => {
@@ -715,11 +715,22 @@ export const coursesService = {
 
   getLearningPath: async (
     sessionId: string
-  ): Promise<{ 
+  ): Promise<{
     topic: string;
-    recommended_courses: RecommendedCourse[] 
+    recommended_courses: RecommendedCourse[]
   }> => {
     const response = await apiClient.get(`/learning-path/${sessionId}`);
+    return response.data;
+  },
+  pushLearningPath: async (data: {
+    session_id: string;
+    topic: string;
+    recommended_courses: RecommendedCourse[];
+  }) => {
+    const response = await apiClient.post(
+      "/learning-path/push-to-employee",
+      data
+    );
     return response.data;
   },
 };

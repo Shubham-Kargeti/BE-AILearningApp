@@ -48,6 +48,32 @@ const LearningPathContainer: React.FC = () => {
     fetchLearningPath();
   }, [sessionId]);
 
+  const handlePushToEmployee = async () => {
+    if (!sessionId) {
+      setToast({ type: "error", message: "Session ID missing" });
+      return;
+    }
+
+    try {
+      await coursesService.pushLearningPath({
+        session_id: sessionId,
+        topic,
+        recommended_courses: courses
+      });
+
+      setToast({
+        type: "success",
+        message: "Learning path pushed to employee successfully!"
+      });
+    } catch (err: any) {
+      console.error(err);
+      setToast({
+        type: "error",
+        message: err.response?.data?.detail || "Failed to push learning path",
+      });
+    }
+  };
+
   if (loading) {
     return <Loader />;
   }
@@ -144,6 +170,18 @@ const LearningPathContainer: React.FC = () => {
             </div>
           </>
         )}
+
+        {/* 🔽 PUSH BUTTON ADDED HERE */}
+        <div className="push-button-container">
+          <button
+            className="push-button"
+            onClick={handlePushToEmployee}
+            disabled={courses.length === 0}
+          >
+            Push Learning Path to Employee
+          </button>
+        </div>
+
       </div>
     </div>
   );

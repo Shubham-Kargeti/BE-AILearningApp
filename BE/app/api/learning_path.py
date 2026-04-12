@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from typing import List, Optional
 import logging
-
+from pydantic import BaseModel
+from app.core.dependencies import get_current_user
 
 from app.db.session import get_db
 from app.db.models import TestSession, Answer, Question, QuestionSet, User
@@ -13,6 +14,11 @@ from app.db.models import TestSession, Answer, Question, QuestionSet, User
 from app.models.schemas import CourseRecommendation, RecommendedCoursesResponse
 from config import get_settings
 
+class PushLearningPathRequest(BaseModel):
+    session_id: str
+    topic: str
+    recommended_courses: list
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -20,6 +26,26 @@ settings = get_settings()
 # Import course recommendation logic from recommended_courses
 from app.api.recommended_courses import vectorstore, get_allowed_levels, fallback_search, sanitize_for_json
 import math
+
+@router.get("/learning-path/employee")
+async def get_employee_learning_path(
+    current_user: User = Depends(get_current_user)
+):
+    from app.utils.learning_path_store import get_learning_path
+    """
+    📥 Get pushed learning path for logged-in employee
+    """
+
+    data = get_learning_path(current_user.email)
+
+    if not data:
+        raise HTTPException(
+            status_code=404,
+            detail="No learning path assigned yet"
+        )
+
+    return data
+
 
 
 @router.get("/learning-path/{session_id}", response_model=RecommendedCoursesResponse)
@@ -201,3 +227,51 @@ async def generate_learning_path(
     })
     
     return safe_response
+
+
+
+
+
+@router.post("/learning-path/push-to-employee")
+async def push_learning_path(
+    payload: PushLearningPathRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    
+    from app.utils.learning_path_store import save_learning_path
+    """
+    📤 Push finalized learning path to employee
+    """
+
+    # 1. Fetch session
+    result = await db.execute(
+        select(TestSession).where(TestSession.session_id == payload.session_id)
+    )
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # 2. Fetch user
+    result = await db.execute(
+        select(User).where(User.id == session.user_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 3. Save snapshot
+    save_learning_path(
+        email=user.email,
+        session_id=payload.session_id,
+        topic=payload.topic,
+        courses=payload.recommended_courses
+    )
+
+    return {
+        "message": "Learning path pushed successfully",
+        "email": user.email
+    }
+
+
