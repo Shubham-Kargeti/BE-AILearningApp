@@ -5,8 +5,11 @@ from sqlalchemy import select, and_
 from typing import List, Optional
 import logging
 
+
 from app.db.session import get_db
-from app.db.models import TestSession, Answer, Question, QuestionSet
+from app.db.models import TestSession, Answer, Question, QuestionSet, User
+
+
 from app.models.schemas import CourseRecommendation, RecommendedCoursesResponse
 from config import get_settings
 
