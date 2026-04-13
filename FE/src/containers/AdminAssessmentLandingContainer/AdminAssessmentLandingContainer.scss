@@ -1,0 +1,91 @@
+.admin-assessment-home {
+  padding: 40px;
+  min-height: 100%;
+
+  .content-wrapper {
+    max-width: 1200px;
+  }
+
+  .headline {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #1f2937;
+  }
+
+  .tagline {
+    font-size: 15px;
+    color: #6b7280;
+    margin-bottom: 32px;
+  }
+
+  /* 🔥 KEY CHANGE: GRID instead of fixed cards */
+  .features-wrapper {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 equal columns */
+    gap: 32px;
+    width: 100%;
+  }
+
+  .feature-box {
+    width: 100%; /* FULL WIDTH */
+    min-height: 320px; /* makes cards taller */
+
+    padding: 32px;
+    border-radius: 20px;
+
+    background: linear-gradient(135deg, #1e3a5f, #2b5876);
+    color: white;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; /* spreads content nicely */
+
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+    transition: all 0.3s ease;
+  }
+
+  .feature-box:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+  }
+
+  .box-title {
+    font-size: 22px;
+    margin-bottom: 10px;
+  }
+
+  .box-desc {
+    font-size: 15px;
+    color: #d1d9e6;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  .action-btn {
+    align-self: flex-start; /* button aligns left */
+
+    background-color: #38b6ff;
+    padding: 12px 18px;
+    border-radius: 10px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+
+    transition: all 0.25s ease;
+  }
+
+  .action-btn:hover {
+    background-color: #2694e1;
+    transform: translateY(-2px);
+  }
+
+  /* 📱 Responsive: stack on smaller screens */
+  @media (max-width: 768px) {
+    .features-wrapper {
+      grid-template-columns: 1fr;
+    }
+  }
+}

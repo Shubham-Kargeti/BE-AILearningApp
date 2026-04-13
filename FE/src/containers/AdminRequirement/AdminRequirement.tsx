@@ -48,11 +48,11 @@ const AdminRequirement = () => {
       
       // Redirect to assessment list after 2 seconds
       setTimeout(() => {
-        navigate("/admin/assessment");
+        navigate("/admin/dashboard");
       }, 2000);
     } catch (err: any) {
 
-      setError(err?.response?.data?.detail || "Failed to create requirement. Please try again.");
+      setError(err?.response?.data?.detail || "Failed to create assessment. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -129,12 +129,12 @@ const AdminRequirement = () => {
 
           {success && (
             <div className="success-message" style={{ color: '#2e7d32', marginBottom: '16px', padding: '12px', backgroundColor: '#e8f5e9', borderRadius: '4px' }}>
-              Requirement created successfully! Redirecting to assessments...
+              Assessment created successfully! Redirecting to dashboard...
             </div>
           )}
 
           <button type="submit" className="submit-btn" disabled={isSubmitting}>
-            {isSubmitting ? "Creating..." : "Create Requirement"}
+            {isSubmitting ? "Creating..." : "Create Assessment"}
           </button>
         </form>
       </div>

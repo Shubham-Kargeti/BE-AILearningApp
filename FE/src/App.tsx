@@ -27,7 +27,7 @@ import QuestionBankContainer from "./containers/QuestionBankContainer";
 import LearningPathContainer from "./containers/LearningPathContainer/LearningPathContainer";
 //import LearningPathsContainer from "./containers/LearningPathsContainer/LearningPathsContainer";
 import DetailedResultsView from "./containers/DetailedResultsView/DetailedResultsView";
-
+import AdminAssessmentLandingContainer from "./containers/AdminAssessmentLandingContainer/AdminAssessmentLandingContainer";
 import Logout from "./components/Logout";
 
 function App() {
@@ -90,7 +90,9 @@ function App() {
           }
         >
           <Route path="dashboard" element={<AdminDashboard />} />
-          <Route path="assessment" element={<AssessmentSetupContainer />} />
+          {/* <Route path="assessment" element={<AssessmentSetupContainer />} /> */}
+          <Route path="assessment" element={<AdminAssessmentLandingContainer />} />
+          <Route path="assessment/setup" element={<AssessmentSetupContainer />} />
           <Route path="assessment/:id/view" element={<AssessmentViewContainer />} />
           <Route path="assessment/:id/edit" element={<AssessmentSetupContainer />} />
           <Route path="questions" element={<QuestionBankContainer />} />

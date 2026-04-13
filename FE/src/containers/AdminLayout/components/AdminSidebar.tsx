@@ -19,9 +19,9 @@ const AdminSidebar = () => {
           Add Candidate
         </NavLink>
 
-        <NavLink to="/admin/requirement" className="admin-link">
+        {/* <NavLink to="/admin/requirement" className="admin-link">
           Requirement Creation
-        </NavLink>
+        </NavLink> */}
 
         <NavLink to="/admin/settings" className="admin-link">
           Settings
