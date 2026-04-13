@@ -18,6 +18,7 @@ import AssessmentConfigurationBlock from "./components/AssessmentConfigurationBl
 import type { GenerationPolicy } from "./components/GenerationPolicySelector";
 import GenerationPolicySelector from "./components/GenerationPolicySelector";
 import AssessmentQuestionEditor, { type Question } from "./components/AssessmentQuestionEditor";
+import { FiFileText, FiBriefcase, FiCpu } from "react-icons/fi";
 
 
 
@@ -206,13 +207,14 @@ const AssessmentSetupContainer: React.FC = () => {
     const errors: ValidationError[] = [];
 
     if (!isEditMode && !cvFile) errors.push({ field: "cv", message: "CV is required" });
+    if (!isEditMode && !jdFile) errors.push({ field: "jd", message: "Job description is required" });
     if (!isEditMode && !emailValid) errors.push({ field: "email", message: "Valid email is required" });
     if (!role.trim()) errors.push({ field: "role", message: "Role is required" });
     if (skills.length === 0) errors.push({ field: "skills", message: "At least one skill is required" });
 
     setValidationErrors(errors);
     setFormValid(errors.length === 0);
-  }, [cvFile, emailValid, role, skills, isEditMode]);
+  }, [cvFile, jdFile, emailValid, role, skills, isEditMode]);
 
   const handleResumeTextExtracted = (text: string) => {
     if (!text) {
@@ -262,6 +264,11 @@ const AssessmentSetupContainer: React.FC = () => {
   const handleProcessFile = async () => {
     if (!cvFile) {
       setToast({ type: "error", message: "Please select a CV first" });
+      return;
+    }
+
+    if (!jdFile) {
+      setToast({ type: "error", message: "Please select a job description first" });
       return;
     }
 
@@ -472,36 +479,162 @@ const AssessmentSetupContainer: React.FC = () => {
         </div>
       )}
 
-     {!isEditMode && (
+    {!isEditMode && (
       <section className="card upload-card">
-        <div className="card-header">
-          <h2>Upload Documents</h2>
-          <p className="hint">Candidate CV is required. Other documents are optional. Candidate info will be auto-filled from CV.</p>
+        <div className="card-header source-documents-header">
+          <h2>Source Documents</h2>
         </div>
 
-        <div className="upload-grid">
-          <FileUpload label="Job Description (Optional)" onFileSelect={setJdFile} />
-          <FileUpload
-            label="Candidate CV *"
-            onFileSelect={setCvFile}
-            onTextExtracted={handleResumeTextExtracted}
-            isRequired
-          />
-          <FileUpload label="Requirement Doc (Optional)" onFileSelect={setReqDoc} />
-          <FileUpload label="Client Portfolio (Optional)" onFileSelect={setClientDoc} />
+        <div className="source-documents-grid">
+          <div className="source-document-card">
+            <div className="source-document-icon">
+              <FiFileText size={26} />
+            </div>
+            <div className="source-document-copy">
+              <h3>Upload Resume</h3>
+              <p>PDF, DOCX up to 10MB</p>
+            </div>
+
+            <FileUpload
+              label="Upload Resume"
+              onFileSelect={setCvFile}
+              onTextExtracted={handleResumeTextExtracted}
+              isRequired
+            />
+          </div>
+
+          <div className="source-document-card">
+            <div className="source-document-icon">
+              <FiBriefcase size={26} />
+            </div>
+            <div className="source-document-copy">
+              <h3>Job Description</h3>
+              <p>Extract skills & context</p>
+            </div>
+
+            <FileUpload
+              label="Job Description"
+              onFileSelect={setJdFile}
+              isRequired
+            />
+          </div>
         </div>
 
         <div className="card-actions">
           <button
             className="btn primary"
             onClick={handleProcessFile}
-            disabled={!cvFile || processLoading}
+            disabled={!cvFile || !jdFile || processLoading}
           >
             {processLoading ? "Processing..." : "Extract Role & Skills"}
           </button>
         </div>
       </section>
      )}
+
+      {!isEditMode && (<section className="card question-source-card">
+        <div className="card-header">
+          <h2>Question Source Document (Optional)</h2>
+          <p className="hint">Upload a document to generate assessment questions based on its content</p>
+        </div>
+
+        <div className="rag-upload-shell">
+          <div className="source-document-card source-document-card--single source-document-card--ai">
+            <div className="source-document-icon source-document-icon--ai">
+              <FiCpu size={26} />
+            </div>
+            <div className="source-document-copy">
+              <h3>Question Source Document</h3>
+              <p>Use AI + document context to generate targeted questions</p>
+            </div>
+
+            <FileUpload label="Question Source Document" onFileSelect={setRagFile} />
+          </div>
+        </div>
+
+        <div className="rag-upload-actions">
+          <button
+            className="btn primary"
+            onClick={async () => {
+              if (!ragFile) {
+                setToast({ type: 'error', message: 'Select a Question Bank document first' });
+                return;
+              }
+              const targetAssessmentId = isEditMode ? assessmentId : createdAssessmentId;
+
+              try {
+                setToast({ type: "info", message: "Uploading Question Bank document..." });
+                setRagUploadProgress(0);
+                const res = await uploadService.uploadQuestionDoc(ragFile, targetAssessmentId ?? undefined, (p) => setRagUploadProgress(p));
+                setRagUploadedDocId(res.doc_id);
+                setToast({ type: 'success', message: `Question Bank uploaded (doc: ${res.doc_id})` });
+              } catch (err: any) {
+                const msg = err.response?.data?.detail || 'Failed to upload Question Bank document';
+                setToast({ type: 'error', message: msg });
+              } finally {
+                setRagUploadProgress(null);
+              }
+            }}
+          >
+            Upload
+          </button>
+
+          {/*<button
+            className="btn btn-primary"
+            onClick={async () => {
+              // If assessment doesn't exist, create it first
+              let targetAssessmentId = isEditMode ? assessmentId : createdAssessmentId;
+              if (!targetAssessmentId) {
+                // Check minimum required fields
+                if (!role.trim()) {
+                  setToast({ type: 'error', message: 'Please enter Role before generating questions' });
+                  return;
+                }
+                if (skills.length === 0) {
+                  setToast({ type: 'error', message: 'Please add at least one Skill before generating questions' });
+                  return;
+                }
+                if (!cvFile && !candidateInfo.email) {
+                  setToast({ type: 'error', message: 'Please upload CV or enter candidate email before generating questions' });
+                  return;
+                }
+                
+                setToast({ type: 'info', message: 'Creating assessment first...' });
+                await handleSubmit(true); // Skip strict validation for Question Bank auto-create
+                // After handleSubmit, createdAssessmentId should be set
+                targetAssessmentId = createdAssessmentId;
+                if (!targetAssessmentId) {
+                  setToast({ type: 'error', message: 'Failed to create assessment. Please try again.' });
+                  return;
+                }
+              }
+              
+              try {
+                const res = await questionGenService.startGenerationForAssessment(targetAssessmentId, totalQuestions, 'question_bank');
+                setToast({ type: 'success', message: `Generation queued (task: ${res.task_id})` });
+              } catch (err: any) {
+                const msg = err.response?.data?.detail || 'Failed to start generation';
+                setToast({ type: 'error', message: msg });
+              }
+            }}
+            disabled={!ragUploadedDocId && !ragFile}
+          >
+            Generate Questions (From Question Bank)
+          </button>*/}
+
+          {ragUploadProgress !== null && (
+            <div className="rag-upload-progress">{ragUploadProgress}%</div>
+          )}
+        </div>
+      </section>
+      )}
+
+      {ragUploadedDocId && (
+        <GenerationPolicySelector
+          value={generationPolicy}
+          onChange={setGenerationPolicy}
+        />
+      )}
 
       <section className="card details-card">
         <div className="card-header">
@@ -614,97 +747,6 @@ const AssessmentSetupContainer: React.FC = () => {
         </div>
       </section>
 
-      {!isEditMode && (<section className="card">
-        <div className="card-header">
-          <h2>RAG Document (Optional)</h2>
-          <p className="hint">Upload a document to generate questions using RAG (Retrieval-Augmented Generation)</p>
-        </div>
-
-        <div className="upload-grid">
-          <FileUpload label="RAG Document (Optional)" onFileSelect={setRagFile} />
-        </div>
-
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12 }}>
-          <button
-            className="btn"
-            onClick={async () => {
-              if (!ragFile) {
-                setToast({ type: 'error', message: 'Select a Question Bank document first' });
-                return;
-              }
-              const targetAssessmentId = isEditMode ? assessmentId : createdAssessmentId;
-
-              try {
-                setToast({ type: "info", message: "Uploading Question Bank document..." });
-                setRagUploadProgress(0);
-                const res = await uploadService.uploadQuestionDoc(ragFile, targetAssessmentId ?? undefined, (p) => setRagUploadProgress(p));
-                setRagUploadedDocId(res.doc_id);
-                setToast({ type: 'success', message: `Question Bank uploaded (doc: ${res.doc_id})` });
-              } catch (err: any) {
-                const msg = err.response?.data?.detail || 'Failed to upload Question Bank document';
-                setToast({ type: 'error', message: msg });
-              } finally {
-                setRagUploadProgress(null);
-              }
-            }}
-          >
-            Upload Question bank
-          </button>
-
-          {/*<button
-            className="btn btn-primary"
-            onClick={async () => {
-              // If assessment doesn't exist, create it first
-              let targetAssessmentId = isEditMode ? assessmentId : createdAssessmentId;
-              if (!targetAssessmentId) {
-                // Check minimum required fields
-                if (!role.trim()) {
-                  setToast({ type: 'error', message: 'Please enter Role before generating questions' });
-                  return;
-                }
-                if (skills.length === 0) {
-                  setToast({ type: 'error', message: 'Please add at least one Skill before generating questions' });
-                  return;
-                }
-                if (!cvFile && !candidateInfo.email) {
-                  setToast({ type: 'error', message: 'Please upload CV or enter candidate email before generating questions' });
-                  return;
-                }
-                
-                setToast({ type: 'info', message: 'Creating assessment first...' });
-                await handleSubmit(true); // Skip strict validation for Question Bank auto-create
-                // After handleSubmit, createdAssessmentId should be set
-                targetAssessmentId = createdAssessmentId;
-                if (!targetAssessmentId) {
-                  setToast({ type: 'error', message: 'Failed to create assessment. Please try again.' });
-                  return;
-                }
-              }
-              
-              try {
-                const res = await questionGenService.startGenerationForAssessment(targetAssessmentId, totalQuestions, 'question_bank');
-                setToast({ type: 'success', message: `Generation queued (task: ${res.task_id})` });
-              } catch (err: any) {
-                const msg = err.response?.data?.detail || 'Failed to start generation';
-                setToast({ type: 'error', message: msg });
-              }
-            }}
-            disabled={!ragUploadedDocId && !ragFile}
-          >
-            Generate Questions (From Question Bank)
-          </button>*/}
-
-          {ragUploadProgress !== null && <div style={{ marginLeft: 'auto' }}>{ragUploadProgress}%</div>}
-        </div>
-      </section>
-      )}
-
-      {ragUploadedDocId && (
-        <GenerationPolicySelector
-          value={generationPolicy}
-          onChange={setGenerationPolicy}
-        />
-      )}
 
       {validationErrors.length > 0 && (
         <div className="validation-summary">

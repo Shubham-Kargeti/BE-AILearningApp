@@ -37,16 +37,15 @@ const GenerationPolicySelector: React.FC<Props> = ({ value, onChange, disabled =
   return (
     <section className="card generation-policy-card">
       <div className="card-header">
-        <h2>Question Generation Mix</h2>
+        <h2>Question Generation Source</h2>
         <p className="hint">
-          Choose how much of the question set should be generated from RAG vs. LLM.
-          Percentages always sum to 100%.
+          Choose how many questions should come from the uploaded document versus AI generation. Total always equals 100%.
         </p>
       </div>
 
       <div className="generation-grid">
         <div className="generation-field">
-          <label>RAG Questions (%)</label>
+          <label>Document-Based Questions (%)</label>
           <input
             type="number"
             min={0}
@@ -60,7 +59,7 @@ const GenerationPolicySelector: React.FC<Props> = ({ value, onChange, disabled =
         </div>
 
         <div className="generation-field">
-          <label>LLM Questions (%)</label>
+          <label>AI-Generated Questions (%)</label>
           <input
             type="number"
             min={0}

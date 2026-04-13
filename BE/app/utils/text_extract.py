@@ -93,7 +93,7 @@ def extract_question_type_mix(config: dict, manual_questions: list) -> dict:
 
     # Step 1: base from config
     result = {}
-    config = config or {}
+    config = config or {"mcq": 6,"architecture": 2,"coding": 2,"screening": 0}
 
     for key in allowed_keys:
         try:
