@@ -93,6 +93,7 @@ def extract_question_type_mix(config: dict, manual_questions: list) -> dict:
 
     # Step 1: base from config
     result = {}
+    config = config or {}
 
     for key in allowed_keys:
         try:
@@ -140,5 +141,8 @@ def calculate_duration_minutes(config: dict) -> int:
             count = 0
 
         total_seconds += count * time_map[key]
+    
+    if total_seconds == 0:
+        return 30  # default duration for zero questions
 
     return math.ceil(total_seconds / 60)
