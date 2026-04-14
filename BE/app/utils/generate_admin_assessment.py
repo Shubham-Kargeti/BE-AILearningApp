@@ -277,7 +277,7 @@ async def generate_assessment_question_set(
     rag_context = ""
     questionnaire_config = questionnaire_config or {}
     job_description = questionnaire_config.get("job_description")
-    mode = questionnaire_config.get("mode")
+    # mode = questionnaire_config.get("mode")
 
    
 
@@ -357,7 +357,7 @@ async def generate_assessment_question_set(
     
 
     #############NEW CODE##################
-    if mode == "requirement" and job_description:
+    if job_description:
         messages[-1].content += f"""
 
     
@@ -405,7 +405,7 @@ async def generate_assessment_question_set(
         coding_count=coding_count
     )
     #######################NEW CODE##################
-    if mode == "requirement" and job_description:
+    if job_description:
         coding_messages[-1].content += f"""
 
     JOB DESCRIPTION:
@@ -451,7 +451,7 @@ async def generate_assessment_question_set(
         architecture_count=architecture_count
     )
     ########################NEW CODE##################
-    if mode == "requirement" and job_description:
+    if job_description:
         architecture_messages[-1].content += f"""
 
     JOB DESCRIPTION:

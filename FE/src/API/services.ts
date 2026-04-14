@@ -577,7 +577,7 @@ export const uploadService = {
   uploadJD: async (
     file: File,
     onProgress?: (percent: number) => void
-  ): Promise<{ jd_id: string; title: string; extracted_text: string }> => {
+  ): Promise<{ message: string; jd_id: string; title?: string; extracted_text?: string }> => {
     const formData = new FormData();
     formData.append("file", file);
 

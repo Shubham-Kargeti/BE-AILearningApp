@@ -38,6 +38,7 @@ const AssessmentSetupContainer: React.FC = () => {
   const [editLoading, setEditLoading] = useState(false);
 
   const [jdFile, setJdFile] = useState<File | null>(null);
+  const [jdId, setJdId] = useState<string | null>(null);
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [reqDoc, setReqDoc] = useState<File | null>(null);
   const [clientDoc, setClientDoc] = useState<File | null>(null);
@@ -159,6 +160,10 @@ const AssessmentSetupContainer: React.FC = () => {
           setRole(assessment.job_title);
         }
 
+        if (assessment.jd_id) {
+          setJdId(assessment.jd_id);
+        }
+
         if (assessment.required_skills) {
           setSkills(Object.keys(assessment.required_skills));
         }
@@ -275,6 +280,13 @@ const AssessmentSetupContainer: React.FC = () => {
     setProcessLoading(true);
 
     try {
+      let currentJdId = jdId;
+      if (!currentJdId) {
+        const jdUploadResponse = await uploadService.uploadJD(jdFile);
+        currentJdId = jdUploadResponse.jd_id;
+        setJdId(currentJdId);
+      }
+
       const res = await uploadService.extractSkills(cvFile, jdFile || undefined, reqDoc || undefined, clientDoc || undefined);
 
       const extractedSkillsList = res.skills || (res as any).extracted_skills || [];
@@ -301,7 +313,10 @@ const AssessmentSetupContainer: React.FC = () => {
         setSkillDurations(durations);
       }
 
-      setToast({ type: "success", message: `Extracted ${skillNames.length} skills from documents!` });
+      setToast({
+        type: "success",
+        message: `JD uploaded and extracted ${skillNames.length} skills successfully!`,
+      });
     } catch (err: any) {
       console.error("Error processing resume:", err);
       const errorMessage = err.response?.data?.detail || "Failed to process resume. Please try again.";
@@ -325,6 +340,7 @@ const AssessmentSetupContainer: React.FC = () => {
     title: `Assessment for ${role}`,
     description: `Assessment created for candidate ${candidateInfo.name || candidateInfo.email || 'admin'}`,
     job_title: role.trim(),
+    jd_id: jdId || undefined,
 
     required_skills: skills.reduce((acc, skill) => {
       const level = skillDurations?.[skill.toLowerCase()]
@@ -514,7 +530,10 @@ const AssessmentSetupContainer: React.FC = () => {
 
             <FileUpload
               label="Job Description"
-              onFileSelect={setJdFile}
+              onFileSelect={(file) => {
+                setJdFile(file);
+                setJdId(null);
+              }}
               isRequired
             />
           </div>

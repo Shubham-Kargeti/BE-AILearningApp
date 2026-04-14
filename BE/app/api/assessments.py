@@ -20,6 +20,7 @@ from app.models.schemas import (
 from app.models.schemas import ScreeningResponseCreate, ScreeningResponseResponse
 from app.db.models import ScreeningResponse
 from app.utils.text_extract import calculate_duration_minutes, extract_question_type_mix
+from app.api.upload_jd import memory_store
 
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
 settings = get_settings()
@@ -424,14 +425,21 @@ async def create_assessment(
     """
     await check_admin(current_user)
     
+     # ------------------------------------------------------
+    # ✅ FETCH JD TEXT FROM MEMORY STORE
+    # ------------------------------------------------------
+    jd_text = None
+
     if request.jd_id:
-        jd_stmt = select(JobDescription).where(JobDescription.jd_id == request.jd_id)
-        jd_result = await db.execute(jd_stmt)
-        if not jd_result.scalars().first():
+        jd_data = memory_store.get(request.jd_id)
+
+        if not jd_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job description {request.jd_id} not found"
+                detail=f"Job description {request.jd_id} not found in memory"
             )
+
+        jd_text = jd_data.get("text")
     
     candidate_db = None
     if request.candidate_info and request.candidate_info.email:
@@ -506,23 +514,34 @@ async def create_assessment(
     # --------------------------------------------
     questionnaire_config = request.questionnaire_config or {}
 
-    # ✅ ONLY apply JD logic for requirement flow
-    if request.jd_id is None and request.candidate_info is None:
+    if request.jd_id:
+        # ✅ Candidate-specific (JD uploaded flow)
+        questionnaire_config = {
+            **questionnaire_config,
+            "job_description": jd_text,
+            "mode": "candidate"
+        }
+
+    elif request.candidate_info is None:
+        # ✅ Role-based flow
         questionnaire_config = {
             **questionnaire_config,
             "job_description": request.description,
             "mode": "requirement"
         }
 
-    # --------------------------------------------
-    # GENERATE QUESTION SET
-    # --------------------------------------------
+    # ------------------------------------------------------
+    # GENERATE QUESTION SET (LLM CALL)
+    # ------------------------------------------------------
     question_set_id = await generate_assessment_question_set(
         request.required_skills,
         db,
         questionnaire_config=questionnaire_config
     )
-    
+
+    # ------------------------------------------------------
+    # DURATION CALCULATION
+    # ------------------------------------------------------
     question_type_mix = extract_question_type_mix(request.questionnaire_config, request.manual_questions)
     request.duration_minutes = calculate_duration_minutes(
         question_type_mix
@@ -608,11 +627,17 @@ async def create_assessment(
         "screening_questions": getattr(request, "screening_questions", []) or []
     }
 
+    # to remove when memory store is removed. This is to prevent storing jd_id in DB for assessments created from JD upload flow
+    jd_id_to_store = None
+
+    if request.jd_id and request.jd_id in memory_store: 
+        jd_id_to_store = None  # don't store it in DB
+
     assessment = Assessment(
         title=request.title,
         description=json.dumps(description_payload),
         job_title=request.job_title,
-        jd_id=request.jd_id,
+        jd_id=jd_id_to_store,
         required_skills=request.required_skills or {},
         required_roles=request.required_roles or [],
         question_set_id=question_set_id,
