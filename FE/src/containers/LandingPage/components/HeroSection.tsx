@@ -1,5 +1,6 @@
 import { Box, Typography, Button } from "@mui/material";
 import "./HeroSection.scss";
+import homepageArch from "../../../assets/HeroPage/HomepageArch.png";
 //import { useNavigate } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 //import TrendingUpIcon from "@mui/icons-material/TrendingUp";
@@ -99,6 +100,17 @@ const HeroSection = () => {
             <Typography className="stat-label">Accuracy Rate</Typography>
           </Box>
         </Box>/>*/}
+      </Box>
+
+      <Box className={`hero-visual ${isVisible ? "slide-in" : ""}`}>
+        <Box className="hero-image-shell">
+          <Box className="hero-image-glow" />
+          <img
+            src={homepageArch}
+            alt="Platform architecture overview"
+            className="hero-image"
+          />
+        </Box>
       </Box>
 
       {/* <Box className={`hero-metrics ${isVisible ? 'slide-in' : ''}`}>

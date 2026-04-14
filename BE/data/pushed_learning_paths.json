@@ -142,5 +142,82 @@
       }
     ],
     "pushed_at": "2026-04-12T08:02:37.459624"
+  },
+  "yashvin.goyal@nagarro.com": {
+    "session_id": "session_224fccdda9314fbd8387052f3501f8bc",
+    "topic": "Scalability docker azure multiple-skills monitoring Reliability Automation kubernetes",
+    "recommended_courses": [
+      {
+        "name": "DEV109 - Dockers fundamentals",
+        "topic": "Dockers fundamentals",
+        "collection": "DevOps",
+        "category": "Technology",
+        "description": "In this collection, we have compiled a list of skills that are considered to be good to have skills for DevOps",
+        "url": "https://nagarro.sharepoint.com/sites/university/SitePages/Pathways.aspx?pathways=Dockers fundamentals",
+        "score": 0.9499107599258423,
+        "course_level": "Beginner"
+      },
+      {
+        "name": "DEV113 - Kubernetes",
+        "topic": "Kubernetes",
+        "collection": "DevOps",
+        "category": "Technology",
+        "description": "In this collection, we have compiled a list of skills that are considered to be good to have skills for DevOps",
+        "url": "https://nagarro.sharepoint.com/sites/university/SitePages/Pathways.aspx?pathways=Kubernetes",
+        "score": 0.95563805103302,
+        "course_level": "Beginner/Intermediate"
+      },
+      {
+        "name": "FSP120 - Kubernetes",
+        "topic": "Kubernetes",
+        "collection": "Fundamental Skills for Programmers",
+        "category": "Technology",
+        "description": "In this collection, we have compiled a list of skills that are considered to be good to have skills for the programmer",
+        "url": "https://nagarro.sharepoint.com/sites/university/SitePages/Pathways.aspx?pathways=Kubernetes",
+        "score": 1.0868065357208252,
+        "course_level": "Beginner/Intermediate"
+      },
+      {
+        "name": "MLO101 -  MLOps using Azure",
+        "topic": "MLOps using Azure",
+        "collection": "MLOps",
+        "category": "Technology",
+        "description": "In this collection, we have compiled a list of MLOps skills that are considered to be good to have",
+        "url": "https://nagarro.sharepoint.com/sites/university/SitePages/Pathways.aspx?pathways=MLOps using Azure",
+        "score": 1.1021528244018555,
+        "course_level": "Beginner/Intermediate/Advanced"
+      },
+      {
+        "name": "CLD102 - Alexa skill development",
+        "topic": "Alexa skill development",
+        "collection": "Cloud",
+        "category": "Technology",
+        "description": "In this collection, we have compiled a list of skills that are considered to be good to have skills for cloud",
+        "url": "https://nagarro.sharepoint.com/sites/university/SitePages/Pathways.aspx?pathways=Alexa skill development",
+        "score": 1.1064037084579468,
+        "course_level": "Beginner/Intermediate/Advanced"
+      },
+      {
+        "name": "CLD115 - Azure",
+        "topic": "Azure",
+        "collection": "Cloud",
+        "category": "Technology",
+        "description": "In this collection, we have compiled a list of skills that are considered to be good to have skills for cloud",
+        "url": "https://nagarro.sharepoint.com/sites/university/SitePages/Pathways.aspx?pathways=Azure",
+        "score": 1.107652187347412,
+        "course_level": "Beginner/Intermediate/Advanced"
+      },
+      {
+        "name": "CLD105 - AWS data analytics",
+        "topic": "AWS data analytics",
+        "collection": "Cloud",
+        "category": "Technology",
+        "description": "In this collection, we have compiled a list of skills that are considered to be good to have skills for cloud",
+        "url": "https://nagarro.sharepoint.com/sites/university/SitePages/Pathways.aspx?pathways=AWS data analytics",
+        "score": 1.1184570789337158,
+        "course_level": "Beginner/Intermediate/Advanced"
+      }
+    ],
+    "pushed_at": "2026-04-14T05:12:02.620215"
   }
 }
