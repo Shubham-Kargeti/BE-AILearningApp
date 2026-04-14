@@ -61,8 +61,8 @@ const AdminRequirement = () => {
   return (
     <div className="admin-requirement">
       <div className="requirement-container">
-        <h1>Requirement Creation</h1>
-        <p className="subtitle">Create a new job requirement</p>
+        <h1>Role-Based Assessment Creation</h1>
+        <p className="subtitle">Create a new assessment</p>
 
         <form onSubmit={handleSubmit} className="requirement-form">
           <div className="form-group">

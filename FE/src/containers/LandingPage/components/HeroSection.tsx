@@ -1,16 +1,16 @@
 import { Box, Typography, Button } from "@mui/material";
 import "./HeroSection.scss";
-import { useNavigate } from "react-router-dom";
+//import { useNavigate } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
-import TrendingUpIcon from "@mui/icons-material/TrendingUp";
-import AutoGraphIcon from "@mui/icons-material/AutoGraph";
-import InsightsIcon from "@mui/icons-material/Insights";
+//import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+//import AutoGraphIcon from "@mui/icons-material/AutoGraph";
+//import InsightsIcon from "@mui/icons-material/Insights";
 
 const HeroSection = () => {
-  const navigate = useNavigate();
-  const token = localStorage.getItem("authToken");
+  //const navigate = useNavigate();
+  //const token = localStorage.getItem("authToken");
   const [isVisible, setIsVisible] = useState(false);
-  const [counters, setCounters] = useState({ rag: 0, adaptive: 0, analytics: 0 });
+  //const [counters, setCounters] = useState({ rag: 0, adaptive: 0, analytics: 0 });
   const heroRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -24,17 +24,17 @@ const HeroSection = () => {
 
     const timer = setInterval(() => {
       currentStep++;
-      const progress = currentStep / steps;
-      setCounters({
-        rag: Math.floor(progress * 95),
-        adaptive: Math.floor(progress * 88),
-        analytics: Math.floor(progress * 92),
-      });
+      //const progress = currentStep / steps;
+      // setCounters({
+      //   rag: Math.floor(progress * 95),
+      //   adaptive: Math.floor(progress * 88),
+      //   analytics: Math.floor(progress * 92),
+      // });
 
-      if (currentStep >= steps) {
-        clearInterval(timer);
-        setCounters({ rag: 95, adaptive: 88, analytics: 92 });
-      }
+      // if (currentStep >= steps) {
+      //   clearInterval(timer);
+      //   setCounters({ rag: 95, adaptive: 88, analytics: 92 });
+      // }
     }, increment);
 
     return () => clearInterval(timer);
@@ -61,7 +61,7 @@ const HeroSection = () => {
         </Typography>
 
         <Box className="hero-actions">
-          {!token && (
+          {/* {!token && (
             <Button
               variant="contained"
               className="hero-btn primary"
@@ -70,7 +70,7 @@ const HeroSection = () => {
               Get Started Free
               <Box component="span" className="btn-arrow">→</Box>
             </Button>
-          )}
+          )} */}
           <Button
             variant="outlined"
             className="hero-btn secondary"
@@ -83,7 +83,7 @@ const HeroSection = () => {
           </Button>
         </Box>
 
-        <Box className="hero-stats">
+        {/* <Box className="hero-stats">
           <Box className="stat-item">
             <Typography className="stat-number">10K+</Typography>
             <Typography className="stat-label">Questions Generated</Typography>
@@ -98,10 +98,10 @@ const HeroSection = () => {
             <Typography className="stat-number">98%</Typography>
             <Typography className="stat-label">Accuracy Rate</Typography>
           </Box>
-        </Box>
+        </Box>/>*/}
       </Box>
 
-      <Box className={`hero-metrics ${isVisible ? 'slide-in' : ''}`}>
+      {/* <Box className={`hero-metrics ${isVisible ? 'slide-in' : ''}`}>
         <Box className="metric-card glass-card">
           <Box className="metric-icon-wrapper">
             <TrendingUpIcon className="metric-icon" />
@@ -132,7 +132,7 @@ const HeroSection = () => {
             <Box className="metric-progress-bar" style={{ width: `${counters.analytics}%` }} />
           </Box>
         </Box>
-      </Box>
+      </Box>*/}
     </Box>
   );
 };
