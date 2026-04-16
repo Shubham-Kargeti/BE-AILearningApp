@@ -266,6 +266,38 @@ export interface SkillExtractionResponse {
   extracted_text?: string;
 }
 
+export interface ExtractedSkill {
+  skill_name: string;
+  proficiency_level: string;
+  category: string;
+  frequency: number;
+  confidence: number;
+}
+
+export interface DocumentSkillExtractionResponse {
+  file_id: string;
+  original_filename: string;
+  document_category: string;
+  extracted_skills: ExtractedSkill[];
+  total_skills_found: number;
+  extraction_preview: string;
+}
+
+export interface AdminBulkSkillExtractionResponse {
+  success: boolean;
+  message: string;
+  documents_processed: number;
+  total_unique_skills: number;
+  extracted_skills: ExtractedSkill[];
+  documents: DocumentSkillExtractionResponse[];
+  extraction_summary: {
+    skills_by_category?: Record<string, number>;
+    proficiency_distribution?: Record<string, number>;
+    total_skills_found?: number;
+  };
+  timestamp?: string;
+}
+
 export interface RecommendedCourse {
   name: string;
   topic: string;
@@ -603,6 +635,23 @@ export const uploadService = {
 
     const response = await apiClient.post<SkillExtractionResponse>(
       "/admin/extract-skills?doc_type=cv",
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
+    return response.data;
+  },
+
+  extractSkillsBulk: async (
+    files: File[],
+    docType: string = "jd"
+  ): Promise<AdminBulkSkillExtractionResponse> => {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    const response = await apiClient.post<AdminBulkSkillExtractionResponse>(
+      `/admin/extract-skills-bulk?doc_type=${encodeURIComponent(docType)}`,
       formData,
       { headers: { "Content-Type": "multipart/form-data" } }
     );

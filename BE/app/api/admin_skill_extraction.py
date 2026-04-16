@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import List, Dict, Optional
 import uuid
 import re
+import asyncio
 
 from app.core.dependencies import get_db, get_current_user
 from app.core.storage import get_s3_service
