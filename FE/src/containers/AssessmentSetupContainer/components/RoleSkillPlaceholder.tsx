@@ -2,6 +2,8 @@ import React, { useState, useMemo } from "react";
 import { FiX, FiCheck, FiAlertCircle, FiChevronDown, FiChevronUp, FiStar } from "react-icons/fi";
 import "./RoleSkillPlaceholder.scss";
 
+type SkillPriority = "must-have" | "good-to-have" | "resume-based" | "soft";
+
 interface Props {
   role: string;
   setRole: (val: string) => void;
@@ -14,9 +16,8 @@ interface Props {
   extractedRole?: string;
   extractedSkills?: string[];
   jdSkills?: string[];
-  skillDurations?: Record<string, number>;
-  skillPriorities?: Record<string, 'must-have' | 'good-to-have'>;  // ✅ NEW
-  onSkillPriorityChange?: (skill: string, priority: 'must-have' | 'good-to-have') => void;  // ✅ NEW
+  skillPriorities?: Record<string, SkillPriority>;
+  onSkillPriorityChange?: (skill: string, priority: SkillPriority) => void;
   onClearExtraction?: () => void;
 }
 
@@ -55,13 +56,12 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
   extractedRole,
   extractedSkills,
   jdSkills = [],
-  skillDurations = {},
   skillPriorities = {},
   onSkillPriorityChange,
   onClearExtraction: _onClearExtraction,
 }) => {
   const [tempSkill, setTempSkill] = useState("");
-  const [tempSkillPriority, setTempSkillPriority] = useState<'must-have' | 'good-to-have'>('must-have');
+  const [tempSkillPriority, setTempSkillPriority] = useState<SkillPriority>("must-have");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
   const [showAllSkills, setShowAllSkills] = useState(false);
@@ -72,7 +72,6 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
     return skills
       .map(skill => ({
         name: skill,
-        duration: skillDurations[skill.toLowerCase()] || 0,
         isMatched: jdSkills.some(jd =>
           jd.toLowerCase() === skill.toLowerCase() ||
           skill.toLowerCase().includes(jd.toLowerCase()) ||
@@ -82,9 +81,9 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
       .sort((a, b) => {
         if (a.isMatched && !b.isMatched) return -1;
         if (!a.isMatched && b.isMatched) return 1;
-        return b.duration - a.duration;
+        return a.name.localeCompare(b.name);
       });
-  }, [skills, jdSkills, skillDurations]);
+  }, [skills, jdSkills]);
 
   const topSkills = sortedSkills.slice(0, TOP_SKILLS_COUNT);
   const remainingSkills = sortedSkills.slice(TOP_SKILLS_COUNT);
@@ -113,7 +112,7 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
     }
   };
 
-  const addSkill = (skillName: string, priority?: 'must-have' | 'good-to-have') => {
+  const addSkill = (skillName: string, priority?: SkillPriority) => {
     const trimmed = skillName.trim();
     if (!trimmed || skills.includes(trimmed)) return;
 
@@ -129,7 +128,7 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
     setShowSuggestions(false);
     setSkillsError?.("");
     // Reset to default priority
-    setTempSkillPriority('must-have');
+    setTempSkillPriority("must-have");
   };
 
   const handleSkillKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -167,11 +166,24 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
       if (onSkillPriorityChange) {
         extractedSkills.forEach(skill => {
           if (!skills.includes(skill)) {
-            onSkillPriorityChange(skill, 'must-have');
+            onSkillPriorityChange(skill, "good-to-have");
           }
         });
       }
     }
+  };
+
+  const getPriorityPresentation = (priority: SkillPriority) => {
+    if (priority === "must-have") {
+      return { label: "M", title: "Must have", background: "#e3f2fd", color: "#1976d2" };
+    }
+    if (priority === "resume-based") {
+      return { label: "R", title: "Resume-based", background: "#e8f5e9", color: "#2e7d32" };
+    }
+    if (priority === "soft") {
+      return { label: "S", title: "Soft skill", background: "#f3e5f5", color: "#7b1fa2" };
+    }
+    return { label: "G", title: "Good to have", background: "#fff3e0", color: "#f57c00" };
   };
 
   return (
@@ -256,13 +268,21 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
             {/* Priority Selector */}
             <select
               value={tempSkillPriority}
-              onChange={(e) => setTempSkillPriority(e.target.value as 'must-have' | 'good-to-have')}
+              onChange={(e) => setTempSkillPriority(e.target.value as SkillPriority)}
               style={{
                 padding: '0.5rem',
                 borderRadius: '6px',
                 border: '1px solid #ddd',
-                background: tempSkillPriority === 'must-have' ? '#e3f2fd' : '#fff3e0',
-                color: tempSkillPriority === 'must-have' ? '#1976d2' : '#f57c00',
+                background:
+                  tempSkillPriority === "must-have" ? "#e3f2fd" :
+                  tempSkillPriority === "good-to-have" ? "#fff3e0" :
+                  tempSkillPriority === "resume-based" ? "#e8f5e9" :
+                  "#f3e5f5",
+                color:
+                  tempSkillPriority === "must-have" ? "#1976d2" :
+                  tempSkillPriority === "good-to-have" ? "#f57c00" :
+                  tempSkillPriority === "resume-based" ? "#2e7d32" :
+                  "#7b1fa2",
                 fontWeight: 600,
                 fontSize: '0.85rem',
                 cursor: 'pointer',
@@ -271,6 +291,8 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
             >
               <option value="must-have" style={{ background: '#fff' }}>Must Have</option>
               <option value="good-to-have" style={{ background: '#fff' }}>Good to Have</option>
+              <option value="resume-based" style={{ background: '#fff' }}>Resume-based</option>
+              <option value="soft" style={{ background: '#fff' }}>Soft</option>
             </select>
             
             {/* Add Button */}
@@ -342,15 +364,16 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
               >
                 {skillData.isMatched && <FiStar className="match-star" size={12} />}
                 <span className="skill-name">{skillData.name}</span>
-                {skillData.duration > 0 && (
-                  <span className="skill-duration">{skillData.duration}+ yrs</span>
-                )}
                 {onSkillPriorityChange && (
                   <button
                     className="priority-badge"
                     onClick={() => {
-                      const current = skillPriorities[skillData.name] || 'must-have';
-                      const newPriority = current === 'must-have' ? 'good-to-have' : 'must-have';
+                      const current = skillPriorities[skillData.name] || "must-have";
+                      const newPriority: SkillPriority =
+                        current === "good-to-have" ? "must-have" :
+                        current === "must-have" ? "resume-based" :
+                        current === "resume-based" ? "soft" :
+                        "good-to-have";
                       onSkillPriorityChange(skillData.name, newPriority);
                     }}
                     style={{
@@ -359,13 +382,13 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
                       borderRadius: '4px',
                       border: 'none',
                       cursor: 'pointer',
-                      background: skillPriorities[skillData.name] === 'must-have' ? '#e3f2fd' : '#fff3e0',
-                      color: skillPriorities[skillData.name] === 'must-have' ? '#1976d2' : '#f57c00',
+                      background: getPriorityPresentation(skillPriorities[skillData.name] || "must-have").background,
+                      color: getPriorityPresentation(skillPriorities[skillData.name] || "must-have").color,
                       marginLeft: '4px',
                     }}
-                    title="Toggle must-have/good-to-have"
+                    title={getPriorityPresentation(skillPriorities[skillData.name] || "must-have").title}
                   >
-                    {skillPriorities[skillData.name] === 'must-have' ? 'M' : 'G'}
+                    {getPriorityPresentation(skillPriorities[skillData.name] || "must-have").label}
                   </button>
                 )}
                 {isExtracted && !skillData.isMatched && <span className="source-label">auto</span>}
@@ -406,9 +429,6 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
                     >
                       {skillData.isMatched && <FiStar className="match-star" size={12} />}
                       <span className="skill-name">{skillData.name}</span>
-                      {skillData.duration > 0 && (
-                        <span className="skill-duration">{skillData.duration}+ yrs</span>
-                      )}
                       {isExtracted && !skillData.isMatched && <span className="source-label">auto</span>}
                       <button
                         type="button"

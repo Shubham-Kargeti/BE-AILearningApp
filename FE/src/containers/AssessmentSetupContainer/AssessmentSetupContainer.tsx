@@ -11,7 +11,7 @@ import AssessmentSetupSubmitButton from "./components/AssessmentSetupSubmitButto
 import AssessmentLinkModal from "./components/AssessmentLinkModal";
 import Toast from "../../components/Toast/Toast";
 import { isAdmin } from "../../utils/adminUsers";
-import { uploadService, assessmentService} from "../../API/services";
+import { uploadService, assessmentService } from "../../API/services";
 import { parseResume, getExtractionConfidence } from "../../utils/resumeParser";
 import type { QuestionDistribution } from "./components/QuestionnaireConfig";
 import AssessmentConfigurationBlock from "./components/AssessmentConfigurationBlock";
@@ -28,6 +28,15 @@ interface ValidationError {
   message: string;
 }
 
+type ExtractedSkillMeta = {
+  category: string;
+  frequency: number;
+  inResume: boolean;
+  inJd: boolean;
+};
+
+type SkillPriority = "must-have" | "good-to-have" | "resume-based" | "soft";
+
 const AssessmentSetupContainer: React.FC = () => {
   const navigate = useNavigate();
   const { id: assessmentId } = useParams<{ id: string }>();
@@ -40,8 +49,8 @@ const AssessmentSetupContainer: React.FC = () => {
   const [jdFile, setJdFile] = useState<File | null>(null);
   const [jdId, setJdId] = useState<string | null>(null);
   const [cvFile, setCvFile] = useState<File | null>(null);
-  const [reqDoc, setReqDoc] = useState<File | null>(null);
-  const [clientDoc, setClientDoc] = useState<File | null>(null);
+  const [reqDoc] = useState<File | null>(null);
+  const [clientDoc] = useState<File | null>(null);
   const [ragFile, setRagFile] = useState<File | null>(null);
   const [ragUploadProgress, setRagUploadProgress] = useState<number | null>(null);
   const [ragUploadedDocId, setRagUploadedDocId] = useState<string | null>(null);
@@ -68,8 +77,8 @@ const AssessmentSetupContainer: React.FC = () => {
   const [skills, setSkills] = useState<string[]>([]);
   const [skillsError, setSkillsError] = useState("");
   const [jdSkills, setJdSkills] = useState<string[]>([]);
-  const [skillDurations, setSkillDurations] = useState<Record<string, number>>({});
-  const [skillPriorities, setSkillPriorities] = useState<Record<string, 'must-have' | 'good-to-have'>>({});
+  const [skillPriorities, setSkillPriorities] = useState<Record<string, SkillPriority>>({});
+  const [extractedSkillMeta, setExtractedSkillMeta] = useState<Record<string, ExtractedSkillMeta>>({});
   const [isDraft, setIsDraft] = useState(false);
 
   const [assessmentMethod, setAssessmentMethod] = useState("questionnaire");
@@ -287,14 +296,18 @@ const AssessmentSetupContainer: React.FC = () => {
         setJdId(currentJdId);
       }
 
-      const res = await uploadService.extractSkills(cvFile, jdFile || undefined, reqDoc || undefined, clientDoc || undefined);
+      const filesToProcess = [cvFile, jdFile].filter((file): file is File => Boolean(file));
+      const res = await uploadService.extractSkillsBulk(
+        filesToProcess,
+        "jd"
+      );
 
-      const extractedSkillsList = res.skills || (res as any).extracted_skills || [];
-      const skillNames = extractedSkillsList.map((s: any) => typeof s === 'string' ? s : (s.skill_name || s));
+      const extractedSkillsList = res.extracted_skills || [];
+      const skillNames = extractedSkillsList.map((skill) => skill.skill_name);
 
-      const extractedRole = res.role || (res as any).extracted_role || "";
+      const extractedRole = candidateInfo.currentRole?.trim() || role.trim();
 
-      if (extractedRole) {
+      if (extractedRole && !role.trim()) {
         setRole(extractedRole);
         setRoleError("");
       }
@@ -303,19 +316,59 @@ const AssessmentSetupContainer: React.FC = () => {
         setSkillsError("");
       }
 
-      const jdSkillsList = (res as any).jd_skills || [];
+      const documents = res.documents || [];
+      const resumeDocument = documents[0];
+      const jdDocument = documents[1];
+
+      const jdSkillsList = jdDocument?.extracted_skills || [];
       if (jdSkillsList.length > 0) {
-        setJdSkills(jdSkillsList.map((s: any) => typeof s === 'string' ? s : (s.skill_name || s)));
+        setJdSkills(Array.from(new Set(jdSkillsList.map((skill) => skill.skill_name))));
+      } else {
+        setJdSkills([]);
       }
 
-      const durations = (res as any).skill_durations || {};
-      if (Object.keys(durations).length > 0) {
-        setSkillDurations(durations);
-      }
+      const resumeSkillSet = new Set(
+        (resumeDocument?.extracted_skills || [])
+          .map((skill) => skill.skill_name.toLowerCase())
+      );
+
+      const jdSkillSet = new Set(
+        (jdDocument?.extracted_skills || [])
+          .map((skill) => skill.skill_name.toLowerCase())
+      );
+
+      const nextSkillMeta = extractedSkillsList.reduce<Record<string, ExtractedSkillMeta>>((acc, skill) => {
+        const key = skill.skill_name.toLowerCase();
+        acc[key] = {
+          category: skill.category,
+          frequency: skill.frequency,
+          inResume: resumeSkillSet.has(key),
+          inJd: jdSkillSet.has(key),
+        };
+        return acc;
+      }, {});
+      setExtractedSkillMeta(nextSkillMeta);
+
+        const nextSkillPriorities = extractedSkillsList.reduce<Record<string, SkillPriority>>((acc, skill) => {
+        const meta = nextSkillMeta[skill.skill_name.toLowerCase()];
+        if (meta?.category === "soft") {
+          acc[skill.skill_name] = "soft";
+        } else if (meta?.inResume && meta?.inJd) {
+          acc[skill.skill_name] = "good-to-have";
+        } else if (meta?.inJd && !meta?.inResume) {
+          acc[skill.skill_name] = "must-have";
+        } else if (meta?.inResume && !meta?.inJd) {
+          acc[skill.skill_name] = "resume-based";
+        } else {
+          acc[skill.skill_name] = "good-to-have";
+        }
+        return acc;
+      }, {});
+      setSkillPriorities(nextSkillPriorities);
 
       setToast({
         type: "success",
-        message: `JD uploaded and extracted ${skillNames.length} skills successfully!`,
+        message: res.message || `Processed ${filesToProcess.length} document(s) and extracted ${skillNames.length} skills successfully!`,
       });
     } catch (err: any) {
       console.error("Error processing resume:", err);
@@ -336,21 +389,37 @@ const AssessmentSetupContainer: React.FC = () => {
     setSubmitLoading(true);
 
     try {
+  const requiredSkills = skills.reduce((acc, skill) => {
+    const key = skill.toLowerCase();
+    const meta = extractedSkillMeta[key];
+    const inResume = Boolean(meta?.inResume);
+    const inJd = Boolean(meta?.inJd);
+    const isSoft = meta?.category === "soft";
+
+    let level = "beginner";
+    if (inResume && inJd) {
+      level = "advanced";
+    } else if (inResume) {
+      level = "intermediate";
+    } else if (inJd) {
+      level = "beginner";
+    }
+
+    if (isSoft) {
+      level = "soft";
+    }
+
+    acc[skill] = level;
+    return acc;
+  }, {} as Record<string, string>);
+
   const assessmentPayload: any = {
     title: `Assessment for ${role}`,
     description: `Assessment created for candidate ${candidateInfo.name || candidateInfo.email || 'admin'}`,
     job_title: role.trim(),
     jd_id: jdId || undefined,
 
-    required_skills: skills.reduce((acc, skill) => {
-      const level = skillDurations?.[skill.toLowerCase()]
-        ? skillDurations[skill.toLowerCase()] >= 3
-          ? "advanced"
-          : "intermediate"
-        : "intermediate";
-
-      return { ...acc, [skill]: level };
-    }, {}),
+    required_skills: requiredSkills,
 
     skill_priorities: skillPriorities,  // ✅ NEW: Add skill priorities (must-have / good-to-have)
     is_draft: isDraft,  // ✅ NEW: Mark as draft
@@ -670,7 +739,6 @@ const AssessmentSetupContainer: React.FC = () => {
           skillsError={skillsError}
           setSkillsError={setSkillsError}
           jdSkills={jdSkills}
-          skillDurations={skillDurations}
           skillPriorities={skillPriorities}
           onSkillPriorityChange={(skill, priority) => {
             setSkillPriorities({ ...skillPriorities, [skill]: priority });

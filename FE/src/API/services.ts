@@ -159,6 +159,29 @@ export interface Assessment {
   }>;
 }
 
+export interface AssessmentQuestionnaireConfig {
+  mcq?: number;
+  coding?: number;
+  architecture?: number;
+  scenario?: number;
+  ba?: number;
+  doc_id?: string;
+  role_type?: string;
+}
+
+export interface AssessmentManualQuestion {
+  question_text: string;
+  type: string;
+  difficulty: string;
+  skill?: string;
+  options?: string[];
+  correct_answer?: string;
+  code_template?: string;
+  constraints?: string;
+  test_cases?: string;
+  time_limit?: number;
+}
+
 export interface AssessmentCreateRequest {
   title: string;
   description?: string;
@@ -171,6 +194,18 @@ export interface AssessmentCreateRequest {
   is_questionnaire_enabled?: boolean;
   is_interview_enabled?: boolean;
   expires_at?: string;
+  skill_priorities?: Record<string, "must-have" | "good-to-have" | "resume-based" | "soft">;
+  is_draft?: boolean;
+  is_published?: boolean;
+  screening_questions?: string[];
+  manual_questions?: AssessmentManualQuestion[];
+  candidate_info?: {
+    name?: string;
+    email?: string;
+    current_role?: string;
+    experience?: string;
+  };
+  questionnaire_config?: AssessmentQuestionnaireConfig;
   // NEW: Experience-based question configuration fields
   total_questions?: number;
   question_type_mix?: Record<string, number>;
@@ -260,10 +295,54 @@ export interface QuizResultResponse {
 }
 
 export interface SkillExtractionResponse {
-  role: string;
-  skills: string[];
+  role?: string;
+  skills?: Array<string | { skill_name?: string }>;
   experience_level?: string;
   extracted_text?: string;
+  extracted_skills?: Array<string | { skill_name?: string }>;
+  skill_durations?: Record<string, number>;
+}
+
+export interface RoleExtractionResponse {
+  role?: string;
+  // extracted_role?: string;
+  role_type?: string;
+  category?: string;
+  role_category?: string;
+  // question_type_mix?: Record<string, number>;
+  // questionnaire_config?: AssessmentQuestionnaireConfig;
+}
+
+export interface ExtractedSkill {
+  skill_name: string;
+  proficiency_level: string;
+  category: string;
+  frequency: number;
+  confidence: number;
+}
+
+export interface DocumentSkillExtractionResponse {
+  file_id: string;
+  original_filename: string;
+  document_category: string;
+  extracted_skills: ExtractedSkill[];
+  total_skills_found: number;
+  extraction_preview: string;
+}
+
+export interface AdminBulkSkillExtractionResponse {
+  success: boolean;
+  message: string;
+  documents_processed: number;
+  total_unique_skills: number;
+  extracted_skills: ExtractedSkill[];
+  documents: DocumentSkillExtractionResponse[];
+  extraction_summary: {
+    skills_by_category?: Record<string, number>;
+    proficiency_distribution?: Record<string, number>;
+    total_skills_found?: number;
+  };
+  timestamp?: string;
 }
 
 export interface RecommendedCourse {
@@ -603,6 +682,51 @@ export const uploadService = {
 
     const response = await apiClient.post<SkillExtractionResponse>(
       "/admin/extract-skills?doc_type=cv",
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
+    return response.data;
+  },
+
+  extractSkillsBulk: async (
+    files: File[],
+    docType: string = "jd"
+  ): Promise<AdminBulkSkillExtractionResponse> => {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    const response = await apiClient.post<AdminBulkSkillExtractionResponse>(
+      `/admin/extract-skills-bulk?doc_type=${encodeURIComponent(docType)}`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
+    return response.data;
+  },
+
+  extractSkillsFromJD: async (
+    jdFile: File
+  ): Promise<SkillExtractionResponse> => {
+    const formData = new FormData();
+    formData.append("file", jdFile);
+
+    const response = await apiClient.post<SkillExtractionResponse>(
+      "/admin/extract-skills?doc_type=jd",
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
+    return response.data;
+  },
+
+  extractRoleFromJD: async (
+    jdFile: File
+  ): Promise<RoleExtractionResponse> => {
+    const formData = new FormData();
+    formData.append("file", jdFile);
+
+    const response = await apiClient.post<RoleExtractionResponse>(
+      "/admin/extract-role?doc_type=jd",
       formData,
       { headers: { "Content-Type": "multipart/form-data" } }
     );

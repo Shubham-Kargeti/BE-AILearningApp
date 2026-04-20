@@ -62,17 +62,17 @@ const AssessmentConfigurationBlock: React.FC<Props> = ({
                     onChange={onQuestionDistributionChange}
                 />
 
-                <DifficultyDistribution
+                {/* <DifficultyDistribution
                     value={difficultyDistribution}
                     onChange={onDifficultyDistributionChange}
-                />
+                /> */}
 
-                <ExperienceAdjustment
+                {/* <ExperienceAdjustment
                     value={autoAdjustByExperience}
                     onChange={onAutoAdjustByExperienceChange}
                     cutoffMarks={cutoffMarks}
                     onCutoffChange={onCutoffMarksChange}
-                />
+                /> */}
 
                 <CutoffMarks
                     value={cutoffMarks}
