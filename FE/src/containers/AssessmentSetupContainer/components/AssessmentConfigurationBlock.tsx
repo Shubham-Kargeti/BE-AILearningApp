@@ -24,6 +24,8 @@ interface Props {
     difficultyDistribution: Record<string, number>;
     onDifficultyDistributionChange: (v: Record<string, number>) => void;
 
+    roleCategory: "tech" | "non-tech";
+
 }
 
 
@@ -38,6 +40,7 @@ const AssessmentConfigurationBlock: React.FC<Props> = ({
     onAutoAdjustByExperienceChange,
     difficultyDistribution,
     onDifficultyDistributionChange,
+    roleCategory,
 }) => {
 
     return (
@@ -60,6 +63,7 @@ const AssessmentConfigurationBlock: React.FC<Props> = ({
                     value={questionDistribution}
                     totalQuestions={totalQuestions}  
                     onChange={onQuestionDistributionChange}
+                    roleCategory={roleCategory}
                 />
 
                 {/* <DifficultyDistribution

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./AssessmentSetupContainer.scss";
@@ -20,15 +19,8 @@ import GenerationPolicySelector from "./components/GenerationPolicySelector";
 import AssessmentQuestionEditor, { type Question } from "./components/AssessmentQuestionEditor";
 import { FiFileText, FiBriefcase, FiCpu } from "react-icons/fi";
 
-// Role category and question distribution types
-type RoleCategory = "tech" | "non-tech";
 
-interface RequirementQuestionDistribution {
-  mcq: number;
-  coding: number;
-  architecture: number;
-  scenario: number;
-}
+
 
 interface ValidationError {
   field: string;
@@ -44,77 +36,7 @@ type ExtractedSkillMeta = {
 
 type SkillPriority = "must-have" | "good-to-have" | "resume-based" | "soft";
 
-// Role category constants
-const TECH_DEFAULT_DISTRIBUTION: RequirementQuestionDistribution = {
-  mcq: 6,
-  coding: 2,
-  architecture: 2,
-  scenario: 0,
-};
-
-const NON_TECH_DEFAULT_DISTRIBUTION: RequirementQuestionDistribution = {
-  mcq: 6,
-  coding: 0,
-  architecture: 0,
-  scenario: 4,
-};
-
-// Utility functions for role category
-const normalizeRoleCategory = (value: unknown): RoleCategory | null => {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value.trim().toLowerCase();
-
-  if (
-    normalized.includes("non-tech") ||
-    normalized.includes("non tech") ||
-    normalized.includes("business") ||
-    normalized.includes("functional") ||
-    normalized.includes("ba")
-  ) {
-    return "non-tech";
-  }
-
-  if (
-    normalized.includes("tech") ||
-    normalized.includes("technical") ||
-    normalized.includes("engineering")
-  ) {
-    return "tech";
-  }
-
-  return null;
-};
-
-const getDefaultDistribution = (
-  category: RoleCategory
-): RequirementQuestionDistribution =>
-  category === "tech"
-    ? { ...TECH_DEFAULT_DISTRIBUTION }
-    : { ...NON_TECH_DEFAULT_DISTRIBUTION };
-
-const buildDistributionFromMix = (
-  category: RoleCategory
-): RequirementQuestionDistribution => {
-  return getDefaultDistribution(category);
-};
-
-const getQuestionTypeMix = (
-  category: RoleCategory,
-  distribution: RequirementQuestionDistribution
-): Record<string, number> =>
-  category === "tech"
-    ? {
-        mcq: distribution.mcq,
-        coding: distribution.coding,
-        architecture: distribution.architecture,
-      }
-    : {
-        mcq: distribution.mcq,
-        scenario: distribution.scenario,
-      };
+type RoleCategory = "tech" | "non-tech";
 
 const AssessmentSetupContainer: React.FC = () => {
   const navigate = useNavigate();
@@ -128,6 +50,8 @@ const AssessmentSetupContainer: React.FC = () => {
   const [jdFile, setJdFile] = useState<File | null>(null);
   const [jdId, setJdId] = useState<string | null>(null);
   const [cvFile, setCvFile] = useState<File | null>(null);
+  const [reqDoc] = useState<File | null>(null);
+  const [clientDoc] = useState<File | null>(null);
   const [ragFile, setRagFile] = useState<File | null>(null);
   const [ragUploadProgress, setRagUploadProgress] = useState<number | null>(null);
   const [ragUploadedDocId, setRagUploadedDocId] = useState<string | null>(null);
@@ -152,6 +76,27 @@ const AssessmentSetupContainer: React.FC = () => {
   const [role, setRole] = useState("");
   const [roleError, setRoleError] = useState("");
   const [roleCategory, setRoleCategory] = useState<RoleCategory>("tech");
+  const applyRoleCategoryPreset = (category: RoleCategory) => {
+    setRoleCategory(category);
+
+    if (category === "tech") {
+      setQuestionDistribution({
+        mcq: 6,
+        coding: 2,
+        architecture: 2,
+        scenario: 0,
+      });
+      setTotalQuestions(10);
+    } else {
+      setQuestionDistribution({
+        mcq: 6,
+        coding: 0,
+        architecture: 0,
+        scenario: 4,
+      });
+      setTotalQuestions(10);
+    }
+  };
   const [skills, setSkills] = useState<string[]>([]);
   const [skillsError, setSkillsError] = useState("");
   const [jdSkills, setJdSkills] = useState<string[]>([]);
@@ -234,6 +179,27 @@ const AssessmentSetupContainer: React.FC = () => {
 
     checkRBAC();
   }, []);
+
+  const [isManualOverride, setIsManualOverride] = useState(false);
+
+  useEffect(() => {
+    if (!role || isManualOverride) return;
+
+  useEffect(() => {
+      setIsManualOverride(false);
+    }, [role]);
+
+    const r = role.toLowerCase();
+
+    if (
+      ["hr", "recruiter", "sales", "marketing", "finance", "operations", "business", "product", "ba"]
+        .some(k => r.includes(k))
+    ) {
+      setRoleCategory("non-tech");
+    } else {
+      setRoleCategory("tech");
+    }
+  }, [role, isManualOverride]);
 
   useEffect(() => {
     const fetchAssessmentData = async () => {
@@ -353,17 +319,6 @@ const AssessmentSetupContainer: React.FC = () => {
     }
   };
 
-  const applyRoleCategoryPreset = (category: RoleCategory) => {
-    const nextDistribution = buildDistributionFromMix(category);
-    const nextTotal = Object.values(
-      getQuestionTypeMix(category, nextDistribution)
-    ).reduce((sum, count) => sum + count, 0);
-
-    setRoleCategory(category);
-    setQuestionDistribution(nextDistribution);
-    setTotalQuestions(nextTotal);
-  };
-
   const handleProcessFile = async () => {
     if (!cvFile) {
       setToast({ type: "error", message: "Please select a CV first" });
@@ -390,7 +345,6 @@ const AssessmentSetupContainer: React.FC = () => {
         filesToProcess,
         "jd"
       );
-      const roleResponse = await uploadService.extractRoleFromJD(jdFile);
 
       const extractedSkillsList = res.extracted_skills || [];
       const skillNames = extractedSkillsList.map((skill) => skill.skill_name);
@@ -439,7 +393,7 @@ const AssessmentSetupContainer: React.FC = () => {
       }, {});
       setExtractedSkillMeta(nextSkillMeta);
 
-        const nextSkillPriorities = extractedSkillsList.reduce<Record<string, SkillPriority>>((acc, skill) => {
+      const nextSkillPriorities = extractedSkillsList.reduce<Record<string, SkillPriority>>((acc, skill) => {
         const meta = nextSkillMeta[skill.skill_name.toLowerCase()];
         if (meta?.category === "soft") {
           acc[skill.skill_name] = "soft";
@@ -455,13 +409,6 @@ const AssessmentSetupContainer: React.FC = () => {
         return acc;
       }, {});
       setSkillPriorities(nextSkillPriorities);
-
-      // Apply role category preset based on extracted role and skills
-      const resolvedCategory =normalizeRoleCategory(roleResponse?.role_type) ??
-                              normalizeRoleCategory(roleResponse?.role_category) ??
-                              normalizeRoleCategory(roleResponse?.category) ?? "tech";
-      
-      applyRoleCategoryPreset(resolvedCategory);
 
       setToast({
         type: "success",
@@ -486,143 +433,162 @@ const AssessmentSetupContainer: React.FC = () => {
     setSubmitLoading(true);
 
     try {
-  const requiredSkills = skills.reduce((acc, skill) => {
-    const key = skill.toLowerCase();
-    const meta = extractedSkillMeta[key];
-    const inResume = Boolean(meta?.inResume);
-    const inJd = Boolean(meta?.inJd);
-    const isSoft = meta?.category === "soft";
+      const requiredSkills = skills.reduce((acc, skill) => {
+        const key = skill.toLowerCase();
+        const meta = extractedSkillMeta[key];
+        const inResume = Boolean(meta?.inResume);
+        const inJd = Boolean(meta?.inJd);
+        const isSoft = meta?.category === "soft";
 
-    let level = "beginner";
-    if (inResume && inJd) {
-      level = "advanced";
-    } else if (inResume) {
-      level = "intermediate";
-    } else if (inJd) {
-      level = "beginner";
-    }
+        let level = "beginner";
+        if (inResume && inJd) {
+          level = "advanced";
+        } else if (inResume) {
+          level = "intermediate";
+        } else if (inJd) {
+          level = "beginner";
+        }
 
-    if (isSoft) {
-      level = "soft";
-    }
+        if (isSoft) {
+          level = "soft";
+        }
 
-    acc[skill] = level;
-    return acc;
-  }, {} as Record<string, string>);
+        acc[skill] = level;
+        return acc;
+      }, {} as Record<string, string>);
 
-  const assessmentPayload: any = {
-    title: `Assessment for ${role}`,
-    description: `Assessment created for candidate ${candidateInfo.name || candidateInfo.email || 'admin'}`,
-    job_title: role.trim(),
-    jd_id: jdId || undefined,
+      const assessmentPayload: any = {
+        title: `Assessment for ${role}`,
+        description: `Assessment created for candidate ${candidateInfo.name || candidateInfo.email || 'admin'}`,
+        job_title: role.trim(),
+        jd_id: jdId || undefined,
 
-    required_skills: requiredSkills,
+        required_skills: requiredSkills,
 
-    skill_priorities: skillPriorities,  // ✅ NEW: Add skill priorities (must-have / good-to-have)
-    is_draft: isDraft,  // ✅ NEW: Mark as draft
-    is_published: !isDraft,  // Don't publish drafts
+        skill_priorities: skillPriorities,  // ✅ NEW: Add skill priorities (must-have / good-to-have)
+        is_draft: isDraft,  // ✅ NEW: Mark as draft
+        is_published: !isDraft,  // Don't publish drafts
 
-    required_roles: [role.trim()],
-    duration_minutes: 30,
+        required_roles: [role.trim()],
+        duration_minutes: 30,
 
-    is_questionnaire_enabled: assessmentMethod === "questionnaire",
-    is_interview_enabled: assessmentMethod === "interview",
+        is_questionnaire_enabled: assessmentMethod === "questionnaire",
+        is_interview_enabled: assessmentMethod === "interview",
 
-    // ✅ ADD THIS — Screening questions sent to BE
-    screening_questions: screeningQuestions
-      .map(q => q.trim())
-      .filter(Boolean),
+        // ✅ ADD THIS — Screening questions sent to BE
+        screening_questions: screeningQuestions
+          .map(q => q.trim())
+          .filter(Boolean),
 
-    // ✅ NEW: Include manual questions in the payload
-    manual_questions: manualQuestions.map(q => ({
-      question_text: q.question_text,
-      type: q.type,
-      difficulty: q.difficulty,
-      skill: q.skill || '',
-      options: q.options || [],
-      correct_answer: q.correct_answer || '',
-      code_template: q.code_template,
-      constraints: q.constraints,
-      test_cases: q.test_cases,
-      time_limit: q.time_limit,
-    })),
+        // ✅ NEW: Include manual questions in the payload
+        manual_questions: manualQuestions.map(q => ({
+          question_text: q.question_text,
+          type: q.type,
+          difficulty: q.difficulty,
+          skill: q.skill || '',
+          options: q.options || [],
+          correct_answer: q.correct_answer || '',
+          code_template: q.code_template,
+          constraints: q.constraints,
+          test_cases: q.test_cases,
+          time_limit: q.time_limit,
+        })),
 
-    // NEW: Experience-based question configuration
-    total_questions: totalQuestions,
-    question_type_mix: questionDistribution, // This maps to the backend's question_type_mix
-    passing_score_threshold: cutoffMarks,
-    auto_adjust_by_experience: autoAdjustByExperience,
-    difficulty_distribution: difficultyDistribution,
-    generation_policy: generationPolicy,
-  };
+        // NEW: Experience-based question configuration
+        total_questions: totalQuestions,
+        question_type_mix:
+          roleCategory === "tech"
+            ? {
+              mcq: questionDistribution.mcq,
+              coding: questionDistribution.coding,
+              architecture: questionDistribution.architecture,
+            }
+            : {
+              mcq: questionDistribution.mcq,
+              scenario: questionDistribution.scenario || 0,
+            },
+        passing_score_threshold: cutoffMarks,
+        auto_adjust_by_experience: autoAdjustByExperience,
+        difficulty_distribution: difficultyDistribution,
+        generation_policy: generationPolicy,
+      };
 
-  // Only add candidate_info if we have email (required by backend)
-  if (candidateInfo.email || candidateInfo.name) {
-    assessmentPayload.candidate_info = {
-      name: candidateInfo.name || 'Candidate',
-      email: candidateInfo.email || 'admin@example.com',
-      experience: candidateInfo.experience,
-      current_role: candidateInfo.currentRole,
-    };
-  }
+      // Only add candidate_info if we have email (required by backend)
+      if (candidateInfo.email || candidateInfo.name) {
+        assessmentPayload.candidate_info = {
+          name: candidateInfo.name || 'Candidate',
+          email: candidateInfo.email || 'admin@example.com',
+          experience: candidateInfo.experience,
+          current_role: candidateInfo.currentRole,
+        };
+      }
 
-  if (assessmentMethod === "questionnaire") {
-    assessmentPayload.questionnaire_config = {
-      mcq: questionDistribution.mcq,
-      coding: questionDistribution.coding,
-      architecture: questionDistribution.architecture,
-      role_type: roleCategory,
-      doc_id: ragUploadedDocId,
-    };
-  }
+      if (assessmentMethod === "questionnaire") {
+        if (roleCategory === "tech") {
+          assessmentPayload.questionnaire_config = {
+            mcq: questionDistribution.mcq,
+            coding: questionDistribution.coding,
+            architecture: questionDistribution.architecture,
+            doc_id: ragUploadedDocId,
+            role_type: "tech",
+          };
+        } else {
+          assessmentPayload.questionnaire_config = {
+            mcq: questionDistribution.mcq,
+            scenario: questionDistribution.scenario || 0,
+            doc_id: ragUploadedDocId,
+            role_type: "non-tech",
+          };
+        }
+      }
 
-  if (expiresAt) {
-    assessmentPayload.expires_at = new Date(expiresAt).toISOString();
-  }
+      if (expiresAt) {
+        assessmentPayload.expires_at = new Date(expiresAt).toISOString();
+      }
 
-  const response = isEditMode
-    ? await assessmentService.updateAssessment(assessmentId!, assessmentPayload)
-    : await assessmentService.createAssessment(assessmentPayload);
+      const response = isEditMode
+        ? await assessmentService.updateAssessment(assessmentId!, assessmentPayload)
+        : await assessmentService.createAssessment(assessmentPayload);
 
-  const resultAssessmentId = response?.assessment_id;
-  // store created id for subsequent actions (upload/generation)
-  if (resultAssessmentId) setCreatedAssessmentId(resultAssessmentId);
-  const generatedLink = `${window.location.origin}/candidate-assessment/${resultAssessmentId}`;
+      const resultAssessmentId = response?.assessment_id;
+      // store created id for subsequent actions (upload/generation)
+      if (resultAssessmentId) setCreatedAssessmentId(resultAssessmentId);
+      const generatedLink = `${window.location.origin}/candidate-assessment/${resultAssessmentId}`;
 
-  setAssessmentLink(generatedLink);
-  setShowAssessmentLinkModal(true);
+      setAssessmentLink(generatedLink);
+      setShowAssessmentLinkModal(true);
 
-  setToast({
-    type: "success",
-    message: isEditMode
-      ? "Assessment updated successfully!"
-      : "Assessment created successfully!",
-  });
+      setToast({
+        type: "success",
+        message: isEditMode
+          ? "Assessment updated successfully!"
+          : "Assessment created successfully!",
+      });
 
-  // If a Question Bank file was selected during create, upload it automatically (but do NOT auto-generate)
-  if (ragFile && resultAssessmentId) {
-    try {
-      setToast({ type: "info", message: "Uploading Question Bank document..." });
-      setRagUploadProgress(0);
-      const res = await uploadService.uploadQuestionDoc(ragFile, resultAssessmentId, (p) => setRagUploadProgress(p));
-      setRagUploadedDocId(res.doc_id);
-      setToast({ type: "success", message: `Question Bank document uploaded (doc id: ${res.doc_id})` });
+      // If a Question Bank file was selected during create, upload it automatically (but do NOT auto-generate)
+      if (ragFile && resultAssessmentId) {
+        try {
+          setToast({ type: "info", message: "Uploading Question Bank document..." });
+          setRagUploadProgress(0);
+          const res = await uploadService.uploadQuestionDoc(ragFile, resultAssessmentId, (p) => setRagUploadProgress(p));
+          setRagUploadedDocId(res.doc_id);
+          setToast({ type: "success", message: `Question Bank document uploaded (doc id: ${res.doc_id})` });
+        } catch (err: any) {
+          const errorMessage = err.response?.data?.detail || "Failed to upload Question Bank document";
+          setToast({ type: "error", message: errorMessage });
+        } finally {
+          setRagUploadProgress(null);
+        }
+      }
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || "Failed to upload Question Bank document";
+      console.error("Error submitting assessment:", err);
+      const errorMessage =
+        err.response?.data?.detail ||
+        "Failed to create assessment. Please try again.";
       setToast({ type: "error", message: errorMessage });
     } finally {
-      setRagUploadProgress(null);
+      setSubmitLoading(false);
     }
-  }
-} catch (err: any) {
-  console.error("Error submitting assessment:", err);
-  const errorMessage =
-    err.response?.data?.detail ||
-    "Failed to create assessment. Please try again.";
-  setToast({ type: "error", message: errorMessage });
-} finally {
-  setSubmitLoading(false);
-}
   };
   if (rbacError) {
     return (
@@ -662,61 +628,61 @@ const AssessmentSetupContainer: React.FC = () => {
         </div>
       )}
 
-    {!isEditMode && (
-      <section className="card upload-card">
-        <div className="card-header source-documents-header">
-          <h2>Source Documents</h2>
-        </div>
-
-        <div className="source-documents-grid">
-          <div className="source-document-card">
-            <div className="source-document-icon">
-              <FiFileText size={26} />
-            </div>
-            <div className="source-document-copy">
-              <h3>Upload Resume</h3>
-              <p>PDF, DOCX up to 10MB</p>
-            </div>
-
-            <FileUpload
-              label="Upload Resume"
-              onFileSelect={setCvFile}
-              onTextExtracted={handleResumeTextExtracted}
-              isRequired
-            />
+      {!isEditMode && (
+        <section className="card upload-card">
+          <div className="card-header source-documents-header">
+            <h2>Source Documents</h2>
           </div>
 
-          <div className="source-document-card">
-            <div className="source-document-icon">
-              <FiBriefcase size={26} />
-            </div>
-            <div className="source-document-copy">
-              <h3>Job Description</h3>
-              <p>Extract skills & context</p>
+          <div className="source-documents-grid">
+            <div className="source-document-card">
+              <div className="source-document-icon">
+                <FiFileText size={26} />
+              </div>
+              <div className="source-document-copy">
+                <h3>Upload Resume</h3>
+                <p>PDF, DOCX up to 10MB</p>
+              </div>
+
+              <FileUpload
+                label="Upload Resume"
+                onFileSelect={setCvFile}
+                onTextExtracted={handleResumeTextExtracted}
+                isRequired
+              />
             </div>
 
-            <FileUpload
-              label="Job Description"
-              onFileSelect={(file) => {
-                setJdFile(file);
-                setJdId(null);
-              }}
-              isRequired
-            />
+            <div className="source-document-card">
+              <div className="source-document-icon">
+                <FiBriefcase size={26} />
+              </div>
+              <div className="source-document-copy">
+                <h3>Job Description</h3>
+                <p>Extract skills & context</p>
+              </div>
+
+              <FileUpload
+                label="Job Description"
+                onFileSelect={(file) => {
+                  setJdFile(file);
+                  setJdId(null);
+                }}
+                isRequired
+              />
+            </div>
           </div>
-        </div>
 
-        <div className="card-actions">
-          <button
-            className="btn primary"
-            onClick={handleProcessFile}
-            disabled={!cvFile || !jdFile || processLoading}
-          >
-            {processLoading ? "Processing..." : "Extract Role & Skills"}
-          </button>
-        </div>
-      </section>
-     )}
+          <div className="card-actions">
+            <button
+              className="btn primary"
+              onClick={handleProcessFile}
+              disabled={!cvFile || !jdFile || processLoading}
+            >
+              {processLoading ? "Processing..." : "Extract Role & Skills"}
+            </button>
+          </div>
+        </section>
+      )}
 
       {!isEditMode && (<section className="card question-source-card">
         <div className="card-header">
@@ -827,6 +793,32 @@ const AssessmentSetupContainer: React.FC = () => {
           <h2>Assessment Details</h2>
         </div>
 
+        <div className="role-type-toggle">
+          <span className="toggle-label">Role Type</span>
+          <div className="toggle-actions">
+            <button
+              type="button"
+              className={roleCategory === "tech" ? "active" : ""}
+              onClick={() => {
+                setIsManualOverride(true);
+                applyRoleCategoryPreset("tech");
+              }}
+            >
+              Tech
+            </button>
+            <button
+              type="button"
+              className={roleCategory === "non-tech" ? "active" : ""}
+              onClick={() => {
+                setIsManualOverride(true);
+                applyRoleCategoryPreset("non-tech");
+              }}
+            >
+              Non-Tech
+            </button>
+          </div>
+        </div>
+
         <RoleSkillPlaceholder
           role={role}
           setRole={setRole}
@@ -842,15 +834,6 @@ const AssessmentSetupContainer: React.FC = () => {
             setSkillPriorities({ ...skillPriorities, [skill]: priority });
           }}
         />
-
-        {!isEditMode && (
-          <div className="role-category-display">
-            <label>Role Category</label>
-            <div className={`role-category-badge role-category-${roleCategory}`}>
-              {roleCategory === "tech" ? "Technical Role" : "Non-Technical Role"}
-            </div>
-          </div>
-        )}
       </section>
 
       <section className="card candidate-card">
@@ -873,20 +856,20 @@ const AssessmentSetupContainer: React.FC = () => {
 
 
       {!isEditMode && (
-      <AssessmentConfigurationBlock
-        role_type={roleCategory}
-        questionDistribution={questionDistribution}
-        onQuestionDistributionChange={setQuestionDistribution}
-        cutoffMarks={cutoffMarks}
-        onCutoffMarksChange={setCutoffMarks}
-        totalQuestions={totalQuestions}
-        onTotalQuestionsChange={setTotalQuestions}
-        autoAdjustByExperience={autoAdjustByExperience}
-        onAutoAdjustByExperienceChange={setAutoAdjustByExperience}
-        difficultyDistribution={difficultyDistribution}
-        onDifficultyDistributionChange={setDifficultyDistribution}
-      />
-     )}
+        <AssessmentConfigurationBlock
+          questionDistribution={questionDistribution}
+          onQuestionDistributionChange={setQuestionDistribution}
+          cutoffMarks={cutoffMarks}
+          onCutoffMarksChange={setCutoffMarks}
+          totalQuestions={totalQuestions}
+          onTotalQuestionsChange={setTotalQuestions}
+          autoAdjustByExperience={autoAdjustByExperience}
+          onAutoAdjustByExperienceChange={setAutoAdjustByExperience}
+          difficultyDistribution={difficultyDistribution}
+          onDifficultyDistributionChange={setDifficultyDistribution}
+          roleCategory={roleCategory}
+        />
+      )}
 
       <section className="card questions-card">
         <div className="card-header">
@@ -968,7 +951,7 @@ const AssessmentSetupContainer: React.FC = () => {
         >
           {submitLoading && isDraft ? 'Saving Draft...' : 'Save as Draft'}
         </button>
-        
+
         <AssessmentSetupSubmitButton
           disabled={!formValid || submitLoading}
           loading={submitLoading && !isDraft}

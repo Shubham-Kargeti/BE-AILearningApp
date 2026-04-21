@@ -549,22 +549,34 @@ async def create_assessment(
     # --------------------------------------------
     questionnaire_config = request.questionnaire_config or {}
     explicit_role_type = _normalize_role_type(questionnaire_config.get("role_type"))
-    jd_role_type = explicit_role_type or _infer_role_type(
-        request.job_title,
-        jd_text,
-        request.description,
-        skills=request.required_skills,
-    )
-    candidate_role_type = (
-        _infer_role_type(
-            request.candidate_info.current_role if request.candidate_info else None,
-            request.candidate_info.experience if request.candidate_info else None,
+
+    if explicit_role_type:
+        # ✅ TRUST FE — DO NOT OVERRIDE
+        resolved_role_type = explicit_role_type
+    else:
+        # fallback only if FE didn't send anything
+        jd_role_type = _infer_role_type(
+            request.job_title,
+            jd_text,
+            request.description,
             skills=request.required_skills,
         )
-        if request.candidate_info
-        else jd_role_type
-    )
-    resolved_role_type = "tech" if jd_role_type == "tech" and candidate_role_type == "tech" else "non-tech"
+
+        candidate_role_type = (
+            _infer_role_type(
+                request.candidate_info.current_role if request.candidate_info else None,
+                request.candidate_info.experience if request.candidate_info else None,
+                skills=request.required_skills,
+            )
+            if request.candidate_info
+            else jd_role_type
+        )
+
+        resolved_role_type = (
+            "tech"
+            if jd_role_type == "tech" and candidate_role_type == "tech"
+            else "non-tech"
+        )
 
     if request.jd_id:
         # ✅ Candidate-specific (JD uploaded flow)
