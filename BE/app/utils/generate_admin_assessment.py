@@ -217,6 +217,45 @@ coding_prompt = ChatPromptTemplate.from_messages(
     [coding_system_message, coding_human_message]
 )
 
+reasoning_system_message = SystemMessagePromptTemplate.from_template(
+    """
+You are generating REASONING QUESTIONS for a non-technical assessment.
+
+STRICT RULES:
+- Generate EXACTLY {reasoning_count} questions
+- Questions MUST be role-specific and aligned to the job description and listed skills
+- Focus on decision-making, prioritization, stakeholder handling, communication, process judgment, and situational reasoning
+- Do NOT generate coding challenges
+- Do NOT generate system design questions
+- Do NOT generate MCQs
+- No answers or solutions
+
+OUTPUT FORMAT (STRICT JSON ONLY):
+Return ONLY a valid JSON array of EXACTLY {reasoning_count} items.
+
+Each item MUST follow this format EXACTLY:
+
+{{
+  "question_id": 1,
+  "title": "Concise reasoning prompt title",
+  "description": "Scenario-based question requiring structured reasoning",
+  "focus_areas": ["Prioritization", "Stakeholder Communication", "Judgment"]
+}}
+
+No markdown.
+No explanations.
+No additional fields.
+"""
+)
+
+reasoning_human_message = HumanMessagePromptTemplate.from_template(
+    "Skills and difficulty levels:\n{skills_json}"
+)
+
+reasoning_prompt = ChatPromptTemplate.from_messages(
+    [reasoning_system_message, reasoning_human_message]
+)
+
 # ------------------------------------------------------------
 # ARCHITECTURE QUESTION PROMPT 
 # ------------------------------------------------------------
@@ -332,10 +371,23 @@ async def generate_assessment_question_set(
     # ------------------------------------------------------------
     questionnaire_config = questionnaire_config or {}
 
+    role_type = str(questionnaire_config.get("role_type", "tech")).strip().lower()
+    is_non_technical = role_type in {"non-tech", "nontechnical", "non-technical", "non tech"}
+
     mcq_count = int(questionnaire_config.get("mcq", 6))
     coding_count = int(questionnaire_config.get("coding", 2))
     architecture_count = int(questionnaire_config.get("architecture", 2))
-    total_questions = mcq_count + coding_count + architecture_count
+    reasoning_count = int(
+        questionnaire_config.get(
+            "reasoning",
+            questionnaire_config.get("scenario", questionnaire_config.get("ba", 0))
+        )
+    )
+    total_questions = (
+        mcq_count + reasoning_count
+        if is_non_technical
+        else mcq_count + coding_count + architecture_count
+    )
 
 
     # Normalize skills
@@ -350,7 +402,42 @@ async def generate_assessment_question_set(
 
     formatted = json.dumps(skills_with_levels, indent=2)
 
-    messages = mcq_prompt.format_messages(
+    selected_mcq_prompt = mcq_prompt
+    if is_non_technical:
+        selected_mcq_prompt = ChatPromptTemplate.from_messages(
+            [
+                SystemMessagePromptTemplate.from_template(
+                    """
+You are an expert assessment generator for NON-TECHNICAL roles.
+
+Generate EXACTLY {total_questions} role-specific MCQs aligned to the provided skills and job description.
+
+STRICT RULES:
+- Questions must reflect real workplace situations for non-technical roles
+- Focus on applied judgment, communication, prioritization, process handling, stakeholder coordination, and role-specific domain knowledge
+- No coding prompts
+- No generic aptitude questions detached from the role
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON array using this exact schema:
+{{
+  "question_id": 1,
+  "question_text": "Question text",
+  "options": [
+    {{"option_id": "A", "text": "Option A"}},
+    {{"option_id": "B", "text": "Option B"}},
+    {{"option_id": "C", "text": "Option C"}},
+    {{"option_id": "D", "text": "Option D"}}
+  ],
+  "correct_answer": "A"
+}}
+"""
+                ),
+                mcq_human_message,
+            ]
+        )
+
+    messages = selected_mcq_prompt.format_messages(
         skills_json=formatted,
         total_questions=mcq_count
     )
@@ -397,16 +484,47 @@ async def generate_assessment_question_set(
     except Exception as e:
         raise ValueError(f"Invalid MCQ LLM output: {e}")
     
-    # --------------------------------------------------------
-    # CODING QUESTIONS 
-    # --------------------------------------------------------
-    coding_messages = coding_prompt.format_messages(
-        skills_json=formatted,
-        coding_count=coding_count
-    )
-    #######################NEW CODE##################
-    if job_description:
-        coding_messages[-1].content += f"""
+    coding_data = []
+    architecture_data = []
+    reasoning_data = []
+
+    if is_non_technical:
+        if reasoning_count > 0:
+            reasoning_messages = reasoning_prompt.format_messages(
+                skills_json=formatted,
+                reasoning_count=reasoning_count
+            )
+            if job_description:
+                reasoning_messages[-1].content += f"""
+
+    JOB DESCRIPTION:
+    {job_description}
+
+    INSTRUCTION:
+    - Use this context to create realistic reasoning scenarios for the target role
+    - Focus on role-specific judgment, communication, and trade-offs
+    """
+            if rag_context:
+                reasoning_messages[-1].content += f"\n\nContext:\n{rag_context}"
+
+            reasoning_response = await asyncio.to_thread(llm.invoke, reasoning_messages)
+            print("\n[Admin REASONING LLM Output]\n", reasoning_response.content)
+
+            try:
+                reasoning_data = json.loads(reasoning_response.content)
+                if not isinstance(reasoning_data, list) or len(reasoning_data) != reasoning_count:
+                    raise ValueError(
+                        f"Expected exactly {reasoning_count} reasoning questions, got {len(reasoning_data)}"
+                    )
+            except Exception as e:
+                raise ValueError(f"Invalid REASONING LLM output: {e}")
+    else:
+        coding_messages = coding_prompt.format_messages(
+            skills_json=formatted,
+            coding_count=coding_count
+        )
+        if job_description:
+            coding_messages[-1].content += f"""
 
     JOB DESCRIPTION:
     {job_description}
@@ -414,45 +532,37 @@ async def generate_assessment_question_set(
     INSTRUCTION:
     - Use the job context to design realistic coding problems
     """
-    #######################NEW CODE END##################
-        
-    if rag_context:
-        coding_messages[-1].content += f"\n\nContext:\n{rag_context}"
 
-    coding_llm = _get_llm()
-    coding_response = await asyncio.to_thread(coding_llm.invoke, coding_messages)
+        if rag_context:
+            coding_messages[-1].content += f"\n\nContext:\n{rag_context}"
 
-    print("\n[Admin CODING LLM Output]\n", coding_response.content)
+        coding_llm = _get_llm()
+        coding_response = await asyncio.to_thread(coding_llm.invoke, coding_messages)
 
-    try:
-        coding_data = json.loads(coding_response.content)
-        # if not isinstance(coding_data, list) or len(coding_data) != 2:
-        #     raise ValueError("Expected exactly 2 coding questions")
-        if not isinstance(coding_data, list) or len(coding_data) != coding_count:
-            raise ValueError(
-            f"Expected exactly {coding_count} coding questions, got {len(coding_data)}"
-    )
+        print("\n[Admin CODING LLM Output]\n", coding_response.content)
 
-    except Exception as e:
-        raise ValueError(f"Invalid CODING LLM output: {e}")
-    
-    # --------------------------------------------------------
-    # ARCHITECTURE QUESTIONS 
-    # --------------------------------------------------------
-    architecture_messages = ChatPromptTemplate.from_messages(
-        [
-            architecture_system_message,
-            HumanMessagePromptTemplate.from_template(
-                "Skills and difficulty levels:\n{skills_json}"
-            ),
-        ]
-    ).format_messages(
-        skills_json=formatted,
-        architecture_count=architecture_count
-    )
-    ########################NEW CODE##################
-    if job_description:
-        architecture_messages[-1].content += f"""
+        try:
+            coding_data = json.loads(coding_response.content)
+            if not isinstance(coding_data, list) or len(coding_data) != coding_count:
+                raise ValueError(
+                    f"Expected exactly {coding_count} coding questions, got {len(coding_data)}"
+                )
+        except Exception as e:
+            raise ValueError(f"Invalid CODING LLM output: {e}")
+
+        architecture_messages = ChatPromptTemplate.from_messages(
+            [
+                architecture_system_message,
+                HumanMessagePromptTemplate.from_template(
+                    "Skills and difficulty levels:\n{skills_json}"
+                ),
+            ]
+        ).format_messages(
+            skills_json=formatted,
+            architecture_count=architecture_count
+        )
+        if job_description:
+            architecture_messages[-1].content += f"""
 
     JOB DESCRIPTION:
     {job_description}
@@ -461,25 +571,21 @@ async def generate_assessment_question_set(
     - Use this context for system design questions
     - Focus on real-world architecture decisions
     """
-    ########################NEW CODE END##################
-    if rag_context:
-        architecture_messages[-1].content += f"\n\nContext:\n{rag_context}"
+        if rag_context:
+            architecture_messages[-1].content += f"\n\nContext:\n{rag_context}"
 
-    architecture_response = await asyncio.to_thread(llm.invoke, architecture_messages)
+        architecture_response = await asyncio.to_thread(llm.invoke, architecture_messages)
 
-    print("\n[Admin ARCHITECTURE LLM Output]\n", architecture_response.content)
+        print("\n[Admin ARCHITECTURE LLM Output]\n", architecture_response.content)
 
-    try:
-        architecture_data = json.loads(architecture_response.content)
-        # if not isinstance(architecture_data, list) or len(architecture_data) != 2:
-        #     raise ValueError("Expected exactly 2 architecture questions")
-        if not isinstance(architecture_data, list) or len(architecture_data) != architecture_count:
-            raise ValueError(
-        f"Expected exactly {architecture_count} architecture questions, got {len(architecture_data)}"
-    )
-
-    except Exception as e:
-        raise ValueError(f"Invalid ARCHITECTURE LLM output: {e}")
+        try:
+            architecture_data = json.loads(architecture_response.content)
+            if not isinstance(architecture_data, list) or len(architecture_data) != architecture_count:
+                raise ValueError(
+                    f"Expected exactly {architecture_count} architecture questions, got {len(architecture_data)}"
+                )
+        except Exception as e:
+            raise ValueError(f"Invalid ARCHITECTURE LLM output: {e}")
 
 
 
@@ -567,9 +673,27 @@ async def generate_assessment_question_set(
             generation_time=time.time() - start_time
         )
         db.add(db_question)
+
+    # --------------------------------------------------------
+    # Save REASONING Questions
+    # --------------------------------------------------------
+    for rq in reasoning_data:
+        db_question = Question(
+            question_set_id=question_set_id,
+            question_text=f"{rq['title']}\n\n{rq['description']}",
+            options={
+                "type": "reasoning",
+                "focus_areas": rq.get("focus_areas", [])
+            },
+            correct_answer="N/A",
+            difficulty="reasoning",
+            generation_model="llama-3.3-70b-versatile",
+            generation_time=time.time() - start_time
+        )
+        db.add(db_question)
     print(
     "[DEBUG] Total questions to be saved:",
-    mcq_count + len(coding_data) + len(architecture_data)
+    mcq_count + len(coding_data) + len(architecture_data) + len(reasoning_data)
 )
 
 

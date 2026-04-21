@@ -2,6 +2,7 @@ export type QuestionType =
   | "mcq"
   | "coding"
   | "architecture"
+  | "reasoning"
   | "screening";
 
 export interface MCQOption {

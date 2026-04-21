@@ -25,6 +25,16 @@ from app.api.upload_jd import memory_store
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
 settings = get_settings()
 CACHE_TTL_SECONDS = 120
+TECH_ROLE_KEYWORDS = {
+    "developer", "engineer", "architect", "qa", "sdet", "data", "machine learning",
+    "ai", "devops", "cloud", "frontend", "backend", "full stack", "software",
+    "security", "platform", "android", "ios", "technical"
+}
+NON_TECH_ROLE_KEYWORDS = {
+    "business analyst", "ba", "product", "project", "operations", "hr", "recruiter",
+    "sales", "marketing", "finance", "customer success", "support", "non tech",
+    "non-technical", "non technical", "functional", "delivery"
+}
 
 
 async def _get_cache_service() -> Optional[RedisService]:
@@ -62,9 +72,34 @@ def resolve_question_type(question: Question) -> str:
     """
     if isinstance(question.options, dict):
         qtype = question.options.get("type")
-        if qtype in ("coding", "architecture"):
+        if qtype in ("coding", "architecture", "reasoning"):
             return qtype
     return "mcq"
+
+
+def _normalize_role_type(value: Optional[str]) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+
+    normalized = value.strip().lower()
+    if any(token in normalized for token in ("non-tech", "non tech", "non-technical", "non technical", "business", "functional", "ba")):
+        return "non-tech"
+    if any(token in normalized for token in ("tech", "technical", "engineering")):
+        return "tech"
+    return None
+
+
+def _infer_role_type(*values: Optional[str], skills: Optional[dict] = None) -> str:
+    haystack_parts = [value for value in values if value]
+    if skills:
+        haystack_parts.extend(str(skill) for skill in skills.keys())
+
+    haystack = " ".join(haystack_parts).lower()
+    if any(keyword in haystack for keyword in NON_TECH_ROLE_KEYWORDS):
+        return "non-tech"
+    if any(keyword in haystack for keyword in TECH_ROLE_KEYWORDS):
+        return "tech"
+    return "tech"
 
 
 def serialize_question(question: Question) -> dict:
@@ -513,13 +548,31 @@ async def create_assessment(
     # Prepare questionnaire_config FIRST
     # --------------------------------------------
     questionnaire_config = request.questionnaire_config or {}
+    explicit_role_type = _normalize_role_type(questionnaire_config.get("role_type"))
+    jd_role_type = explicit_role_type or _infer_role_type(
+        request.job_title,
+        jd_text,
+        request.description,
+        skills=request.required_skills,
+    )
+    candidate_role_type = (
+        _infer_role_type(
+            request.candidate_info.current_role if request.candidate_info else None,
+            request.candidate_info.experience if request.candidate_info else None,
+            skills=request.required_skills,
+        )
+        if request.candidate_info
+        else jd_role_type
+    )
+    resolved_role_type = "tech" if jd_role_type == "tech" and candidate_role_type == "tech" else "non-tech"
 
     if request.jd_id:
         # ✅ Candidate-specific (JD uploaded flow)
         questionnaire_config = {
             **questionnaire_config,
             "job_description": jd_text,
-            "mode": "candidate"
+            "mode": "candidate",
+            "role_type": resolved_role_type,
         }
 
     elif request.candidate_info is None:
@@ -527,7 +580,13 @@ async def create_assessment(
         questionnaire_config = {
             **questionnaire_config,
             "job_description": request.description,
-            "mode": "requirement"
+            "mode": "requirement",
+            "role_type": resolved_role_type,
+        }
+    else:
+        questionnaire_config = {
+            **questionnaire_config,
+            "role_type": resolved_role_type,
         }
 
     # ------------------------------------------------------
@@ -644,7 +703,11 @@ async def create_assessment(
         assessment_method="questionnaire" if request.is_questionnaire_enabled else "interview",
         duration_minutes=request.duration_minutes,
         is_questionnaire_enabled=request.is_questionnaire_enabled,
+        total_questions=request.total_questions,
         question_type_mix=question_type_mix,
+        passing_score_threshold=request.passing_score_threshold,
+        auto_adjust_by_experience=request.auto_adjust_by_experience,
+        difficulty_distribution=request.difficulty_distribution or {"easy": 0.2, "medium": 0.5, "hard": 0.3},
         is_interview_enabled=request.is_interview_enabled,
         is_published=True,
         expires_at=request.expires_at,

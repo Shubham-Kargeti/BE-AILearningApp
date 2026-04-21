@@ -131,7 +131,7 @@ const AssessmentViewContainer: React.FC = () => {
   const pollingRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'results' | 'questions' | 'analytics'>('details');
   const [questions, setQuestions] = useState<any[]>([]);
-  const [questionFilter, setQuestionFilter] = useState<'all' | 'mcq' | 'coding' | 'architecture' | 'screening'>('all');
+  const [questionFilter, setQuestionFilter] = useState<'all' | 'mcq' | 'coding' | 'architecture' | 'reasoning' | 'screening'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [resultsFilter, setResultsFilter] = useState<'all' | 'completed' | 'incomplete' | 'passed' | 'failed'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'score' | 'name'>('date');
@@ -2429,7 +2429,7 @@ const AssessmentViewContainer: React.FC = () => {
                   }}
                 />
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {['all', 'mcq', 'coding', 'architecture', 'screening'].map((filter) => (
+                  {['all', 'mcq', 'coding', 'architecture', 'reasoning', 'screening'].map((filter) => (
                     <button
                       key={filter}
                       onClick={() => setQuestionFilter(filter as any)}
@@ -2877,7 +2877,7 @@ const AssessmentViewContainer: React.FC = () => {
                         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
                         gap: '1rem' 
                       }}>
-                        {['mcq', 'coding', 'architecture', 'screening'].map(type => {
+                        {['mcq', 'coding', 'architecture', 'reasoning', 'screening'].map(type => {
                           const typeQuestions = questions.filter(q => q.question_type === type);
                           if (typeQuestions.length === 0) return null;
                           

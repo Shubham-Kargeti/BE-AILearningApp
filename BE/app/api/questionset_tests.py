@@ -34,10 +34,11 @@ def resolve_question_type(question: Question) -> str:
     - mcq (default)
     - coding
     - architecture
+    - reasoning
     """
     if isinstance(question.options, dict):
         qtype = question.options.get("type")
-        if qtype in ("coding", "architecture"):
+        if qtype in ("coding", "architecture", "reasoning"):
             return qtype
     return "mcq"
 
@@ -266,7 +267,7 @@ async def submit_questionset_answers(
 ) -> TestResultResponse:
     """
     Submit all answers for a QuestionSet test (authenticated).
-    Supports MCQ + Coding + Architecture.
+    Supports MCQ + Coding + Architecture + Reasoning.
     """
 
     # --------------------------------------------------
@@ -361,7 +362,7 @@ async def submit_questionset_answers(
 
         # ---------- CODING / ARCHITECTURE ----------
         else:
-            # Allow NOT_ANSWERED sentinel for coding/architecture to represent unanswered
+            # Allow NOT_ANSWERED sentinel for long-form questions to represent unanswered
             if answer_submit.selected_answer == "NOT_ANSWERED":
                 is_correct = False
             else:
@@ -409,8 +410,8 @@ async def submit_questionset_answers(
         elif qtype == "mcq":
             selected_value = selected_value[:10]
 
-        # Coding + Architecture → FULL TEXT (IMPORTANT FIX)
-        elif qtype in ["coding", "architecture"]:
+        # Long-form questions → FULL TEXT
+        elif qtype in ["coding", "architecture", "reasoning"]:
             MAX_ANSWER_LEN = 10000   # safety limit
             if len(selected_value) > MAX_ANSWER_LEN:
                 selected_value = selected_value[:MAX_ANSWER_LEN]
@@ -497,6 +498,8 @@ async def submit_questionset_answers(
                 suggestion_text = f"Review topic: {topic}. Consider revisiting the basics and example problems."
             elif qtype == 'coding':
                 suggestion_text = "For coding questions, review algorithmic complexity, edge cases, and test-driven approaches."
+            elif qtype in ('architecture', 'reasoning'):
+                suggestion_text = "Review how you structure trade-offs, assumptions, and scenario-based reasoning."
             else:
                 suggestion_text = "Review this topic and try related practice problems to improve understanding."
 
@@ -539,7 +542,7 @@ async def submit_questionset_answers_anonymous(
 ) -> TestResultResponse:
     """
     Submit all answers for a QuestionSet test anonymously.
-    Supports MCQ + Coding + Architecture (demo-safe).
+    Supports MCQ + Coding + Architecture + Reasoning (demo-safe).
     """
 
     # --------------------------------------------------
@@ -727,6 +730,8 @@ async def submit_questionset_answers_anonymous(
                 suggestion_text = f"Review topic: {topic}. Consider revisiting the basics and example problems."
             elif qtype == 'coding':
                 suggestion_text = "For coding questions, review algorithmic complexity, edge cases, and test-driven approaches."
+            elif qtype in ('architecture', 'reasoning'):
+                suggestion_text = "Review how you structure trade-offs, assumptions, and scenario-based reasoning."
             else:
                 suggestion_text = "Review this topic and try related practice problems to improve understanding."
 
@@ -870,6 +875,8 @@ async def get_questionset_test_results(
                 suggestion_text = f"Review topic: {topic}. Consider revisiting the basics and example problems."
             elif resolve_question_type(question) == 'coding':
                 suggestion_text = "For coding questions, review algorithmic complexity, edge cases, and test-driven approaches."
+            elif resolve_question_type(question) in ('architecture', 'reasoning'):
+                suggestion_text = "Review how you structure trade-offs, assumptions, and scenario-based reasoning."
             else:
                 suggestion_text = "Review this topic and try related practice problems to improve understanding."
 

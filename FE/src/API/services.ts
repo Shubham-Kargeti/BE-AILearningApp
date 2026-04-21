@@ -163,6 +163,7 @@ export interface AssessmentQuestionnaireConfig {
   mcq?: number;
   coding?: number;
   architecture?: number;
+  reasoning?: number;
   scenario?: number;
   ba?: number;
   doc_id?: string;

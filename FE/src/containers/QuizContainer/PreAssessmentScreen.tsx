@@ -15,6 +15,7 @@ interface PreAssessmentScreenProps {
     mcq?: number;
     coding?: number;
     architecture?: number;
+    reasoning?: number;
     screening?: number;
   };
   candidateName?: string;
@@ -27,7 +28,7 @@ const PreAssessmentScreen = ({
   assessmentTitle = "Technical Assessment",
   duration = 45,
   totalQuestions = 20,
-  questionTypes = { mcq: 10, coding: 5, architecture: 3, screening: 2 },
+  questionTypes = { mcq: 10, coding: 5, architecture: 3, reasoning: 0, screening: 2 },
   candidateName,
   candidateRole,
   onStart,
@@ -143,6 +144,14 @@ const PreAssessmentScreen = ({
                 <CheckCircleOutlineIcon fontSize="small" />
                 <Typography>
                   <strong>{questionTypes.architecture}</strong> Architecture
+                </Typography>
+              </Box>
+            )}
+            {questionTypes.reasoning && questionTypes.reasoning > 0 && (
+              <Box className="breakdown-item">
+                <CheckCircleOutlineIcon fontSize="small" />
+                <Typography>
+                  <strong>{questionTypes.reasoning}</strong> Reasoning
                 </Typography>
               </Box>
             )}
