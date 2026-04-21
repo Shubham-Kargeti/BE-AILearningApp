@@ -3,13 +3,15 @@ from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, status,
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional,Any
 import uuid
 import re
 import asyncio
 
 from app.core.dependencies import get_db, get_current_user
 from app.core.storage import get_s3_service
+from app.utils.generate_questions import _get_llm
+import json
 from app.utils.text_extract import extract_text
 from app.db.models import User, UploadedDocument
 from app.models.schemas import (
@@ -544,3 +546,74 @@ async def extract_skills_single_file(
 
     return response_payload
 
+@router.post("/extract-role")
+async def extract_role_from_jd(
+    file: UploadFile = File(...),
+    doc_type: str = Query("jd")
+) -> Dict[str, Any]:
+
+    # 1. Validate file
+    if not file.filename or not allowed_file(file.filename):
+        raise HTTPException(
+            status_code=400,
+            detail="Only .pdf, .docx, .ppt, .pptx files are allowed"
+        )
+
+    # 2. Extract text
+    try:
+        file_bytes = await file.read()
+        jd_text = extract_text(file_bytes, file.filename)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Text extraction failed: {str(e)}")
+
+    # 3. Get LLM
+    llm = _get_llm()
+
+    # 4. Prompt (STRICT output)
+    prompt = f"""
+You are an AI that extracts ROLE TYPE from job descriptions.
+
+Return ONLY raw JSON. Do NOT wrap in backticks or code blocks.
+
+Output format:
+{{
+  "role_type": "tech" | "non-tech"
+}}
+
+Rules:
+- "tech" → software, data, engineering, developer roles
+- "non-tech" → HR, sales, marketing, operations, finance, etc.
+- No explanation
+- No markdown
+- No extra text
+
+JD:
+{jd_text}
+"""
+ 
+     # 5. Call LLM
+    try:
+        response = llm.invoke([
+            {"role": "system", "content": "You are a strict JSON generator."},
+            {"role": "user", "content": prompt}
+       ])
+        content = response.content if hasattr(response, "content") else str(response)
+        print("\n=== LLM Role RAW RESPONSE ===")
+        print(content)
+
+        parsed = json.loads(content)
+        print("Parsed LLM response:", parsed)
+
+    except Exception:
+        # fallback safety
+        parsed = {"role_type": "tech"}
+
+    # 6. Ensure default
+    print("\n=== PARSED ROLE EXTRACTION RESULT ===")
+    print("Parsed:", parsed)
+    role_type = parsed.get("role_type", "tech")
+    print("role_type:", role_type)
+
+    return {
+        "role_type": role_type
+    }

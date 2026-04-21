@@ -316,6 +316,8 @@ async def generate_assessment_question_set(
     rag_context = ""
     questionnaire_config = questionnaire_config or {}
     job_description = questionnaire_config.get("job_description")
+    role_type = str(questionnaire_config.get("role_type", "tech")).strip().lower()
+    is_non_technical = role_type in {"non-tech", "nontechnical", "non-technical", "non tech"}
     # mode = questionnaire_config.get("mode")
 
    
@@ -369,10 +371,6 @@ async def generate_assessment_question_set(
     # ------------------------------------------------------------
     # Questionnaire configuration (FE-driven, backward-safe)
     # ------------------------------------------------------------
-    questionnaire_config = questionnaire_config or {}
-
-    role_type = str(questionnaire_config.get("role_type", "tech")).strip().lower()
-    is_non_technical = role_type in {"non-tech", "nontechnical", "non-technical", "non tech"}
 
     mcq_count = int(questionnaire_config.get("mcq", 6))
     coding_count = int(questionnaire_config.get("coding", 2))

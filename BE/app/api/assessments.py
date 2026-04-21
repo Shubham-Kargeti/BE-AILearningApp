@@ -571,18 +571,17 @@ async def create_assessment(
         questionnaire_config = {
             **questionnaire_config,
             "job_description": jd_text,
-            "mode": "candidate",
             "role_type": resolved_role_type,
         }
 
-    elif request.candidate_info is None:
-        # ✅ Role-based flow
-        questionnaire_config = {
-            **questionnaire_config,
-            "job_description": request.description,
-            "mode": "requirement",
-            "role_type": resolved_role_type,
-        }
+    # elif request.candidate_info is None:
+    #     # ✅ Role-based flow
+    #     questionnaire_config = {
+    #         **questionnaire_config,
+    #         "job_description": request.description,
+    #         "mode": "requirement",
+    #         "role_type": resolved_role_type,
+    #     }
     else:
         questionnaire_config = {
             **questionnaire_config,

@@ -20,8 +20,15 @@ import GenerationPolicySelector from "./components/GenerationPolicySelector";
 import AssessmentQuestionEditor, { type Question } from "./components/AssessmentQuestionEditor";
 import { FiFileText, FiBriefcase, FiCpu } from "react-icons/fi";
 
+// Role category and question distribution types
+type RoleCategory = "tech" | "non-tech";
 
-
+interface RequirementQuestionDistribution {
+  mcq: number;
+  coding: number;
+  architecture: number;
+  scenario: number;
+}
 
 interface ValidationError {
   field: string;
@@ -37,6 +44,78 @@ type ExtractedSkillMeta = {
 
 type SkillPriority = "must-have" | "good-to-have" | "resume-based" | "soft";
 
+// Role category constants
+const TECH_DEFAULT_DISTRIBUTION: RequirementQuestionDistribution = {
+  mcq: 6,
+  coding: 2,
+  architecture: 2,
+  scenario: 0,
+};
+
+const NON_TECH_DEFAULT_DISTRIBUTION: RequirementQuestionDistribution = {
+  mcq: 6,
+  coding: 0,
+  architecture: 0,
+  scenario: 4,
+};
+
+// Utility functions for role category
+const normalizeRoleCategory = (value: unknown): RoleCategory | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  if (
+    normalized.includes("non-tech") ||
+    normalized.includes("non tech") ||
+    normalized.includes("business") ||
+    normalized.includes("functional") ||
+    normalized.includes("ba")
+  ) {
+    return "non-tech";
+  }
+
+  if (
+    normalized.includes("tech") ||
+    normalized.includes("technical") ||
+    normalized.includes("engineering")
+  ) {
+    return "tech";
+  }
+
+  return null;
+};
+
+const getDefaultDistribution = (
+  category: RoleCategory
+): RequirementQuestionDistribution =>
+  category === "tech"
+    ? { ...TECH_DEFAULT_DISTRIBUTION }
+    : { ...NON_TECH_DEFAULT_DISTRIBUTION };
+
+const buildDistributionFromMix = (
+  category: RoleCategory
+): RequirementQuestionDistribution => {
+  return getDefaultDistribution(category);
+};
+
+const getQuestionTypeMix = (
+  category: RoleCategory,
+  distribution: RequirementQuestionDistribution
+): Record<string, number> =>
+  category === "tech"
+    ? {
+        mcq: distribution.mcq,
+        coding: distribution.coding,
+        architecture: distribution.architecture,
+      }
+    : {
+        mcq: distribution.mcq,
+        scenario: distribution.scenario,
+      };
+
 const AssessmentSetupContainer: React.FC = () => {
   const navigate = useNavigate();
   const { id: assessmentId } = useParams<{ id: string }>();
@@ -49,8 +128,6 @@ const AssessmentSetupContainer: React.FC = () => {
   const [jdFile, setJdFile] = useState<File | null>(null);
   const [jdId, setJdId] = useState<string | null>(null);
   const [cvFile, setCvFile] = useState<File | null>(null);
-  const [reqDoc] = useState<File | null>(null);
-  const [clientDoc] = useState<File | null>(null);
   const [ragFile, setRagFile] = useState<File | null>(null);
   const [ragUploadProgress, setRagUploadProgress] = useState<number | null>(null);
   const [ragUploadedDocId, setRagUploadedDocId] = useState<string | null>(null);
@@ -74,6 +151,7 @@ const AssessmentSetupContainer: React.FC = () => {
 
   const [role, setRole] = useState("");
   const [roleError, setRoleError] = useState("");
+  const [roleCategory, setRoleCategory] = useState<RoleCategory>("tech");
   const [skills, setSkills] = useState<string[]>([]);
   const [skillsError, setSkillsError] = useState("");
   const [jdSkills, setJdSkills] = useState<string[]>([]);
@@ -275,6 +353,17 @@ const AssessmentSetupContainer: React.FC = () => {
     }
   };
 
+  const applyRoleCategoryPreset = (category: RoleCategory) => {
+    const nextDistribution = buildDistributionFromMix(category);
+    const nextTotal = Object.values(
+      getQuestionTypeMix(category, nextDistribution)
+    ).reduce((sum, count) => sum + count, 0);
+
+    setRoleCategory(category);
+    setQuestionDistribution(nextDistribution);
+    setTotalQuestions(nextTotal);
+  };
+
   const handleProcessFile = async () => {
     if (!cvFile) {
       setToast({ type: "error", message: "Please select a CV first" });
@@ -301,6 +390,7 @@ const AssessmentSetupContainer: React.FC = () => {
         filesToProcess,
         "jd"
       );
+      const roleResponse = await uploadService.extractRoleFromJD(jdFile);
 
       const extractedSkillsList = res.extracted_skills || [];
       const skillNames = extractedSkillsList.map((skill) => skill.skill_name);
@@ -365,6 +455,13 @@ const AssessmentSetupContainer: React.FC = () => {
         return acc;
       }, {});
       setSkillPriorities(nextSkillPriorities);
+
+      // Apply role category preset based on extracted role and skills
+      const resolvedCategory =normalizeRoleCategory(roleResponse?.role_type) ??
+                              normalizeRoleCategory(roleResponse?.role_category) ??
+                              normalizeRoleCategory(roleResponse?.category) ?? "tech";
+      
+      applyRoleCategoryPreset(resolvedCategory);
 
       setToast({
         type: "success",
@@ -474,6 +571,7 @@ const AssessmentSetupContainer: React.FC = () => {
       mcq: questionDistribution.mcq,
       coding: questionDistribution.coding,
       architecture: questionDistribution.architecture,
+      role_type: roleCategory,
       doc_id: ragUploadedDocId,
     };
   }
@@ -744,6 +842,15 @@ const AssessmentSetupContainer: React.FC = () => {
             setSkillPriorities({ ...skillPriorities, [skill]: priority });
           }}
         />
+
+        {!isEditMode && (
+          <div className="role-category-display">
+            <label>Role Category</label>
+            <div className={`role-category-badge role-category-${roleCategory}`}>
+              {roleCategory === "tech" ? "Technical Role" : "Non-Technical Role"}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="card candidate-card">
@@ -767,6 +874,7 @@ const AssessmentSetupContainer: React.FC = () => {
 
       {!isEditMode && (
       <AssessmentConfigurationBlock
+        role_type={roleCategory}
         questionDistribution={questionDistribution}
         onQuestionDistributionChange={setQuestionDistribution}
         cutoffMarks={cutoffMarks}
