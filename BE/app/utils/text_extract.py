@@ -89,15 +89,11 @@ def extract_text(file_bytes: bytes, name: str) -> str:
 
 
 def extract_question_type_mix(config: dict, manual_questions: list) -> dict:
-    allowed_keys = ["mcq", "coding", "architecture", "reasoning", "screening"]
-    alias_map = {
-        "scenario": "reasoning",
-        "ba": "reasoning",
-    }
+    allowed_keys = ["mcq", "coding", "architecture", "scenario", "screening"]
 
     # Step 1: base from config
     result = {}
-    config = config or {"mcq": 6, "architecture": 2, "coding": 2, "reasoning": 0, "screening": 0}
+    config = config or {"mcq": 6, "architecture": 2, "coding": 2, "scenario": 0, "screening": 0}
 
     for key in allowed_keys:
         try:
@@ -106,12 +102,6 @@ def extract_question_type_mix(config: dict, manual_questions: list) -> dict:
             value = 0
 
         result[key] = value
-
-    for alias, canonical_key in alias_map.items():
-        try:
-            result[canonical_key] += int(config.get(alias, 0))
-        except (ValueError, TypeError):
-            continue
 
     # Step 2: add manual questions
     for q in manual_questions or []:
@@ -122,8 +112,6 @@ def extract_question_type_mix(config: dict, manual_questions: list) -> dict:
             q_type = q.get("type") or q.get("question_type")
         else:
             q_type = getattr(q, "question_type", None)
-
-        q_type = alias_map.get(q_type, q_type)
 
         if q_type in allowed_keys:
             result[q_type] += 1
@@ -138,14 +126,14 @@ def calculate_duration_minutes(config: dict) -> int:
         "mcq": 30,
         "architecture": 120,
         "coding": 600,
-        "reasoning": 120,
+        "scenario": 120,
         "screening": 120,
     }
 
     total_seconds = 0
 
     #  1. From questionnaire_config
-    for key in ["mcq", "coding", "architecture", "reasoning", "screening"]:
+    for key in ["mcq", "coding", "architecture", "scenario", "screening"]:
         count = config.get(key, 0)
 
         try:

@@ -291,7 +291,7 @@ const QuizContainer = () => {
       case 'mcq':
         return 30; // 30 seconds
       case 'architecture':
-      case 'reasoning':
+      case 'scenario':
         return 120; // 2 minutes
       case 'coding':
         return 600; // 10 minutes
@@ -837,7 +837,7 @@ const QuizContainer = () => {
 
     // If current question requires a non-empty answer, prevent advancing when empty
     const proposedAnswer = currentQuestion.question_type === "mcq" ? selectedOption : textAnswer;
-    if ((currentQuestion.question_type === "coding" || currentQuestion.question_type === "architecture" || currentQuestion.question_type === "reasoning") && (!proposedAnswer || proposedAnswer.trim() === "")) {
+    if ((currentQuestion.question_type === "coding" || currentQuestion.question_type === "architecture" || currentQuestion.question_type === "scenario") && (!proposedAnswer || proposedAnswer.trim() === "")) {
       setQuestionStatus(prev => ({ ...prev, [current]: 'not-answered' }));
       setShowToast(true);
       setToastMessage("This question is required. Please provide an answer before continuing.");
@@ -900,7 +900,7 @@ const QuizContainer = () => {
     const answer = currentQuestion.question_type === "mcq" ? selectedOption : textAnswer;
 
     // If the question type requires non-nullable answers (coding/architecture), prevent advancing with empty answer
-    if ((currentQuestion.question_type === "coding" || currentQuestion.question_type === "architecture" || currentQuestion.question_type === "reasoning") && (!answer || answer.trim() === "")) {
+    if ((currentQuestion.question_type === "coding" || currentQuestion.question_type === "architecture" || currentQuestion.question_type === "scenario") && (!answer || answer.trim() === "")) {
       setQuestionStatus(prev => ({ ...prev, [current]: 'not-answered' }));
       setShowToast(true);
       setToastMessage("This question is required. Please provide an answer before continuing.");
@@ -1228,7 +1228,7 @@ const QuizContainer = () => {
       mcq: mcqQuestions.questions.filter(q => q.question_type === 'mcq').length,
       coding: mcqQuestions.questions.filter(q => q.question_type === 'coding').length,
       architecture: mcqQuestions.questions.filter(q => q.question_type === 'architecture').length,
-      reasoning: mcqQuestions.questions.filter(q => q.question_type === 'reasoning').length,
+      scenario: mcqQuestions.questions.filter(q => q.question_type === 'scenario').length,
       screening: screeningQuestions.length
     };
 
@@ -1573,6 +1573,41 @@ const QuizContainer = () => {
                       </Typography>
                     </Box>
                   )}
+
+                  {otherQuestions.filter(q => q.question_type === 'scenario').length > 0 && (
+                    <Box sx={{ 
+                      padding: '16px',
+                      background: 'white',
+                      borderRadius: '12px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Box sx={{ fontSize: '32px' }}>💭</Box>
+                        <Box  sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Typography sx={{ fontSize: '16px', fontWeight: 700, color: '#1e293b' }}>
+                            Scenario Questions
+                          </Typography>
+                          <Typography sx={{ fontSize: '13px', color: '#64748b' }}>
+                            Problem-solving and decision-making
+                          </Typography>   
+                        </Box>
+                      </Box>
+                      <Typography sx={{
+                        fontSize: '18px', 
+                        fontWeight: 700, 
+                        color: '#f59e0b',
+                        background: '#fef3c7',
+                        padding: '6px 16px',
+                        borderRadius: '8px'
+                      }}>
+                        {otherQuestions.filter(q => q.question_type === 'scenario').length}
+                      </Typography>
+                    </Box>
+                  )}
+
 
                   {otherQuestions.filter(q => q.question_type === 'screening').length > 0 && (
                     <Box sx={{ 
@@ -2120,7 +2155,7 @@ const QuizContainer = () => {
                     background: question.question_type === 'mcq' ? 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)' :
                                question.question_type === 'coding' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' :
                                question.question_type === 'architecture' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' :
-                               question.question_type === 'reasoning' ? 'linear-gradient(135deg, #0f766e 0%, #115e59 100%)' :
+                               question.question_type === 'scenario' ? 'linear-gradient(135deg, #0f766e 0%, #115e59 100%)' :
                                'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
                     color: 'white',
                     padding: '6px 14px',
@@ -2134,7 +2169,8 @@ const QuizContainer = () => {
                 >
                   {question.question_type === 'mcq' ? '📝 MCQ' :
                    question.question_type === 'coding' ? '💻 Coding' :
-                   question.question_type === 'architecture' ? '🏗️ Architecture' : '📋 Screening'}
+                   question.question_type === 'architecture' ? '🏗️ Architecture' : 
+                   question.question_type === 'scenario' ? '💭 Scenario' : '📋 Screening'}
                 </Box>
                 {(question as any).difficulty && (
                   <Box 
@@ -2217,7 +2253,7 @@ const QuizContainer = () => {
                 {question.question_type === 'mcq' ? 'Select the most appropriate answer' :
                  question.question_type === 'coding' ? 'Write clean, efficient code with proper comments' :
                  question.question_type === 'architecture' ? 'Describe your design approach and considerations' :
-                 question.question_type === 'reasoning' ? 'Explain your reasoning clearly with assumptions, trade-offs, and next steps' :
+                 question.question_type === 'scenario' ? 'Explain your scenario clearly with assumptions, trade-offs, and next steps' :
                  'Provide a detailed text response'}
               </Typography>
             </Box>
@@ -2377,9 +2413,9 @@ const QuizContainer = () => {
               );
             })()}
 
-            {(question.question_type === "architecture" || question.question_type === "reasoning") && (() => {
+            {(question.question_type === "architecture" || question.question_type === "scenario") && (() => {
               const focusAreas = question.meta?.focus_areas ?? [];
-              const isReasoning = question.question_type === "reasoning";
+              const isscenario = question.question_type === "scenario";
 
               return (
                 <Box className="architecture-section">
@@ -2409,7 +2445,7 @@ const QuizContainer = () => {
                   <Box sx={{ position: 'relative', mt: 2 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#64748b' }}>
-                        {isReasoning ? "Reasoning Answer" : "System Design Answer"}
+                        {isscenario ? "scenario Answer" : "System Design Answer"}
                       </Typography>
                       <Typography sx={{ fontSize: '13px', color: textAnswer.length > 1500 ? '#ef4444' : '#94a3b8' }}>
                         {textAnswer.length} / 2000 characters
@@ -2654,7 +2690,7 @@ You can also use voice input by clicking the microphone button."
             <Typography sx={{ fontSize: '14px', fontWeight: 700, color: '#1e293b', mb: 2 }}>
               Section Progress
             </Typography>
-            {['mcq', 'coding', 'architecture', 'reasoning', 'screening'].map(type => {
+            {['mcq', 'coding', 'architecture', 'scenario', 'screening'].map(type => {
               const sectionQuestions = mcqQuestions.questions.filter(q => q.question_type === type);
               if (sectionQuestions.length === 0) return null;
               
@@ -2666,12 +2702,12 @@ You can also use voice input by clicking the microphone button."
               const sectionLabel = type === 'mcq' ? 'MCQ' : 
                                  type === 'coding' ? 'Coding' :
                                  type === 'architecture' ? 'Architecture' :
-                                 type === 'reasoning' ? 'Reasoning' : 'Screening';
+                                 type === 'scenario' ? 'Scenario' : 'Screening';
               
               const sectionColor = type === 'mcq' ? '#3b82f6' :
                                   type === 'coding' ? '#8b5cf6' :
                                   type === 'architecture' ? '#ec4899' :
-                                  type === 'reasoning' ? '#0f766e' : '#f59e0b';
+                                  type === 'scenario' ? '#0f766e' : '#f59e0b';
               
               return (
                 <Box key={type} sx={{ mb: 2 }}>
@@ -2753,7 +2789,8 @@ You can also use voice input by clicking the microphone button."
               // Get question type icon
               const typeIcon = q.question_type === 'mcq' ? '📝' :
                              q.question_type === 'coding' ? '💻' :
-                             q.question_type === 'architecture' ? '🏗️' : '📋';
+                             q.question_type === 'architecture' ? '🏗️' :
+                             q.question_type === 'scenario' ? '💭' : '📋';
               
               return (
                 <Button
@@ -2840,7 +2877,8 @@ You can also use voice input by clicking the microphone button."
               {mcqQuestions.questions.map((q, idx) => {
                 const typeLabel = q.question_type === 'mcq' ? 'MCQ' :
                                 q.question_type === 'coding' ? 'Coding' :
-                                q.question_type === 'architecture' ? 'Architecture' : 'Screening';
+                                q.question_type === 'architecture' ? 'Architecture' : 
+                                q.question_type === 'scenario' ? 'Scenario' : 'Screening';
                 const statusLabel = questionStatus[idx] === 'answered' ? '✓' : '○';
                 return (
                   <option key={idx} value={idx}>

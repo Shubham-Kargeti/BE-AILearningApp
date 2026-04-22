@@ -670,7 +670,7 @@ const AdminRequirement: React.FC = () => {
           <h2>Question Configuration</h2>
           <p className="hint">
             Question types switch automatically with the role type. Tech uses
-            MCQ, Coding, Architecture. Non-tech uses MCQ and BA type.
+            MCQ, Coding, Architecture. Non-tech uses MCQ and Scenario type.
           </p>
         </div>
 
@@ -708,7 +708,7 @@ const AdminRequirement: React.FC = () => {
             />
           </div>
 
-          <div className="config-field checkbox-field">
+          {/* <div className="config-field checkbox-field">
             <label htmlFor="auto-adjust">
               <FiTrendingUp size={16} />
               Auto Adjust By Experience
@@ -719,7 +719,7 @@ const AdminRequirement: React.FC = () => {
               checked={autoAdjustByExperience}
               onChange={(e) => setAutoAdjustByExperience(e.target.checked)}
             />
-          </div>
+          </div> */}
         </div>
 
         <div className="question-type-section">
@@ -728,7 +728,7 @@ const AdminRequirement: React.FC = () => {
             <span>
               {roleCategory === "tech"
                 ? "Question Type Mix"
-                : "Question Type Mix (BA flow)"}
+                : "Question Type Mix (Non-Tech flow)"}
             </span>
           </div>
 
@@ -779,7 +779,7 @@ const AdminRequirement: React.FC = () => {
               </>
             ) : (
               <div className="config-field">
-                <label>BA Type</label>
+                <label>Scenario Type</label>
                 <input
                   type="number"
                   min={0}

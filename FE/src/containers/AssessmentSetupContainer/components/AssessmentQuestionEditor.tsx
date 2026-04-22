@@ -36,13 +36,13 @@ export interface QuestionOption {
 
 export interface Question {
   id: string;
-  type: "mcq" | "coding" | "architecture" | "screening";
+  type: "mcq" | "coding" | "architecture" | "screening" | "scenario";
   question_text: string;
   difficulty: "easy" | "medium" | "hard";
   skill?: string;
   options?: QuestionOption[];
-  correct_answer?: string | string[];  // ✅ Support multiple correct answers
-  is_multi_select?: boolean;  // ✅ NEW: Flag for multi-select MCQ
+  correct_answer?: string | string[];
+  is_multi_select?: boolean;
   code_template?: string;
   constraints?: string[];
   test_cases?: any[];
@@ -52,11 +52,13 @@ export interface Question {
 interface Props {
   questions: Question[];
   onQuestionsChange: (questions: Question[]) => void;
+  roleCategory: "tech" | "non-tech";
 }
 
 const AssessmentQuestionEditor: React.FC<Props> = ({
   questions,
   onQuestionsChange,
+  roleCategory,
 }) => {
   const [expandedQuestion, setExpandedQuestion] = useState<string | false>(false);
   const [questionTypeFilter, setQuestionTypeFilter] = useState<string>("all");
@@ -68,7 +70,6 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
   const generateQuestionId = () => `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   const addQuestion = (type: Question["type"]) => {
-    console.log("Adding question of type:", type);
     const newQuestion: Question = {
       id: generateQuestionId(),
       type,
@@ -155,8 +156,8 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
     const newQuestions = questions.map((q) => {
         if (q.id === questionId && q.options) {
           return {
-            ...q,
-            options: q.options.filter((opt) => opt.id !== optionId),
+              ...q,
+              options: q.options.filter((opt) => opt.id !== optionId),
           };
         }
         return q;
@@ -183,19 +184,19 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
     return colors[difficulty] || "#666";
   };
 
-  const filteredQuestions = questionTypeFilter === "all" 
-    ? questions 
-    : questions.filter((q) => q.type === questionTypeFilter);
+  const filteredQuestions =
+    questionTypeFilter === "all"
+      ? questions
+      : questions.filter((q) => q.type === questionTypeFilter);
 
   return (
     <Box className="assessment-question-editor">
-      {/* Header */}
       <Box sx={{ marginBottom: "2rem" }}>
         <Typography variant="h5" sx={{ fontWeight: 700, marginBottom: "1rem" }}>
           Assessment Questions
         </Typography>
 
-        {/* Add Question Buttons */}
+        {/* Dynamic Buttons */}
         <Box sx={{ display: "flex", gap: "1rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
           <Button
             variant="contained"
@@ -208,7 +209,10 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
           >
             Add MCQ
           </Button>
-          <Button
+
+          {roleCategory === "tech" && (
+            <>
+                        <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => addQuestion("coding")}
@@ -219,7 +223,7 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
           >
             Add Coding
           </Button>
-          <Button
+              <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => addQuestion("architecture")}
@@ -230,7 +234,23 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
           >
             Add Architecture
           </Button>
-          {/* <Button
+            </>
+        )}
+
+          {roleCategory === "non-tech" && (
+           <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => addQuestion("scenario")}
+            sx={{
+              background: "linear-gradient(135deg, #f57c00 0%, #e65100 100%)",
+              textTransform: "none",
+            }}
+          >
+            Add Scenario Based
+          </Button>
+          )}
+                    {/* <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => addQuestion("screening")}
@@ -245,31 +265,48 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
 
         {/* Filter */}
         <FormControl size="small" sx={{ minWidth: 200 }}>
-          <InputLabel>Filter by Type</InputLabel>
+          <InputLabel>Filter</InputLabel>
           <Select
             value={questionTypeFilter}
             onChange={(e) => setQuestionTypeFilter(e.target.value)}
             label="Filter by Type"
           >
-            <MenuItem value="all">All Questions</MenuItem>
-            <MenuItem value="mcq">MCQ Only</MenuItem>
-            <MenuItem value="coding">Coding Only</MenuItem>
-            <MenuItem value="architecture">Architecture Only</MenuItem>
-            <MenuItem value="screening">Screening Only</MenuItem>
+            <MenuItem value="all">All</MenuItem>
+            <MenuItem value="mcq">MCQ</MenuItem>
+            {roleCategory === "tech" && (
+              <>
+                <MenuItem value="coding">Coding</MenuItem>
+                <MenuItem value="architecture">Architecture</MenuItem>
+              </>
+            )}
+            {roleCategory === "non-tech" && (
+              <MenuItem value="scenario">Scenario Based</MenuItem>
+            )}
           </Select>
         </FormControl>
       </Box>
 
-      {/* Question Count */}
       <Alert severity="info" sx={{ marginBottom: "2rem" }}>
-        Total Questions: <strong>{questions.length}</strong> (
-        MCQ: {questions.filter((q) => q.type === "mcq").length}, 
-        Coding: {questions.filter((q) => q.type === "coding").length}, 
-        Architecture: {questions.filter((q) => q.type === "architecture").length}, 
-        Screening: {questions.filter((q) => q.type === "screening").length})
+          Total Questions: <strong>{questions.length}</strong> (
+          MCQ: {questions.filter((q) => q.type === "mcq").length}, 
+        
+          {roleCategory === "tech" && (
+            <>
+              Coding: {questions.filter((q) => q.type === "coding").length}, 
+              Architecture: {questions.filter((q) => q.type === "architecture").length}, 
+            </>
+          )}
+        
+          {roleCategory === "non-tech" && (
+            <>
+              Scenario Based: {questions.filter((q) => q.type === "scenario").length}, 
+            </>
+          )}
+        
+          Screening: {questions.filter((q) => q.type === "screening").length}
+          )
       </Alert>
 
-      {/* Questions List */}
       {filteredQuestions.length === 0 ? (
         <Paper sx={{ padding: "3rem", textAlign: "center", borderRadius: "12px" }}>
           <Typography variant="h6" color="textSecondary">
@@ -290,7 +327,7 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
               }
               sx={{ borderRadius: "8px !important", border: "1px solid #e0e0e0" }}
             >
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: "1rem", width: "100%" }}>
                   <DragIcon sx={{ color: "#999", cursor: "move" }} />
                   
@@ -342,21 +379,21 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
                     </IconButton>
                   </Box>
                 </Box>
-              </AccordionSummary>
+            </AccordionSummary>
 
-              <AccordionDetails>
+            <AccordionDetails>
                 <Box sx={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
                   {/* Basic Info */}
                   <Box sx={{ display: "grid", gridTemplateColumns: "1fr", gap: 2 }}>
-                    <TextField
-                      fullWidth
+              <TextField
+                fullWidth
                       label="Question Text"
-                      multiline
+                multiline
                       rows={4}
                       value={question.question_text}
-                      onChange={(e) =>
+                onChange={(e) =>
                         updateQuestion(question.id, { question_text: e.target.value })
-                      }
+                }
                       placeholder="Enter the question here..."
                     />
                     
@@ -378,11 +415,11 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
                         </Select>
                       </FormControl>
                     
-                      <TextField
+                  <TextField
                         fullWidth
                         label="Skill/Topic"
                         value={question.skill || ""}
-                        onChange={(e) =>
+                    onChange={(e) =>
                           updateQuestion(question.id, { skill: e.target.value })
                         }
                         placeholder="e.g., JavaScript, React, Algorithms"
@@ -427,7 +464,7 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
                               value={option.text}
                               onChange={(e) =>
                                 updateOption(question.id, option.id, e.target.value)
-                              }
+                    }
                               placeholder={`Enter option ${option.id}`}
                             />
                             {question.options && question.options.length > 2 && (
@@ -467,15 +504,15 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
                       </Typography>
                       
                       <Box sx={{ display: "grid", gridTemplateColumns: "1fr", gap: 2 }}>
-                        <TextField
+                <TextField
                           fullWidth
                           label="Code Template"
-                          multiline
+                  multiline
                           rows={6}
                           value={question.code_template || ""}
-                          onChange={(e) =>
+                  onChange={(e) =>
                             updateQuestion(question.id, { code_template: e.target.value })
-                          }
+                  }
                           placeholder="// Initial code template for candidates"
                           sx={{ fontFamily: "monospace" }}
                         />
@@ -495,16 +532,16 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
                     </Box>
                   )}
 
-                  {/* Architecture/Screening */}
-                  {(question.type === "architecture" || question.type === "screening") && (
+                  {/* Architecture/Scenario/Screening */}
+                  {(question.type === "architecture" || question.type === "scenario" || question.type === "screening") && (
                     <Alert severity="info">
                       This is a free-text question. Candidates will provide written answers that
                       need manual review.
-                    </Alert>
-                  )}
+                </Alert>
+              )}
                 </Box>
-              </AccordionDetails>
-            </Accordion>
+            </AccordionDetails>
+          </Accordion>
           ))}
         </Box>
       )}

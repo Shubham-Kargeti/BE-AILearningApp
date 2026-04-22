@@ -78,7 +78,7 @@ const AdminDashboard: React.FC = () => {
 
         const data = await assessmentService.listAssessments(undefined, 0, 50, true);
         
-        const extractCandidateName = (description?: string, title?: string): string => {
+        const extractCandidateName = (description?: string, title?: string, jobTitle?: string): string => {
           if (description) {
             const match = description.match(/candidate\s+(.+?)(?:\s*$|,)/i);
             if (match) return match[1].trim();
@@ -86,7 +86,10 @@ const AdminDashboard: React.FC = () => {
           if (title && !title.toLowerCase().includes("assessment")) {
             return title;
           }
-          return "N/A";
+          if (jobTitle) {
+            return jobTitle ? `${jobTitle} Assessment` : "General Assessment";
+          }
+          return "Unknown Candidate";
         };
 
         const getAssessmentStatus = (a: Assessment): "pending" | "active" | "in_progress" | "completed" | "expired" => {
@@ -131,7 +134,7 @@ const AdminDashboard: React.FC = () => {
         const displayData: DisplayAssessment[] = data.map((a: Assessment) => ({
           id: a.id.toString(),
           assessment_id: a.assessment_id,
-          candidate_name: extractCandidateName(a.description, a.title),
+          candidate_name: extractCandidateName(a.description, a.title,a.job_title),
           candidate_email: "",
           role: a.job_title || a.title,
           skills: getDisplaySkills(a.required_skills),

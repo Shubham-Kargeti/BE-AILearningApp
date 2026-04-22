@@ -680,11 +680,11 @@ Return ONLY a valid JSON array using this exact schema:
             question_set_id=question_set_id,
             question_text=f"{rq['title']}\n\n{rq['description']}",
             options={
-                "type": "reasoning",
+                "type": "scenario",
                 "focus_areas": rq.get("focus_areas", [])
             },
             correct_answer="N/A",
-            difficulty="reasoning",
+            difficulty="scenario",
             generation_model="llama-3.3-70b-versatile",
             generation_time=time.time() - start_time
         )

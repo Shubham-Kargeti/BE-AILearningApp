@@ -131,7 +131,7 @@ const AssessmentViewContainer: React.FC = () => {
   const pollingRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'results' | 'questions' | 'analytics'>('details');
   const [questions, setQuestions] = useState<any[]>([]);
-  const [questionFilter, setQuestionFilter] = useState<'all' | 'mcq' | 'coding' | 'architecture' | 'reasoning' | 'screening'>('all');
+  const [questionFilter, setQuestionFilter] = useState<'all' | 'mcq' | 'coding' | 'architecture' | 'scenario' | 'screening'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [resultsFilter, setResultsFilter] = useState<'all' | 'completed' | 'incomplete' | 'passed' | 'failed'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'score' | 'name'>('date');
@@ -1763,12 +1763,12 @@ const AssessmentViewContainer: React.FC = () => {
                         <div style={{ fontSize: '0.875rem', opacity: 0.9, marginBottom: '0.5rem' }}>Pass Rate</div>
                         <div style={{ fontSize: '2rem', fontWeight: '700' }}>
                           {testSessions.filter(s => s.score_percentage !== null).length > 0
-                            ? ((testSessions.filter(s => (s.score_percentage || 0) >= 70).length / 
+                            ? ((testSessions.filter(s => (s.score_percentage || 0) >= assessment.passing_score_threshold).length / 
                                 testSessions.filter(s => s.score_percentage !== null).length) * 100).toFixed(0)
                             : '0'}%
                         </div>
                         <div style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '0.25rem' }}>
-                          {testSessions.filter(s => (s.score_percentage || 0) >= 70).length} passed out of {testSessions.filter(s => s.score_percentage !== null).length}
+                          {testSessions.filter(s => (s.score_percentage || 0) >= assessment.passing_score_threshold).length} passed out of {testSessions.filter(s => s.score_percentage !== null).length}
                         </div>
                       </div>
 
@@ -1811,8 +1811,8 @@ const AssessmentViewContainer: React.FC = () => {
                           { value: 'all', label: 'All', count: testSessions.length },
                           { value: 'completed', label: 'Completed', count: testSessions.filter(s => s.is_completed).length },
                           { value: 'incomplete', label: 'Incomplete', count: testSessions.filter(s => !s.is_completed).length },
-                          { value: 'passed', label: 'Passed', count: testSessions.filter(s => (s.score_percentage || 0) >= 70).length },
-                          { value: 'failed', label: 'Failed', count: testSessions.filter(s => s.score_percentage !== null && (s.score_percentage || 0) < 70).length },
+                          { value: 'passed', label: 'Passed', count: testSessions.filter(s => (s.score_percentage || 0) >= assessment.passing_score_threshold).length },
+                          { value: 'failed', label: 'Failed', count: testSessions.filter(s => s.score_percentage !== null && (s.score_percentage || 0) < assessment.passing_score_threshold).length },
                         ].map(filter => (
                           <button
                             key={filter.value}
@@ -1871,8 +1871,8 @@ const AssessmentViewContainer: React.FC = () => {
                         .filter(session => {
                           if (resultsFilter === 'completed') return session.is_completed;
                           if (resultsFilter === 'incomplete') return !session.is_completed;
-                          if (resultsFilter === 'passed') return (session.score_percentage || 0) >= 70;
-                          if (resultsFilter === 'failed') return session.score_percentage !== null && (session.score_percentage || 0) < 70;
+                          if (resultsFilter === 'passed') return (session.score_percentage || 0) >= assessment.passing_score_threshold;
+                          if (resultsFilter === 'failed') return session.score_percentage !== null && (session.score_percentage || 0) < assessment.passing_score_threshold;
                           return true;
                         })
                         .sort((a, b) => {
@@ -1890,8 +1890,8 @@ const AssessmentViewContainer: React.FC = () => {
                         })
                         .map((session, index) => {
                           const scorePercentage = session.score_percentage || 0;
-                          const scoreColor = scorePercentage >= 70 ? '#2e7d32' : scorePercentage >= 50 ? '#f57c00' : '#c62828';
-                          const scoreGradient = scorePercentage >= 70 
+                          const scoreColor = scorePercentage >= assessment.passing_score_threshold ? '#2e7d32' : scorePercentage >= 50 ? '#f57c00' : '#c62828';
+                          const scoreGradient = scorePercentage >= assessment.passing_score_threshold 
                             ? 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)'
                             : scorePercentage >= 50
                             ? 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)'
@@ -2123,7 +2123,7 @@ const AssessmentViewContainer: React.FC = () => {
                                       fontWeight: '600',
                                       display: 'inline-block',
                                     }}>
-                                      {scorePercentage >= 70 ? '✓ PASSED' : '✗ FAILED'}
+                                      {scorePercentage >= assessment.passing_score_threshold ? '✓ PASSED' : '✗ FAILED'}
                                     </div>
                                   </div>
                                 )}
@@ -2254,7 +2254,7 @@ const AssessmentViewContainer: React.FC = () => {
                   <div style={{ display: 'flex', gap: '2rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
                     {selectedResult.score_percentage !== null && (
                       <div style={{ textAlign: 'center', minWidth: '100px' }}>
-                        <p style={{ fontSize: '2rem', fontWeight: 'bold', color: selectedResult.score_percentage >= 70 ? '#4caf50' : selectedResult.score_percentage >= 50 ? '#ff9800' : '#f44336' }}>
+                        <p style={{ fontSize: '2rem', fontWeight: 'bold', color: selectedResult.score_percentage >= assessment.passing_score_threshold ? '#4caf50' : '#f44336' }}>
                           {selectedResult.score_percentage.toFixed(1)}%
                         </p>
                         <p style={{ color: '#666', fontSize: '0.875rem' }}>Score</p>
@@ -2429,7 +2429,7 @@ const AssessmentViewContainer: React.FC = () => {
                   }}
                 />
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {['all', 'mcq', 'coding', 'architecture', 'reasoning', 'screening'].map((filter) => (
+                  {['all', 'mcq', 'coding', 'architecture', 'scenario', 'screening'].map((filter) => (
                     <button
                       key={filter}
                       onClick={() => setQuestionFilter(filter as any)}
@@ -2475,6 +2475,7 @@ const AssessmentViewContainer: React.FC = () => {
                         mcq: { bg: '#e3f2fd', border: '#1976d2', icon: '📝' },
                         coding: { bg: '#f3e5f5', border: '#7b1fa2', icon: '💻' },
                         architecture: { bg: '#fff3e0', border: '#f57c00', icon: '🏗️' },
+                        scenario: { bg: '#e0f7fa', border: '#0097a7', icon: '💭' },
                         screening: { bg: '#e8f5e9', border: '#388e3c', icon: '📋' },
                       };
                       const colors = typeColors[q.question_type] || typeColors.mcq;
@@ -2580,8 +2581,8 @@ const AssessmentViewContainer: React.FC = () => {
                                 </div>
                               )}
 
-                              {/* Coding/Architecture Details */}
-                              {(q.question_type === 'coding' || q.question_type === 'architecture') && q.options && (
+                              {/* Coding/Architecture/Scenario Details */}
+                              {(q.question_type === 'coding' || q.question_type === 'architecture'|| q.question_type === 'scenario') && q.options && (
                                 <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
                                   <p style={{ fontSize: '0.875rem', color: '#666', margin: 0 }}>
                                     <strong>Type:</strong> {q.options.type || 'Open-ended response'}
@@ -2828,11 +2829,11 @@ const AssessmentViewContainer: React.FC = () => {
                             Passed
                           </div>
                           <div style={{ fontSize: '2rem', fontWeight: '700', color: '#047857' }}>
-                            {testSessions.filter(s => (s.score_percentage || 0) >= 70).length}
+                            {testSessions.filter(s => (s.score_percentage || 0) >= assessment.passing_score_threshold).length}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: '#065f46', marginTop: '0.25rem' }}>
                             {testSessions.filter(s => s.score_percentage !== null).length > 0
-                              ? ((testSessions.filter(s => (s.score_percentage || 0) >= 70).length / testSessions.filter(s => s.score_percentage !== null).length) * 100).toFixed(0)
+                              ? ((testSessions.filter(s => (s.score_percentage || 0) >= assessment.passing_score_threshold).length / testSessions.filter(s => s.score_percentage !== null).length) * 100).toFixed(0)
                               : '0'}% pass rate
                           </div>
                         </div>
@@ -2846,11 +2847,11 @@ const AssessmentViewContainer: React.FC = () => {
                             Failed
                           </div>
                           <div style={{ fontSize: '2rem', fontWeight: '700', color: '#dc2626' }}>
-                            {testSessions.filter(s => s.score_percentage !== null && (s.score_percentage || 0) < 70).length}
+                            {testSessions.filter(s => s.score_percentage !== null && (s.score_percentage || 0) < assessment.passing_score_threshold).length}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: '#991b1b', marginTop: '0.25rem' }}>
                             {testSessions.filter(s => s.score_percentage !== null).length > 0
-                              ? ((testSessions.filter(s => s.score_percentage !== null && (s.score_percentage || 0) < 70).length / testSessions.filter(s => s.score_percentage !== null).length) * 100).toFixed(0)
+                              ? ((testSessions.filter(s => s.score_percentage !== null && (s.score_percentage || 0) < assessment.passing_score_threshold).length / testSessions.filter(s => s.score_percentage !== null).length) * 100).toFixed(0)
                               : '0'}% fail rate
                           </div>
                         </div>
@@ -2877,7 +2878,7 @@ const AssessmentViewContainer: React.FC = () => {
                         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
                         gap: '1rem' 
                       }}>
-                        {['mcq', 'coding', 'architecture', 'reasoning', 'screening'].map(type => {
+                        {['mcq', 'coding', 'architecture', 'scenario', 'screening'].map(type => {
                           const typeQuestions = questions.filter(q => q.question_type === type);
                           if (typeQuestions.length === 0) return null;
                           
@@ -2885,6 +2886,7 @@ const AssessmentViewContainer: React.FC = () => {
                             mcq: { bg: '#dbeafe', color: '#1e40af', icon: '📝' },
                             coding: { bg: '#f3e8ff', color: '#6b21a8', icon: '💻' },
                             architecture: { bg: '#fed7aa', color: '#92400e', icon: '🏗️' },
+                            scenario: { bg: '#fef3c7', color: '#92400e', icon: '💭' },
                             screening: { bg: '#d1fae5', color: '#065f46', icon: '📋' },
                           };
                           const colors = typeColors[type];

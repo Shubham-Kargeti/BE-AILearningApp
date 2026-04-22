@@ -72,7 +72,7 @@ def resolve_question_type(question: Question) -> str:
     """
     if isinstance(question.options, dict):
         qtype = question.options.get("type")
-        if qtype in ("coding", "architecture", "reasoning"):
+        if qtype in ("coding", "architecture", "scenario"):
             return qtype
     return "mcq"
 
@@ -359,6 +359,7 @@ async def get_assessment(
         "assessment_method": assessment.assessment_method,
         "duration_minutes": assessment.duration_minutes,
         "is_questionnaire_enabled": assessment.is_questionnaire_enabled,
+        "passing_score_threshold": assessment.passing_score_threshold,
         "is_interview_enabled": assessment.is_interview_enabled,
         "is_active": assessment.is_active,
         "is_published": assessment.is_published,

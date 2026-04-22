@@ -15,7 +15,7 @@ interface PreAssessmentScreenProps {
     mcq?: number;
     coding?: number;
     architecture?: number;
-    reasoning?: number;
+    scenario?: number;
     screening?: number;
   };
   candidateName?: string;
@@ -28,7 +28,7 @@ const PreAssessmentScreen = ({
   assessmentTitle = "Technical Assessment",
   duration = 45,
   totalQuestions = 20,
-  questionTypes = { mcq: 10, coding: 5, architecture: 3, reasoning: 0, screening: 2 },
+  questionTypes = { mcq: 10, coding: 5, architecture: 3, scenario: 0, screening: 2 },
   candidateName,
   candidateRole,
   onStart,
@@ -123,7 +123,7 @@ const PreAssessmentScreen = ({
             Question Breakdown
           </Typography>
           <Box className="breakdown-grid">
-            {questionTypes.mcq && questionTypes.mcq > 0 && (
+            {(questionTypes.mcq ?? 0) > 0 && (
               <Box className="breakdown-item">
                 <CheckCircleOutlineIcon fontSize="small" />
                 <Typography>
@@ -131,7 +131,7 @@ const PreAssessmentScreen = ({
                 </Typography>
               </Box>
             )}
-            {questionTypes.coding && questionTypes.coding > 0 && (
+            {(questionTypes.coding ?? 0) > 0 && (
               <Box className="breakdown-item">
                 <CheckCircleOutlineIcon fontSize="small" />
                 <Typography>
@@ -139,7 +139,7 @@ const PreAssessmentScreen = ({
                 </Typography>
               </Box>
             )}
-            {questionTypes.architecture && questionTypes.architecture > 0 && (
+            {(questionTypes.architecture ?? 0) > 0 && (
               <Box className="breakdown-item">
                 <CheckCircleOutlineIcon fontSize="small" />
                 <Typography>
@@ -147,15 +147,15 @@ const PreAssessmentScreen = ({
                 </Typography>
               </Box>
             )}
-            {questionTypes.reasoning && questionTypes.reasoning > 0 && (
+            {(questionTypes.scenario ?? 0) > 0 && (
               <Box className="breakdown-item">
                 <CheckCircleOutlineIcon fontSize="small" />
                 <Typography>
-                  <strong>{questionTypes.reasoning}</strong> Reasoning
+                  <strong>{questionTypes.scenario}</strong> Scenario
                 </Typography>
               </Box>
             )}
-            {questionTypes.screening && questionTypes.screening > 0 && (
+            {(questionTypes.screening ?? 0) > 0 && (
               <Box className="breakdown-item">
                 <CheckCircleOutlineIcon fontSize="small" />
                 <Typography>

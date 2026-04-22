@@ -91,7 +91,7 @@ const QuestionnaireConfig: React.FC<Props> = ({
           </>
         ) : (
           <div className="questionnaire-field">
-            <label>BA Type</label>
+            <label>Scenario Based</label>
             <input
               type="number"
               min={0}
@@ -117,12 +117,12 @@ const QuestionnaireConfig: React.FC<Props> = ({
         )}
       </div>
 
-      {isInValid && (
+      {/* {isInValid && (
         <p className="warning">
           ⚠️ MCQ + Coding + Architecture must equal{" "}
           {totalQuestions} and be greater than 0.
         </p>
-      )}
+      )} */}
     </section>
   );
 };

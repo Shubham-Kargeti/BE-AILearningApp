@@ -123,7 +123,7 @@ const AssessmentSetupContainer: React.FC = () => {
 
   // NEW: Experience-based configuration state
   const [totalQuestions, setTotalQuestions] = useState<number>(10);
-  const [autoAdjustByExperience, setAutoAdjustByExperience] = useState<boolean>(true);
+  const [autoAdjustByExperience, setAutoAdjustByExperience] = useState<boolean>(false);
   const [difficultyDistribution, setDifficultyDistribution] = useState<Record<string, number>>({
     easy: 0.4,
     medium: 0.4,
@@ -179,27 +179,6 @@ const AssessmentSetupContainer: React.FC = () => {
 
     checkRBAC();
   }, []);
-
-  const [isManualOverride, setIsManualOverride] = useState(false);
-
-  useEffect(() => {
-    if (!role || isManualOverride) return;
-
-  useEffect(() => {
-      setIsManualOverride(false);
-    }, [role]);
-
-    const r = role.toLowerCase();
-
-    if (
-      ["hr", "recruiter", "sales", "marketing", "finance", "operations", "business", "product", "ba"]
-        .some(k => r.includes(k))
-    ) {
-      setRoleCategory("non-tech");
-    } else {
-      setRoleCategory("tech");
-    }
-  }, [role, isManualOverride]);
 
   useEffect(() => {
     const fetchAssessmentData = async () => {
@@ -345,6 +324,10 @@ const AssessmentSetupContainer: React.FC = () => {
         filesToProcess,
         "jd"
       );
+
+      const roleResponse = await uploadService.extractRoleFromJD(jdFile);
+
+      applyRoleCategoryPreset(roleResponse.role_type as RoleCategory);
 
       const extractedSkillsList = res.extracted_skills || [];
       const skillNames = extractedSkillsList.map((skill) => skill.skill_name);
@@ -800,7 +783,6 @@ const AssessmentSetupContainer: React.FC = () => {
               type="button"
               className={roleCategory === "tech" ? "active" : ""}
               onClick={() => {
-                setIsManualOverride(true);
                 applyRoleCategoryPreset("tech");
               }}
             >
@@ -810,7 +792,6 @@ const AssessmentSetupContainer: React.FC = () => {
               type="button"
               className={roleCategory === "non-tech" ? "active" : ""}
               onClick={() => {
-                setIsManualOverride(true);
                 applyRoleCategoryPreset("non-tech");
               }}
             >
@@ -880,6 +861,7 @@ const AssessmentSetupContainer: React.FC = () => {
         <AssessmentQuestionEditor
           questions={manualQuestions}
           onQuestionsChange={setManualQuestions}
+          roleCategory={roleCategory}
         />
       </section>
 
