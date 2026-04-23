@@ -133,6 +133,11 @@ export interface Assessment {
     current_role?: string;
     experience?: string;
   };
+  skill_priorities?: Record<string, "must-have" | "good-to-have" | "resume-based" | "soft">;
+  screening_questions?: string[];
+  manual_questions?: AssessmentManualQuestion[];
+  questionnaire_config?: AssessmentQuestionnaireConfig;
+  parent_assessment_id?: number | null;
   created_at: string;
   updated_at: string;
   // NEW: Experience-based question configuration fields
@@ -213,6 +218,7 @@ export interface AssessmentCreateRequest {
   passing_score_threshold?: number;
   auto_adjust_by_experience?: boolean;
   difficulty_distribution?: Record<string, number>;
+  parent_assessment_id?: number;
   generation_policy?: {
     mode: "rag" | "llm" | "mix";
     rag_pct: number;
@@ -606,6 +612,11 @@ export const assessmentService = {
 
   getAssessment: async (assessmentId: string): Promise<Assessment> => {
     const response = await apiClient.get<Assessment>(`/assessments/${assessmentId}`);
+    return response.data;
+  },
+
+  getVariants: async (assessmentId: number | string): Promise<Assessment[]> => {
+    const response = await apiClient.get<Assessment[]>(`/assessments/variants/${assessmentId}`);
     return response.data;
   },
 

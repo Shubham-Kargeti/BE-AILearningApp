@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import desc
+from sqlalchemy import desc, or_
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
@@ -20,7 +20,6 @@ from app.models.schemas import (
 from app.models.schemas import ScreeningResponseCreate, ScreeningResponseResponse
 from app.db.models import ScreeningResponse
 from app.utils.text_extract import calculate_duration_minutes, extract_question_type_mix
-from app.api.upload_jd import memory_store
 
 router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
 settings = get_settings()
@@ -139,6 +138,45 @@ def extract_screening_questions(description: Optional[str]) -> list[str]:
     except Exception:
         # Old assessments had plain-text description
         return []
+
+
+def build_assessment_response(
+    assessment: Assessment,
+    total_sessions: int = 0,
+    completed_sessions: int = 0,
+    in_progress_sessions: int = 0,
+) -> AssessmentResponse:
+    return AssessmentResponse(
+        id=assessment.id,
+        assessment_id=assessment.assessment_id,
+        title=assessment.title,
+        description=assessment.description,
+        job_title=assessment.job_title,
+        jd_id=assessment.jd_id,
+        required_skills=assessment.required_skills,
+        required_roles=assessment.required_roles,
+        question_set_id=assessment.question_set_id,
+        parent_assessment_id=assessment.parent_assessment_id,
+        assessment_method=assessment.assessment_method,
+        duration_minutes=assessment.duration_minutes,
+        is_questionnaire_enabled=assessment.is_questionnaire_enabled,
+        is_interview_enabled=assessment.is_interview_enabled,
+        is_active=assessment.is_active,
+        is_published=assessment.is_published,
+        is_expired=assessment.is_expired,
+        expires_at=assessment.expires_at,
+        total_questions=assessment.total_questions,
+        question_type_mix=assessment.question_type_mix,
+        passing_score_threshold=assessment.passing_score_threshold,
+        auto_adjust_by_experience=assessment.auto_adjust_by_experience,
+        difficulty_distribution=assessment.difficulty_distribution,
+        generation_policy=assessment.generation_policy,
+        created_at=assessment.created_at,
+        updated_at=assessment.updated_at,
+        total_sessions=total_sessions,
+        completed_sessions=completed_sessions,
+        in_progress_sessions=in_progress_sessions,
+    )
     
     
 @router.get("", response_model=List[AssessmentResponse])
@@ -201,34 +239,8 @@ async def list_assessments(
             in_progress_sessions = sum(1 for s in sessions if not s.is_completed)
         
         assessment_responses.append(
-            AssessmentResponse(
-                id=a.id,
-                assessment_id=a.assessment_id,
-                title=a.title,
-                description=a.description,
-                job_title=a.job_title,
-                jd_id=a.jd_id,
-                required_skills=a.required_skills,
-                required_roles=a.required_roles,
-                question_set_id=a.question_set_id,
-                assessment_method=a.assessment_method,
-                duration_minutes=a.duration_minutes,
-                is_questionnaire_enabled=a.is_questionnaire_enabled,
-                is_interview_enabled=a.is_interview_enabled,
-                is_active=a.is_active,
-                is_published=a.is_published,
-                is_expired=a.is_expired,
-                expires_at=a.expires_at,
-                created_at=a.created_at,
-                updated_at=a.updated_at,
-                # NEW: Experience-based question configuration fields
-                total_questions=a.total_questions,
-                question_type_mix=a.question_type_mix,
-                passing_score_threshold=a.passing_score_threshold,
-                auto_adjust_by_experience=a.auto_adjust_by_experience,
-                difficulty_distribution=a.difficulty_distribution,
-                generation_policy=a.generation_policy,
-                # Session statistics
+            build_assessment_response(
+                a,
                 total_sessions=total_sessions,
                 completed_sessions=completed_sessions,
                 in_progress_sessions=in_progress_sessions,
@@ -310,6 +322,37 @@ async def list_assessments_with_questions(
     return payload
 
 
+@router.get("/variants/{assessment_id}", response_model=List[AssessmentResponse])
+async def get_assessment_variants(
+    assessment_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> List[AssessmentResponse]:
+    assessment = await db.get(Assessment, assessment_id)
+
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assessment not found",
+        )
+
+    root_id = assessment.parent_assessment_id or assessment.id
+    stmt = (
+        select(Assessment)
+        .where(
+            or_(
+                Assessment.parent_assessment_id == root_id,
+                Assessment.id == root_id,
+            )
+        )
+        .order_by(Assessment.created_at.asc())
+    )
+    result = await db.execute(stmt)
+    variants = result.scalars().all()
+
+    return [build_assessment_response(item) for item in variants]
+
+
 @router.get("/{assessment_id}", response_model=dict)
 async def get_assessment(
     assessment_id: str,
@@ -356,6 +399,8 @@ async def get_assessment(
         "required_skills": assessment.required_skills,
         "required_roles": assessment.required_roles,
         "question_set_id": assessment.question_set_id,
+        "parent_assessment_id": assessment.parent_assessment_id,
+        "question_type_mix": assessment.question_type_mix,
         "assessment_method": assessment.assessment_method,
         "duration_minutes": assessment.duration_minutes,
         "is_questionnaire_enabled": assessment.is_questionnaire_enabled,
@@ -460,6 +505,17 @@ async def create_assessment(
     Create a new assessment (Admin only).
     """
     await check_admin(current_user)
+
+    parent_id = request.parent_assessment_id
+    if parent_id:
+        parent = await db.get(Assessment, parent_id)
+        if not parent:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Parent assessment not found",
+            )
+        if parent.parent_assessment_id:
+            parent_id = parent.parent_assessment_id
     
      # ------------------------------------------------------
     # ✅ FETCH JD TEXT FROM MEMORY STORE
@@ -467,15 +523,22 @@ async def create_assessment(
     jd_text = None
 
     if request.jd_id:
-        jd_data = memory_store.get(request.jd_id)
+        jd_stmt = select(JobDescription).where(JobDescription.jd_id == request.jd_id)
+        jd_result = await db.execute(jd_stmt)
+        jd = jd_result.scalars().first()
 
-        if not jd_data:
+        if not jd:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job description {request.jd_id} not found in memory"
+                detail=f"Job description {request.jd_id} not found"
             )
 
-        jd_text = jd_data.get("text")
+        jd_text = (jd.extracted_text or jd.description or "").strip()
+        if not jd_text:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Job description {request.jd_id} has no extracted content"
+            )
     
     candidate_db = None
     if request.candidate_info and request.candidate_info.email:
@@ -578,6 +641,7 @@ async def create_assessment(
             if jd_role_type == "tech" and candidate_role_type == "tech"
             else "non-tech"
         )
+        print(f"[DEBUG] Inferred role types => JD: {jd_role_type}, Candidate: {candidate_role_type}, Resolved: {resolved_role_type}")
 
     if request.jd_id:
         # ✅ Candidate-specific (JD uploaded flow)
@@ -698,20 +762,15 @@ async def create_assessment(
         "screening_questions": getattr(request, "screening_questions", []) or []
     }
 
-    # to remove when memory store is removed. This is to prevent storing jd_id in DB for assessments created from JD upload flow
-    jd_id_to_store = None
-
-    if request.jd_id and request.jd_id in memory_store: 
-        jd_id_to_store = None  # don't store it in DB
-
     assessment = Assessment(
         title=request.title,
         description=json.dumps(description_payload),
         job_title=request.job_title,
-        jd_id=jd_id_to_store,
+        jd_id=request.jd_id,
         required_skills=request.required_skills or {},
         required_roles=request.required_roles or [],
         question_set_id=question_set_id,
+        parent_assessment_id=parent_id,
         assessment_method="questionnaire" if request.is_questionnaire_enabled else "interview",
         duration_minutes=request.duration_minutes,
         is_questionnaire_enabled=request.is_questionnaire_enabled,
@@ -733,33 +792,7 @@ async def create_assessment(
 
     await _clear_assessment_cache()
 
-    return AssessmentResponse(
-    id=assessment.id,
-    assessment_id=assessment.assessment_id,
-    title=assessment.title,
-    description=assessment.description,
-    job_title=assessment.job_title,
-    jd_id=assessment.jd_id,
-    required_skills=assessment.required_skills,
-    required_roles=assessment.required_roles,
-    question_set_id=assessment.question_set_id,
-    assessment_method=assessment.assessment_method,
-    duration_minutes=assessment.duration_minutes,
-    is_questionnaire_enabled=assessment.is_questionnaire_enabled,
-    is_interview_enabled=assessment.is_interview_enabled,
-    is_active=assessment.is_active,
-    is_published=assessment.is_published,
-    is_expired=assessment.is_expired,
-    expires_at=assessment.expires_at,
-    created_at=assessment.created_at,
-    updated_at=assessment.updated_at,
-    total_questions=assessment.total_questions,
-    question_type_mix=assessment.question_type_mix,
-    passing_score_threshold=assessment.passing_score_threshold,
-    auto_adjust_by_experience=assessment.auto_adjust_by_experience,
-    difficulty_distribution=assessment.difficulty_distribution,
-    generation_policy=assessment.generation_policy,
-)
+    return build_assessment_response(assessment)
 
 
 @router.delete("/{assessment_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -816,33 +849,7 @@ async def publish_assessment(
 
     await _clear_assessment_cache()
     
-    return AssessmentResponse(
-        id=assessment.id,
-        assessment_id=assessment.assessment_id,
-        title=assessment.title,
-        description=assessment.description,
-        job_title=assessment.job_title,
-        jd_id=assessment.jd_id,
-        required_skills=assessment.required_skills,
-        required_roles=assessment.required_roles,
-        question_set_id=assessment.question_set_id,
-        assessment_method=assessment.assessment_method,
-        duration_minutes=assessment.duration_minutes,
-        is_questionnaire_enabled=assessment.is_questionnaire_enabled,
-        is_interview_enabled=assessment.is_interview_enabled,
-        is_active=assessment.is_active,
-        is_published=assessment.is_published,
-        is_expired=assessment.is_expired,
-        expires_at=assessment.expires_at,
-        created_at=assessment.created_at,
-        updated_at=assessment.updated_at,
-        total_questions=assessment.total_questions,
-        question_type_mix=assessment.question_type_mix,
-        passing_score_threshold=assessment.passing_score_threshold,
-        auto_adjust_by_experience=assessment.auto_adjust_by_experience,
-        difficulty_distribution=assessment.difficulty_distribution,
-        generation_policy=assessment.generation_policy,
-    )
+    return build_assessment_response(assessment)
 
 
 @router.put("/{assessment_id}/metadata", response_model=AssessmentResponse)

@@ -22,9 +22,10 @@ import {
   FiBarChart2,
   FiPieChart,
   FiTrendingUp,
+  FiLayers,
 } from "react-icons/fi";
 import { assessmentService, quizService, assessmentResultsService } from "../../API/services";
-import type { Assessment } from "../../API/services";
+import type { Assessment, AssessmentCreateRequest } from "../../API/services";
 import Toast from "../../components/Toast/Toast";
 import "./AssessmentViewContainer.scss";
 
@@ -85,11 +86,14 @@ const AssessmentViewContainer: React.FC = () => {
   const navigate = useNavigate();
 
   const [assessment, setAssessment] = useState<Assessment | null>(null);
+  const [variants, setVariants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingVariants, setLoadingVariants] = useState(false);
   const [error, setError] = useState<string>("");
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
+  const [generatingVariant, setGeneratingVariant] = useState(false);
   const [testSessions, setTestSessions] = useState<Array<{
     session_id: string;
     candidate_name: string | null;
@@ -174,19 +178,93 @@ const AssessmentViewContainer: React.FC = () => {
   };
 
   const handleDeleteQuestion = async (questionId: number) => {
-  try {
-    await assessmentService.deleteQuestion(questionId); // call your BE API
-    setQuestions((prev) =>
-      prev.filter((q: any) => q.id !== questionId)
-    );
-    setToast({ type: "success", message: "Question deleted successfully" });
-  } catch (err: any) {
-    setToast({
-      type: "error",
-      message: err.response?.data?.detail || "Failed to delete question",
-    });
-  }
-};
+    try {
+      await assessmentService.deleteQuestion(questionId); // call your BE API
+      setQuestions((prev) =>
+        prev.filter((q: any) => q.id !== questionId)
+      );
+      setToast({ type: "success", message: "Question deleted successfully" });
+    } catch (err: any) {
+      setToast({
+        type: "error",
+        message: err.response?.data?.detail || "Failed to delete question",
+      });
+    }
+  };
+
+  const buildAssessmentPayload = (sourceAssessment: Assessment): AssessmentCreateRequest => {
+    const payload: AssessmentCreateRequest = {
+      title: sourceAssessment.title,
+      description: sourceAssessment.description,
+      job_title: sourceAssessment.job_title,
+      jd_id: sourceAssessment.jd_id,
+      required_skills: sourceAssessment.required_skills,
+      required_roles: sourceAssessment.required_roles,
+      duration_minutes: sourceAssessment.duration_minutes,
+      is_questionnaire_enabled: sourceAssessment.is_questionnaire_enabled,
+      is_interview_enabled: sourceAssessment.is_interview_enabled,
+      expires_at: sourceAssessment.expires_at,
+      is_draft: !sourceAssessment.is_published,
+      is_published: sourceAssessment.is_published,
+      candidate_info: sourceAssessment.candidate_info,
+      questionnaire_config: sourceAssessment.question_type_mix,
+      skill_priorities: sourceAssessment.skill_priorities,
+      screening_questions: sourceAssessment.screening_questions,
+      manual_questions: sourceAssessment.manual_questions,
+      total_questions: sourceAssessment.total_questions,
+      question_type_mix: sourceAssessment.question_type_mix,
+      passing_score_threshold: sourceAssessment.passing_score_threshold,
+      auto_adjust_by_experience: sourceAssessment.auto_adjust_by_experience,
+      difficulty_distribution: sourceAssessment.difficulty_distribution,
+      generation_policy: sourceAssessment.generation_policy,
+      parent_assessment_id:sourceAssessment.id,
+    };
+
+    return payload;
+  };
+
+  const fetchVariants = async (assessmentDbId: number) => {
+    try {
+      setLoadingVariants(true);
+      const res = await assessmentService.getVariants(assessmentDbId);
+      setVariants(Array.isArray(res) ? res : []);
+    } catch (err) {
+      console.error("Error fetching assessment variants:", err);
+      setVariants([]);
+    } finally {
+      setLoadingVariants(false);
+    }
+  };
+
+  const loadAssessment = async (assessmentId: string) => {
+    try {
+      setLoading(true);
+      setError("");
+      setSelectedResult(null);
+      setTestSessions([]);
+      const data = await assessmentService.getAssessment(assessmentId);
+      setAssessment(data);
+
+      if (data.generated_questions) {
+        setQuestions(data.generated_questions);
+      } else if ((data as any).questions) {
+        setQuestions((data as any).questions);
+      } else {
+        setQuestions([]);
+      }
+
+      if (data.id) {
+        await fetchVariants(data.id);
+      } else {
+        setVariants([]);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Failed to load assessment");
+      setVariants([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchTestSessions = async () => {
     if (!id) return;
@@ -291,43 +369,21 @@ const AssessmentViewContainer: React.FC = () => {
   };
 
   useEffect(() => {
-    const fetchAssessment = async () => {
-      if (!id) {
-        setError("Assessment ID not provided");
-        setLoading(false);
-        return;
-      }
+    if (!id) {
+      setError("Assessment ID not provided");
+      setLoading(false);
+      setVariants([]);
+      return;
+    }
 
-      try {
-        setLoading(true);
-        const data = await assessmentService.getAssessment(id);
-        setAssessment(data);
-        
-        // Extract questions if available (admin view)
-        if (data.generated_questions) {
-          setQuestions(data.generated_questions);
-        } else if ((data as any).questions) {
-          setQuestions((data as any).questions);
-        }
-        
-        // reset last upload info when refetching
-        // clear any transient upload info (moved to create/edit flow)
-      } catch (err: any) {
-
-        setError(err.response?.data?.detail || "Failed to load assessment");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAssessment();
+    loadAssessment(id);
   }, [id]);
 
   useEffect(() => {
     if (activeTab === 'results') {
       fetchTestSessions();
     }
-  }, [activeTab]);
+  }, [activeTab, id]);
 
   // cleanup polling on unmount
   useEffect(() => {
@@ -387,6 +443,39 @@ const AssessmentViewContainer: React.FC = () => {
     }
   };
 
+  const handleGenerateMore = async () => {
+    if (!assessment || !id) return;
+
+    try {
+      setGeneratingVariant(true);
+      const payload = buildAssessmentPayload(assessment);
+      const res = await assessmentService.createAssessment(payload);
+      setToast({
+        type: "success",
+        message: res?.assessment_id
+          ? "New assessment variant created successfully."
+          : "Assessment created successfully.",
+      });
+      await loadAssessment(id);
+    } catch (err: any) {
+      setToast({
+        type: "error",
+        message: err.response?.data?.detail || "Failed to generate another assessment variant",
+      });
+    } finally {
+      setGeneratingVariant(false);
+    }
+  };
+
+  const handleVariantClick = (variant: any) => {
+    const variantAssessmentId = variant?.assessment_id;
+    if (!variantAssessmentId || variantAssessmentId === assessment?.assessment_id) {
+      return;
+    }
+
+    navigate(`/admin/assessment/${variantAssessmentId}/view`);
+  };
+
   const formatDate = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleDateString("en-US", {
@@ -442,6 +531,36 @@ const AssessmentViewContainer: React.FC = () => {
   const statusInfo = getStatusInfo();
   const skills = Object.entries(assessment.required_skills || {});
   const assessmentLink = `${window.location.origin}/candidate-assessment/${assessment.assessment_id}`;
+  const variantCards = [assessment, ...variants]
+    .filter((variant, index, allVariants) => {
+      const variantKey = variant?.assessment_id || variant?.id;
+      return allVariants.findIndex((item) => (item?.assessment_id || item?.id) === variantKey) === index;
+    })
+    .sort((a: any, b: any) => {
+      const aIsParent = a?.parent_assessment_id == null ? 0 : 1;
+      const bIsParent = b?.parent_assessment_id == null ? 0 : 1;
+
+      if (aIsParent !== bIsParent) {
+        return aIsParent - bIsParent; //return bCreated - aCreated;
+      }
+
+      const aCreated = a?.created_at ? new Date(a.created_at).getTime() : 0;
+      const bCreated = b?.created_at ? new Date(b.created_at).getTime() : 0;
+      return aCreated - bCreated; //return bCreated - aCreated;= for newest first
+    })
+    .map((variant: any, _index, allCards: any[]) => {
+      const isParent = variant?.parent_assessment_id == null;
+      const variantNumber = isParent
+        ? null
+        : allCards
+            .filter((item) => item?.parent_assessment_id != null)
+            .findIndex((item) => (item?.assessment_id || item?.id) === (variant?.assessment_id || variant?.id)) + 1;
+
+      return {
+        ...variant,
+        variantLabel: isParent ? "Parent" : `Variant ${variantNumber}`,
+      };
+    });
 
   return (
     <div className="assessment-view-container" id="print-area">
@@ -460,6 +579,18 @@ const AssessmentViewContainer: React.FC = () => {
         </button>
 
         <div className="header-actions">
+          <button
+            className="btn btn-primary"
+            onClick={handleGenerateMore}
+            disabled={generatingVariant}
+          >
+            {generatingVariant ? (
+              <span className="btn-spinner" />
+            ) : (
+              <FiLayers size={16} />
+            )}
+            Generate More
+          </button>
           <button
             className={`btn ${assessment.is_published ? 'btn-warning' : 'btn-success'}`}
             onClick={handlePublish}
@@ -725,6 +856,57 @@ const AssessmentViewContainer: React.FC = () => {
                 );
               }
             })()}
+
+            <div className="variants-section">
+              <div className="variants-section__header">
+                <div>
+                  <h3>Assessment Variants</h3>
+                  <p>Open any version to review or share that specific assessment.</p>
+                </div>
+              </div>
+
+              {loadingVariants ? (
+                <div className="variants-empty-state">
+                  <p>Loading variants...</p>
+                </div>
+              ) : (
+                <>
+                  {variants.length === 0 && (
+                    <div className="variants-empty-state">
+                      <p>No variants found for this assessment yet.</p>
+                    </div>
+                  )}
+
+                  <div className="variants-grid">
+                    {variantCards.map((variant: any) => {
+                      const isCurrentVariant = variant?.assessment_id === assessment.assessment_id;
+                      return (
+                        <button
+                          key={variant?.assessment_id || variant?.id}
+                          type="button"
+                          className={`variant-card ${isCurrentVariant ? "active" : ""}`}
+                          onClick={() => handleVariantClick(variant)}
+                        >
+                          <div className="variant-card__top">
+                            <span className="variant-card__label">
+                              {variant.variantLabel}
+                            </span>
+                            <span className="variant-card__status">
+                              {variant?.is_published ? "Published" : "Draft"}
+                            </span>
+                          </div>
+                          <h4>{variant?.title || assessment.title}</h4>
+                          <p>{variant?.job_title || assessment.job_title || "Assessment variant"}</p>
+                          <span className="variant-card__meta">
+                            {variant?.assessment_id || variant?.id}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Assessment Insights - At a Glance */}
             <div style={{
@@ -1241,6 +1423,7 @@ const AssessmentViewContainer: React.FC = () => {
                       mcq: { icon: '📝', color: '#1976d2', bg: '#e3f2fd' },
                       coding: { icon: '💻', color: '#7b1fa2', bg: '#f3e5f5' },
                       architecture: { icon: '🏗️', color: '#f57c00', bg: '#fff3e0' },
+                      scenario: { bg: '#e0f7fa', color: '#0097a7', icon: '💭' },
                       screening: { icon: '📋', color: '#388e3c', bg: '#e8f5e9' },
                     };
                     const info = typeInfo[type.toLowerCase()] || { icon: '❓', color: '#666', bg: '#f5f5f5' };

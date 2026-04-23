@@ -123,6 +123,127 @@
   }
 }
 
+.variants-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  border: 1px solid #dbe4ff;
+  border-radius: 16px;
+}
+
+.variants-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+
+  h3 {
+    margin: 0 0 0.35rem;
+    color: #1e293b;
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.92rem;
+  }
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.variants-empty-state {
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+
+  p {
+    margin: 0;
+    color: #64748b;
+  }
+}
+
+.variants-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.variant-card {
+  text-align: left;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid #dbe4ff;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: #8b5cf6;
+    box-shadow: 0 10px 24px rgba(99, 102, 241, 0.12);
+  }
+
+  &.active {
+    border-color: #4f46e5;
+    box-shadow: 0 10px 24px rgba(79, 70, 229, 0.14);
+  }
+
+  h4 {
+    margin: 0 0 0.35rem;
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0 0 0.75rem;
+    color: #475569;
+    font-size: 0.9rem;
+  }
+}
+
+.variant-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.variant-card__label,
+.variant-card__status,
+.variant-card__meta {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.variant-card__label {
+  padding: 0.25rem 0.6rem;
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.variant-card__status {
+  padding: 0.25rem 0.6rem;
+  background: #ecfeff;
+  color: #0f766e;
+}
+
+.variant-card__meta {
+  color: #6366f1;
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;

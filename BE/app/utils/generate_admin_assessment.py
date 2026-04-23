@@ -1,5 +1,6 @@
 from langchain_groq import ChatGroq
 import os
+import re
 from config import GROQ_API_KEY as CONFIG_GROQ_API_KEY
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -304,6 +305,29 @@ def _get_llm():
         return ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=api_key)
     return _StubLLM()
 
+
+def _parse_json_array_response(raw_content, label: str) -> list:
+    content = str(raw_content or "").strip()
+    if not content:
+        raise ValueError(f"{label} output was empty")
+
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", content, flags=re.IGNORECASE | re.DOTALL).strip()
+
+    try:
+        parsed = json.loads(cleaned)
+    except Exception:
+        start = cleaned.find("[")
+        end = cleaned.rfind("]")
+        if start == -1 or end == -1 or end < start:
+            snippet = cleaned[:300].replace("\n", " ")
+            raise ValueError(f"{label} output was not valid JSON. Raw snippet: {snippet}")
+        parsed = json.loads(cleaned[start:end + 1])
+
+    if not isinstance(parsed, list):
+        raise ValueError(f"{label} output was not a JSON array")
+
+    return parsed
+
 # ------------------------------------------------------------
 # MAIN FUNCTION 
 # ------------------------------------------------------------
@@ -471,10 +495,8 @@ Return ONLY a valid JSON array using this exact schema:
     print("\n[Admin MCQ LLM Output]\n", response.content)
 
     try:
-        data = json.loads(response.content)
-        # if not isinstance(data, list) or len(data) != 6:
-        #     raise ValueError("Expected exactly 6 MCQ questions")
-        if not isinstance(data, list) or len(data) != mcq_count:
+        data = _parse_json_array_response(response.content, "MCQ LLM")
+        if len(data) != mcq_count:
             raise ValueError(
                 f"Expected exactly {mcq_count} MCQ questions, got {len(data)}"
             )
@@ -493,6 +515,7 @@ Return ONLY a valid JSON array using this exact schema:
                 reasoning_count=reasoning_count
             )
             if job_description:
+                print(f"[DEBUG] Adding job description to REASONING prompt", job_description)
                 reasoning_messages[-1].content += f"""
 
     JOB DESCRIPTION:
@@ -509,8 +532,8 @@ Return ONLY a valid JSON array using this exact schema:
             print("\n[Admin REASONING LLM Output]\n", reasoning_response.content)
 
             try:
-                reasoning_data = json.loads(reasoning_response.content)
-                if not isinstance(reasoning_data, list) or len(reasoning_data) != reasoning_count:
+                reasoning_data = _parse_json_array_response(reasoning_response.content, "REASONING LLM")
+                if len(reasoning_data) != reasoning_count:
                     raise ValueError(
                         f"Expected exactly {reasoning_count} reasoning questions, got {len(reasoning_data)}"
                     )
@@ -540,8 +563,8 @@ Return ONLY a valid JSON array using this exact schema:
         print("\n[Admin CODING LLM Output]\n", coding_response.content)
 
         try:
-            coding_data = json.loads(coding_response.content)
-            if not isinstance(coding_data, list) or len(coding_data) != coding_count:
+            coding_data = _parse_json_array_response(coding_response.content, "CODING LLM")
+            if len(coding_data) != coding_count:
                 raise ValueError(
                     f"Expected exactly {coding_count} coding questions, got {len(coding_data)}"
                 )
@@ -577,8 +600,8 @@ Return ONLY a valid JSON array using this exact schema:
         print("\n[Admin ARCHITECTURE LLM Output]\n", architecture_response.content)
 
         try:
-            architecture_data = json.loads(architecture_response.content)
-            if not isinstance(architecture_data, list) or len(architecture_data) != architecture_count:
+            architecture_data = _parse_json_array_response(architecture_response.content, "ARCHITECTURE LLM")
+            if len(architecture_data) != architecture_count:
                 raise ValueError(
                     f"Expected exactly {architecture_count} architecture questions, got {len(architecture_data)}"
                 )

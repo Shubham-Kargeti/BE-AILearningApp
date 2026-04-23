@@ -77,6 +77,7 @@ const AdminDashboard: React.FC = () => {
         }
 
         const data = await assessmentService.listAssessments(undefined, 0, 50, true);
+        const parentAssessments = data.filter((assessment) => assessment.parent_assessment_id == null);
         
         const extractCandidateName = (description?: string, title?: string, jobTitle?: string): string => {
           if (description) {
@@ -131,7 +132,7 @@ const AdminDashboard: React.FC = () => {
           return allSkills.slice(0, 5);
         };
         
-        const displayData: DisplayAssessment[] = data.map((a: Assessment) => ({
+        const displayData: DisplayAssessment[] = parentAssessments.map((a: Assessment) => ({
           id: a.id.toString(),
           assessment_id: a.assessment_id,
           candidate_name: extractCandidateName(a.description, a.title,a.job_title),
@@ -146,7 +147,7 @@ const AdminDashboard: React.FC = () => {
         }));
         
         setAssessments(displayData);
-        console.log("[AdminDashboard] fetched assessments:", data.length, "mapped:", displayData.length);
+        console.log("[AdminDashboard] fetched assessments:", data.length, "parent assessments:", parentAssessments.length, "mapped:", displayData.length);
         
         const calculatedStats = {
           total_assessments: displayData.length,

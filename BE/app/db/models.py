@@ -400,6 +400,11 @@ class Assessment(Base, TimestampMixin):
     question_set_id: Mapped[Optional[str]] = mapped_column(
         String(100), ForeignKey("question_sets.question_set_id"), nullable=True
     )
+    parent_assessment_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("assessments.id"),
+        nullable=True,
+    )
     
     # Assessment settings
     assessment_method: Mapped[str] = mapped_column(String(50), nullable=False)  # questionnaire, interview

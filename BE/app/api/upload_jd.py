@@ -1,11 +1,12 @@
+import asyncio
+import uuid
+from datetime import datetime
+from typing import Optional
+
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from datetime import datetime
-from typing import Optional
-import uuid
 
-from app.utils.generate_questions import generate_mcqs_for_topic
 from app.utils.text_extract import extract_text
 from app.core.dependencies import get_db, optional_user
 from app.core.storage import get_s3_service
@@ -19,16 +20,37 @@ ALLOWED_EXTENSIONS = {"pdf", "docx", "ppt", "pptx"}
 ALLOWED_DOC_TYPES = {"jd", "cv", "portfolio", "requirements", "specifications"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
-# Simple in-memory JD store by UUID (legacy support)
-memory_store = {}
-
 def allowed_file(filename: str) -> bool:
     ext = filename.split(".")[-1].lower()
     return ext in ALLOWED_EXTENSIONS
 
 
+def _build_job_description_title(filename: str) -> str:
+    return filename.rsplit(".", 1)[0] if "." in filename else filename
+
+
+async def _schedule_jd_index(jd: JobDescription) -> None:
+    try:
+        from app.services.doc_ingest import index_document
+
+        asyncio.create_task(
+            asyncio.to_thread(
+                index_document,
+                jd.jd_id,
+                jd.extracted_text,
+                {"title": jd.title},
+            )
+        )
+    except Exception as e:
+        print(f"Warning: failed to schedule JD indexing: {e}")
+
+
 @router.post("/upload-jd/")
-async def upload_jd(file: UploadFile = File(...)):
+async def upload_jd(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_user),
+):
     """Legacy JD upload endpoint - kept for backward compatibility."""
     if not file.filename or not allowed_file(file.filename):
         raise HTTPException(status_code=400, detail="Only .pdf, .docx, .ppt and .pptx files are allowed")
@@ -37,21 +59,25 @@ async def upload_jd(file: UploadFile = File(...)):
         jd_text = extract_text(file_bytes, file.filename)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-    jd_id = str(uuid.uuid4())
-    
-    # try:
-    #     mcq_questions = generate_mcqs_for_topic(jd_text)
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=f"MCQ generation failed: {str(e)}")
-    
-    memory_store[jd_id] = {
-        "text": jd_text, 
-        "filename": file.filename,
-    }
+
+    jd = JobDescription(
+        title=_build_job_description_title(file.filename),
+        description=jd_text,
+        extracted_text=jd_text,
+        s3_key=f"legacy/upload-jd/{uuid.uuid4().hex}/{file.filename}",
+        file_name=file.filename,
+        file_size=len(file_bytes),
+        file_type=file.filename.split(".")[-1].lower(),
+        uploaded_by=current_user.id if current_user else None,
+    )
+    db.add(jd)
+    await db.commit()
+    await db.refresh(jd)
+    # await _schedule_jd_index(jd)
     
     return {
-        "message": f"JD uploaded and MCQs generated successfully", 
-        "jd_id": jd_id,
+        "message": "JD uploaded successfully",
+        "jd_id": jd.jd_id,
     }
 
 
@@ -178,8 +204,8 @@ async def upload_document(
     
     if doc_type == "jd":
         jd = JobDescription(
-            title=f"JD from {file.filename}",
-            description="",
+            title=_build_job_description_title(file.filename),
+            description=extracted_text or "",
             extracted_text=extracted_text or "",
             s3_key=s3_key,
             file_name=file.filename,
@@ -189,15 +215,8 @@ async def upload_document(
         )
         db.add(jd)
         await db.commit()
-        # Index JD into vector store asynchronously to avoid blocking the request
-        try:
-            import asyncio
-            from app.services.doc_ingest import index_document
-
-            asyncio.create_task(asyncio.to_thread(index_document, jd.jd_id, jd.extracted_text, {"title": jd.title}))
-        except Exception as e:
-            # Log but don't fail the upload
-            print(f"Warning: failed to schedule JD indexing: {e}")
+        await db.refresh(jd)
+        # await _schedule_jd_index(jd)
     
     return UploadedDocumentResponse(
         id=document.id,

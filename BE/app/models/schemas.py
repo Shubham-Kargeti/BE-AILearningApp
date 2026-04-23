@@ -255,6 +255,7 @@ class AssessmentCreate(BaseModel):
     skill_priorities: Optional[Dict[str, str]] = None  # ✅ NEW: must-have/good-to-have
     required_roles: list = []
     question_set_id: Optional[str] = None
+    parent_assessment_id: Optional[int] = None
     duration_minutes: int = 30
     is_questionnaire_enabled: bool = True
     is_interview_enabled: bool = False
@@ -317,6 +318,7 @@ class AssessmentResponse(BaseModel):
     required_skills: dict
     required_roles: list
     question_set_id: Optional[str]
+    parent_assessment_id: Optional[int] = None
     assessment_method: str
     duration_minutes: int
     is_questionnaire_enabled: bool
