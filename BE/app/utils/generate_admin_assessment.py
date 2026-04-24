@@ -334,7 +334,9 @@ def _parse_json_array_response(raw_content, label: str) -> list:
 async def generate_assessment_question_set(
     required_skills: dict,
     db: AsyncSession,
-    questionnaire_config: dict | None = None
+    questionnaire_config: dict | None = None,
+    existing_questions: list[str] | None = None
+    
 ):
     start_time = time.time()
     rag_context = ""
@@ -481,7 +483,25 @@ Return ONLY a valid JSON array using this exact schema:
     """
     
     
-    ##############NEW CODE END################
+    
+
+    # ------------------------------------------------------------
+    # 🚨 ANTI-DUPLICATION INSTRUCTION (CRITICAL FIX)
+    # ------------------------------------------------------------
+    if existing_questions:
+            messages[-1].content += f"""
+
+        AVOID DUPLICATION:
+        Do NOT repeat or rephrase any of the following questions:
+        {existing_questions}
+
+        STRICT RULES:
+        - Questions must be completely different in scenario, context, and intent
+        - Do not reuse similar themes like "budget trade-off", "stakeholder conflict", etc.
+        - Ensure high diversity in topics and decision-making situations
+        """
+        ##############NEW CODE END################
+
     # Inject RAG context if available
     if rag_context:
         messages[-1].content += f"\n\nContext:\n{rag_context}"
@@ -520,11 +540,32 @@ Return ONLY a valid JSON array using this exact schema:
 
     JOB DESCRIPTION:
     {job_description}
+    
 
     INSTRUCTION:
     - Use this context to create realistic reasoning scenarios for the target role
     - Focus on role-specific judgment, communication, and trade-offs
     """
+        # ✅ Add anti-duplication context (CRITICAL FIX)
+                if existing_questions:
+                    print(f"[DEBUG] Adding anti-duplication context")
+
+                    # Ensure it's clean text (important)
+                    if isinstance(existing_questions, list):
+                        existing_questions_text = "\n".join(existing_questions)
+                    else:
+                        existing_questions_text = str(existing_questions)
+
+                    reasoning_messages[-1].content += f"""
+
+        AVOID DUPLICATION:
+        Do NOT repeat, rephrase, or create similar variants of the following questions:
+        {existing_questions_text}
+
+        IMPORTANT:
+        - Generate completely new and distinct scenarios
+        - Avoid same context, same structure, or same intent
+        """
             if rag_context:
                 reasoning_messages[-1].content += f"\n\nContext:\n{rag_context}"
 
@@ -553,6 +594,29 @@ Return ONLY a valid JSON array using this exact schema:
     INSTRUCTION:
     - Use the job context to design realistic coding problems
     """
+
+
+# ✅ Add anti-duplication (CRITICAL)
+        if existing_questions:
+            print(f"[DEBUG] Adding anti-duplication context for coding")
+
+            if isinstance(existing_questions, list):
+                existing_questions_text = "\n".join(existing_questions)
+            else:
+                existing_questions_text = str(existing_questions)
+
+            coding_messages[-1].content += f"""
+
+    AVOID DUPLICATION:
+    Do NOT repeat, rephrase, or generate similar coding problems to the following:
+    {existing_questions_text}
+
+    IMPORTANT:
+    - Create completely new problem statements
+    - Avoid same logic, same pattern, or same constraints
+    - Ensure variation in difficulty, context, and approach
+    """
+        
 
         if rag_context:
             coding_messages[-1].content += f"\n\nContext:\n{rag_context}"
@@ -592,6 +656,28 @@ Return ONLY a valid JSON array using this exact schema:
     - Use this context for system design questions
     - Focus on real-world architecture decisions
     """
+
+# ✅ Add anti-duplication (same pattern)
+        if existing_questions:
+            print(f"[DEBUG] Adding anti-duplication context for architecture")
+
+            if isinstance(existing_questions, list):
+                existing_questions_text = "\n".join(existing_questions)
+            else:
+                existing_questions_text = str(existing_questions)
+
+            architecture_messages[-1].content += f"""
+
+        AVOID DUPLICATION:
+        Do NOT repeat, rephrase, or generate similar system design questions to the following:
+        {existing_questions_text}
+
+        IMPORTANT:
+        - Create completely new system design scenarios
+        - Avoid same use-case (e.g., URL shortener, chat app, etc.)
+        - Ensure variation in scale, constraints, and architecture choices
+        """
+    
         if rag_context:
             architecture_messages[-1].content += f"\n\nContext:\n{rag_context}"
 

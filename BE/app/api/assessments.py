@@ -506,16 +506,47 @@ async def create_assessment(
     """
     await check_admin(current_user)
 
+    # --------------------------------------------
+    # Prepare questionnaire_config FIRST
+    # --------------------------------------------
+    questionnaire_config = request.questionnaire_config or {}
+
     parent_id = request.parent_assessment_id
+    parent = None
     if parent_id:
         parent = await db.get(Assessment, parent_id)
+
+    existing_questions = []
+
+    if parent and parent.question_set_id:
+        print("[DEBUG] Fetching existing questions for anti-duplication")
+
+        result = await db.execute(
+            select(Question.question_text).where(
+                Question.question_set_id == parent.question_set_id
+            )
+        )
+
+        existing_questions = [row[0] for row in result.fetchall()]
+
+        print(f"[DEBUG] Found {len(existing_questions)} existing questions")
+
         if not parent:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Parent assessment not found",
             )
+
+        # ✅ Inherit role_type from parent
+        parent_role_type = (parent.generation_policy or {}).get("role_type")
+
+        if parent_role_type and "role_type" not in questionnaire_config:
+            questionnaire_config["role_type"] = parent_role_type
+
+        # Normalize parent hierarchy
         if parent.parent_assessment_id:
             parent_id = parent.parent_assessment_id
+    
     
      # ------------------------------------------------------
     # ✅ FETCH JD TEXT FROM MEMORY STORE
@@ -608,10 +639,7 @@ async def create_assessment(
             detail="Cannot generate assessment — no skills were extracted. Please extract skills first."
         )
 
-    # --------------------------------------------
-    # Prepare questionnaire_config FIRST
-    # --------------------------------------------
-    questionnaire_config = request.questionnaire_config or {}
+    
     explicit_role_type = _normalize_role_type(questionnaire_config.get("role_type"))
 
     if explicit_role_type:
@@ -648,21 +676,13 @@ async def create_assessment(
         questionnaire_config = {
             **questionnaire_config,
             "job_description": jd_text,
-            "role_type": resolved_role_type,
+            "role_type": questionnaire_config.get("role_type", resolved_role_type),
         }
 
-    # elif request.candidate_info is None:
-    #     # ✅ Role-based flow
-    #     questionnaire_config = {
-    #         **questionnaire_config,
-    #         "job_description": request.description,
-    #         "mode": "requirement",
-    #         "role_type": resolved_role_type,
-    #     }
     else:
         questionnaire_config = {
             **questionnaire_config,
-            "role_type": resolved_role_type,
+            "role_type": questionnaire_config.get("role_type", resolved_role_type),
         }
 
     # ------------------------------------------------------
@@ -671,7 +691,8 @@ async def create_assessment(
     question_set_id = await generate_assessment_question_set(
         request.required_skills,
         db,
-        questionnaire_config=questionnaire_config
+        questionnaire_config=questionnaire_config,
+        existing_questions=existing_questions
     )
 
     # ------------------------------------------------------
@@ -686,7 +707,7 @@ async def create_assessment(
     #  Add manual questions to the question set
     # ------------------------------------------------------
     if request.manual_questions and len(request.manual_questions) > 0:
-        from app.db.models import Question
+        
         
         for manual_q in request.manual_questions:
             # Skip empty questions
@@ -783,7 +804,11 @@ async def create_assessment(
         is_published=True,
         expires_at=request.expires_at,
         created_by=current_user.id,
-        generation_policy=request.generation_policy or {"mode": "rag", "rag_pct": 100, "llm_pct": 0},
+        generation_policy=
+        {
+        **(request.generation_policy or {"mode": "rag", "rag_pct": 100, "llm_pct": 0}),
+        "role_type": resolved_role_type
+        },
     )
     
     db.add(assessment)
