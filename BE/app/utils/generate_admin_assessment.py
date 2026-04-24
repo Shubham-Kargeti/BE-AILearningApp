@@ -114,11 +114,18 @@ QUESTION DISTRIBUTION RULES
 - Beginner skills should receive simpler questions
 - You MUST internally validate that each question follows its difficulty rubric
 
-==================================================
 OUTPUT FORMAT (STRICT)
 ==================================================
 
 Return ONLY a valid JSON array.
+
+CRITICAL JSON RULES (NON-NEGOTIABLE):
+- Every object and array MUST be properly closed with }} and ]
+- Each option object MUST end with }}
+- Use valid JSON syntax only (no trailing commas, no missing braces)
+- Ensure commas between all fields and objects
+- The response MUST be directly parsable by json.loads without any modification
+
 Do NOT include skill names, difficulty labels, or explanations.
 
 Each question must follow this exact format:
