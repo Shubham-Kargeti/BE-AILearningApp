@@ -495,6 +495,305 @@ async def get_assessment(
             response["generated_questions"] = all_admin_questions
 
     return response
+# @router.post("", response_model=AssessmentResponse, status_code=status.HTTP_201_CREATED)
+# async def create_assessment(
+#     request: AssessmentCreate,
+#     db: AsyncSession = Depends(get_db),
+#     current_user: User = Depends(get_current_user),
+# ) -> AssessmentResponse:
+#     """
+#     Create a new assessment (Admin only).
+#     """
+#     await check_admin(current_user)
+
+#     parent_id = request.parent_assessment_id
+#     if parent_id:
+#         parent = await db.get(Assessment, parent_id)
+#         if not parent:
+#             raise HTTPException(
+#                 status_code=status.HTTP_404_NOT_FOUND,
+#                 detail="Parent assessment not found",
+#             )
+#         if parent.parent_assessment_id:
+#             parent_id = parent.parent_assessment_id
+    
+#      # ------------------------------------------------------
+#     # ✅ FETCH JD TEXT FROM MEMORY STORE
+#     # ------------------------------------------------------
+#     jd_text = None
+
+#     if request.jd_id:
+#         jd_stmt = select(JobDescription).where(JobDescription.jd_id == request.jd_id)
+#         jd_result = await db.execute(jd_stmt)
+#         jd = jd_result.scalars().first()
+
+#         if not jd:
+#             raise HTTPException(
+#                 status_code=status.HTTP_404_NOT_FOUND,
+#                 detail=f"Job description {request.jd_id} not found"
+#             )
+
+#         jd_text = (jd.extracted_text or jd.description or "").strip()
+#         if not jd_text:
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail=f"Job description {request.jd_id} has no extracted content"
+#             )
+    
+#     candidate_db = None
+#     if request.candidate_info and request.candidate_info.email:
+#         cand_stmt = select(Candidate).where(Candidate.email == request.candidate_info.email)
+#         cand_result = await db.execute(cand_stmt)
+#         candidate_db = cand_result.scalars().first()
+        
+#         experience_level = "mid"
+#         if request.candidate_info.experience:
+#             try:
+#                 years = int(''.join(filter(str.isdigit, request.candidate_info.experience)) or 0)
+#                 if years < 2:
+#                     experience_level = "junior"
+#                 elif years < 5:
+#                     experience_level = "mid"
+#                 elif years < 8:
+#                     experience_level = "senior"
+#                 else:
+#                     experience_level = "lead"
+#             except:
+#                 pass
+
+#         if candidate_db:
+#             if request.candidate_info.name:
+#                 candidate_db.full_name = request.candidate_info.name
+#             if request.candidate_info.phone:
+#                 candidate_db.phone = request.candidate_info.phone
+#             if request.candidate_info.current_role:
+#                 candidate_db.current_role = request.candidate_info.current_role
+#             if request.candidate_info.location:
+#                 candidate_db.location = request.candidate_info.location
+#             if request.candidate_info.education:
+#                 candidate_db.education = request.candidate_info.education
+#             if request.candidate_info.linkedin:
+#                 candidate_db.linkedin_url = request.candidate_info.linkedin
+#             if request.candidate_info.github:
+#                 candidate_db.github_url = request.candidate_info.github
+#             if request.candidate_info.portfolio:
+#                 candidate_db.portfolio_url = request.candidate_info.portfolio
+#             if request.candidate_info.experience:
+#                 candidate_db.experience_years = request.candidate_info.experience
+#                 candidate_db.experience_level = experience_level
+#         else:
+#             candidate_db = Candidate(
+#                 full_name=request.candidate_info.name or "Unknown",
+#                 email=request.candidate_info.email,
+#                 phone=request.candidate_info.phone,
+#                 current_role=request.candidate_info.current_role,
+#                 location=request.candidate_info.location,
+#                 education=request.candidate_info.education,
+#                 linkedin_url=request.candidate_info.linkedin,
+#                 github_url=request.candidate_info.github,
+#                 portfolio_url=request.candidate_info.portfolio,
+#                 experience_years=request.candidate_info.experience,
+#                 experience_level=experience_level,
+#                 skills=request.required_skills or {},
+#             )
+#             db.add(candidate_db)
+#             await db.flush()
+
+#     # ------------------------------------------------------
+#     # SAFETY CHECK: required_skills must not be empty
+#     # ------------------------------------------------------
+#     if not request.required_skills or len(request.required_skills) == 0:
+#         raise HTTPException(
+#             status_code=400,
+#             detail="Cannot generate assessment — no skills were extracted. Please extract skills first."
+#         )
+
+#     # --------------------------------------------
+#     # Prepare questionnaire_config FIRST
+#     # --------------------------------------------
+#     questionnaire_config = request.questionnaire_config or {}
+#     explicit_role_type = _normalize_role_type(questionnaire_config.get("role_type"))
+
+#     if explicit_role_type:
+#         # ✅ TRUST FE — DO NOT OVERRIDE
+#         resolved_role_type = explicit_role_type
+#     else:
+#         # fallback only if FE didn't send anything
+#         jd_role_type = _infer_role_type(
+#             request.job_title,
+#             jd_text,
+#             request.description,
+#             skills=request.required_skills,
+#         )
+
+#         candidate_role_type = (
+#             _infer_role_type(
+#                 request.candidate_info.current_role if request.candidate_info else None,
+#                 request.candidate_info.experience if request.candidate_info else None,
+#                 skills=request.required_skills,
+#             )
+#             if request.candidate_info
+#             else jd_role_type
+#         )
+
+#         resolved_role_type = (
+#             "tech"
+#             if jd_role_type == "tech" and candidate_role_type == "tech"
+#             else "non-tech"
+#         )
+#         print(f"[DEBUG] Inferred role types => JD: {jd_role_type}, Candidate: {candidate_role_type}, Resolved: {resolved_role_type}")
+
+#     if request.jd_id:
+#         # ✅ Candidate-specific (JD uploaded flow)
+#         questionnaire_config = {
+#             **questionnaire_config,
+#             "job_description": jd_text,
+#             "role_type": resolved_role_type,
+#         }
+
+#     # elif request.candidate_info is None:
+#     #     # ✅ Role-based flow
+#     #     questionnaire_config = {
+#     #         **questionnaire_config,
+#     #         "job_description": request.description,
+#     #         "mode": "requirement",
+#     #         "role_type": resolved_role_type,
+#     #     }
+#     else:
+#         questionnaire_config = {
+#             **questionnaire_config,
+#             "role_type": resolved_role_type,
+#         }
+
+#     # ------------------------------------------------------
+#     # GENERATE QUESTION SET (LLM CALL)
+#     # ------------------------------------------------------
+#     question_set_id = await generate_assessment_question_set(
+#         request.required_skills,
+#         db,
+#         questionnaire_config=questionnaire_config
+#     )
+
+#     # ------------------------------------------------------
+#     # DURATION CALCULATION
+#     # ------------------------------------------------------
+#     question_type_mix = extract_question_type_mix(request.questionnaire_config, request.manual_questions)
+#     request.duration_minutes = calculate_duration_minutes(
+#         question_type_mix
+#     )
+
+#     # ------------------------------------------------------
+#     #  Add manual questions to the question set
+#     # ------------------------------------------------------
+#     if request.manual_questions and len(request.manual_questions) > 0:
+#         from app.db.models import Question
+        
+#         for manual_q in request.manual_questions:
+#             # Skip empty questions
+#             if not manual_q.get('question_text', '').strip():
+#                 continue
+
+#             raw_options = manual_q.get('options')
+#             q_type = manual_q.get("type", "mcq")
+
+#             if q_type == "mcq" and isinstance(raw_options, list):
+#                 options_data = {}
+#                 for idx, opt in enumerate(raw_options):
+#                     option_id = opt.get("id") or opt.get("option_id") or chr(65 + idx)
+#                     option_text = opt.get("text") or opt.get("label") or str(opt)
+#                     options_data[option_id] = option_text
+
+#             elif isinstance(raw_options, dict):
+#                 options_data = raw_options
+#                 options_data["type"] = q_type
+
+#             else:
+#                 options_data = {"type": q_type}
+
+#             if manual_q.get("code_template"):
+#                 options_data["code_template"] = manual_q.get("code_template")
+
+#             if manual_q.get("constraints"):
+#                 options_data["constraints"] = manual_q.get("constraints")
+
+#             if manual_q.get("test_cases"):
+#                 options_data["test_cases"] = manual_q.get("test_cases")
+            
+    
+
+#             # --------------------------------------------------
+#             # Create question (same as before)
+#             # --------------------------------------------------
+#             # new_question = Question(
+#             #     question_set_id=question_set_id,
+#             #     question_text=manual_q['question_text'],
+#             #     difficulty=(manual_q.get('difficulty') or 'medium').lower(),
+#             #     topic=manual_q.get('skill', ''),
+#             #     options=options_data,
+#             #     correct_answer=manual_q.get('correct_answer', ''),
+#             #     code_template=manual_q.get('code_template'),
+#             #     constraints=manual_q.get('constraints'),
+#             #     test_cases=manual_q.get('test_cases'),
+#             #     time_limit_minutes=manual_q.get('time_limit', 30),
+#             #     source_type='manual',
+#             #     quality_score=100,
+#             # )
+#             new_question = Question(
+#             question_set_id=question_set_id,
+#             question_text=manual_q['question_text'],
+#             difficulty=(manual_q.get('difficulty') or 'medium').lower(),
+#             topic=manual_q.get('skill', ''),
+#             options=options_data,
+#             correct_answer=manual_q.get('correct_answer', ''),
+#             #time_limit_minutes=manual_q.get('time_limit', 30),
+#             source_type='manual',
+#             quality_score=100,
+#             )
+
+#             db.add(new_question)
+
+#         await db.flush()  # Save manual questions to database
+
+#     # --------------------------------------------
+#     # Store screening questions inside description
+#     # --------------------------------------------
+#     description_payload = {
+#         "text": request.description,
+#         "screening_questions": getattr(request, "screening_questions", []) or []
+#     }
+
+#     assessment = Assessment(
+#         title=request.title,
+#         description=json.dumps(description_payload),
+#         job_title=request.job_title,
+#         jd_id=request.jd_id,
+#         required_skills=request.required_skills or {},
+#         required_roles=request.required_roles or [],
+#         question_set_id=question_set_id,
+#         parent_assessment_id=parent_id,
+#         assessment_method="questionnaire" if request.is_questionnaire_enabled else "interview",
+#         duration_minutes=request.duration_minutes,
+#         is_questionnaire_enabled=request.is_questionnaire_enabled,
+#         total_questions=request.total_questions,
+#         question_type_mix=question_type_mix,
+#         passing_score_threshold=request.passing_score_threshold,
+#         auto_adjust_by_experience=request.auto_adjust_by_experience,
+#         difficulty_distribution=request.difficulty_distribution or {"easy": 0.2, "medium": 0.5, "hard": 0.3},
+#         is_interview_enabled=request.is_interview_enabled,
+#         is_published=True,
+#         expires_at=request.expires_at,
+#         created_by=current_user.id,
+#         generation_policy=request.generation_policy or {"mode": "rag", "rag_pct": 100, "llm_pct": 0},
+#     )
+    
+#     db.add(assessment)
+#     await db.commit()
+#     await db.refresh(assessment)
+
+#     await _clear_assessment_cache()
+
+#     return build_assessment_response(assessment)
+
 @router.post("", response_model=AssessmentResponse, status_code=status.HTTP_201_CREATED)
 async def create_assessment(
     request: AssessmentCreate,
@@ -506,6 +805,11 @@ async def create_assessment(
     """
     await check_admin(current_user)
 
+    # --------------------------------------------
+    # Prepare questionnaire_config FIRST
+    # --------------------------------------------
+    questionnaire_config = request.questionnaire_config or {}
+
     parent_id = request.parent_assessment_id
     if parent_id:
         parent = await db.get(Assessment, parent_id)
@@ -514,8 +818,17 @@ async def create_assessment(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Parent assessment not found",
             )
+
+        # ✅ Inherit role_type from parent
+        parent_role_type = (parent.generation_policy or {}).get("role_type")
+
+        if parent_role_type and "role_type" not in questionnaire_config:
+            questionnaire_config["role_type"] = parent_role_type
+
+        # Normalize parent hierarchy
         if parent.parent_assessment_id:
             parent_id = parent.parent_assessment_id
+    
     
      # ------------------------------------------------------
     # ✅ FETCH JD TEXT FROM MEMORY STORE
@@ -608,10 +921,7 @@ async def create_assessment(
             detail="Cannot generate assessment — no skills were extracted. Please extract skills first."
         )
 
-    # --------------------------------------------
-    # Prepare questionnaire_config FIRST
-    # --------------------------------------------
-    questionnaire_config = request.questionnaire_config or {}
+    
     explicit_role_type = _normalize_role_type(questionnaire_config.get("role_type"))
 
     if explicit_role_type:
@@ -648,21 +958,13 @@ async def create_assessment(
         questionnaire_config = {
             **questionnaire_config,
             "job_description": jd_text,
-            "role_type": resolved_role_type,
+            "role_type": questionnaire_config.get("role_type", resolved_role_type),
         }
 
-    # elif request.candidate_info is None:
-    #     # ✅ Role-based flow
-    #     questionnaire_config = {
-    #         **questionnaire_config,
-    #         "job_description": request.description,
-    #         "mode": "requirement",
-    #         "role_type": resolved_role_type,
-    #     }
     else:
         questionnaire_config = {
             **questionnaire_config,
-            "role_type": resolved_role_type,
+            "role_type": questionnaire_config.get("role_type", resolved_role_type),
         }
 
     # ------------------------------------------------------
@@ -783,7 +1085,11 @@ async def create_assessment(
         is_published=True,
         expires_at=request.expires_at,
         created_by=current_user.id,
-        generation_policy=request.generation_policy or {"mode": "rag", "rag_pct": 100, "llm_pct": 0},
+        generation_policy=
+        {
+        **(request.generation_policy or {"mode": "rag", "rag_pct": 100, "llm_pct": 0}),
+        "role_type": resolved_role_type
+        },
     )
     
     db.add(assessment)
