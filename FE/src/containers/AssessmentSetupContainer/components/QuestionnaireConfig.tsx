@@ -38,7 +38,7 @@ const QuestionnaireConfig: React.FC<Props> = ({
       : value.mcq + (value.scenario || 0);
 
   const mismatch = total !== totalQuestions;
-  const isInValid = mismatch || total === 0;
+  // const isInValid = mismatch || total === 0;
 
   return (
     <section className="card questionnaire-card">

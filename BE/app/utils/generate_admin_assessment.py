@@ -542,7 +542,7 @@ Return ONLY a valid JSON array using this exact schema:
                 reasoning_count=reasoning_count
             )
             if job_description:
-                print(f"[DEBUG] Adding job description to REASONING prompt", job_description)
+                # print(f"[DEBUG] Adding job description to REASONING prompt", job_description)
                 reasoning_messages[-1].content += f"""
 
     JOB DESCRIPTION:

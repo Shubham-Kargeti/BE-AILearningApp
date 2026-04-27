@@ -49,11 +49,11 @@ const NON_TECH_DEFAULT_DISTRIBUTION: RequirementQuestionDistribution = {
   scenario: 4,
 };
 
-const DEFAULT_DIFFICULTY_DISTRIBUTION = {
-  easy: 0.4,
-  medium: 0.4,
-  hard: 0.2,
-};
+// const DEFAULT_DIFFICULTY_DISTRIBUTION = {
+//   easy: 0.4,
+//   medium: 0.4,
+//   hard: 0.2,
+// };
 
 const TECH_ROLE_KEYWORDS = [
   "developer",
@@ -240,18 +240,18 @@ const AdminRequirement: React.FC = () => {
   const [roleCategory, setRoleCategory] = useState<RoleCategory>("tech");
   const [skills, setSkills] = useState<string[]>([]);
   const [skillsError, setSkillsError] = useState("");
-  const [skillDurations, setSkillDurations] = useState<Record<string, number>>(
-    {}
-  );
+  // const [skillDurations, setSkillDurations] = useState<Record<string, number>>(
+  //   {}
+  // );
   const [skillPriorities, setSkillPriorities] = useState<Record<string, SkillPriority>>({});
   const [questionDistribution, setQuestionDistribution] =
     useState<RequirementQuestionDistribution>(TECH_DEFAULT_DISTRIBUTION);
   const [totalQuestions, setTotalQuestions] = useState(10);
   const [cutoffMarks, setCutoffMarks] = useState(70);
-  const [autoAdjustByExperience, setAutoAdjustByExperience] = useState(false);
-  const [difficultyDistribution, setDifficultyDistribution] = useState(
-    DEFAULT_DIFFICULTY_DISTRIBUTION
-  );
+  // const [autoAdjustByExperience, setAutoAdjustByExperience] = useState(false);
+  // const [difficultyDistribution, setDifficultyDistribution] = useState(
+  //   DEFAULT_DIFFICULTY_DISTRIBUTION
+  // );
   const [expiresAt, setExpiresAt] = useState("");
   const [difficulty, setDifficulty] = useState<"beginner" | "intermediate" | "advanced">("intermediate");
   const [processLoading, setProcessLoading] = useState(false);
@@ -281,23 +281,23 @@ const AdminRequirement: React.FC = () => {
     [effectiveQuestionTypeMix]
   );
 
-  const difficultyPercentage = useMemo(
-    () => ({
-      easy: Math.round(difficultyDistribution.easy * 100),
-      medium: Math.round(difficultyDistribution.medium * 100),
-      hard: Math.round(difficultyDistribution.hard * 100),
-    }),
-    [difficultyDistribution]
-  );
+  // const difficultyPercentage = useMemo(
+  //   () => ({
+  //     easy: Math.round(difficultyDistribution.easy * 100),
+  //     medium: Math.round(difficultyDistribution.medium * 100),
+  //     hard: Math.round(difficultyDistribution.hard * 100),
+  //   }),
+  //   [difficultyDistribution]
+  // );
 
-  const difficultyTotal = useMemo(
-    () =>
-      Object.values(difficultyDistribution).reduce(
-        (sum, value) => sum + value,
-        0
-      ),
-    [difficultyDistribution]
-  );
+  // const difficultyTotal = useMemo(
+  //   () =>
+  //     Object.values(difficultyDistribution).reduce(
+  //       (sum, value) => sum + value,
+  //       0
+  //     ),
+  //   [difficultyDistribution]
+  // );
 
   useEffect(() => {
     const errors: ValidationError[] = [];
@@ -331,16 +331,16 @@ const AdminRequirement: React.FC = () => {
       });
     }
 
-    if (Math.abs(difficultyTotal - 1) > 0.01) {
-      errors.push({
-        field: "difficulty_distribution",
-        message: "Difficulty percentages must total 100%",
-      });
-    }
+    // if (Math.abs(difficultyTotal - 1) > 0.01) {
+    //   errors.push({
+    //     field: "difficulty_distribution",
+    //     message: "Difficulty percentages must total 100%",
+    //   });
+    // }
 
     setValidationErrors(errors);
     setFormValid(errors.length === 0);
-  }, [difficultyTotal, distributionTotal, jdFile, role, skills, totalQuestions]);
+  }, [distributionTotal, jdFile, role, skills, totalQuestions]);
 
   const applyRoleCategoryPreset = (
     category: RoleCategory,
@@ -367,17 +367,17 @@ const AdminRequirement: React.FC = () => {
     }));
   };
 
-  const handleDifficultyChange = (
-    key: keyof typeof difficultyDistribution,
-    value: number
-  ) => {
-    const boundedValue = Math.min(100, Math.max(0, value));
+  // const handleDifficultyChange = (
+  //   key: keyof typeof difficultyDistribution,
+  //   value: number
+  // ) => {
+  //   const boundedValue = Math.min(100, Math.max(0, value));
 
-    setDifficultyDistribution((prev) => ({
-      ...prev,
-      [key]: boundedValue / 100,
-    }));
-  };
+  //   setDifficultyDistribution((prev) => ({
+  //     ...prev,
+  //     [key]: boundedValue / 100,
+  //   }));
+  // };
 
   const handleExtractRoleAndSkills = async () => {
     if (!jdFile) {
@@ -446,9 +446,9 @@ const AdminRequirement: React.FC = () => {
   );
 }
 
-      if (skillsResponse?.skill_durations) {
-        setSkillDurations(skillsResponse.skill_durations);
-      }
+      // if (skillsResponse?.skill_durations) {
+      //   setSkillDurations(skillsResponse.skill_durations);
+      // }
 
       // applyRoleCategoryPreset(resolvedCategory, returnedQuestionConfig);
       applyRoleCategoryPreset(resolvedCategory);
@@ -525,8 +525,12 @@ const AdminRequirement: React.FC = () => {
           role_type: roleCategory,
         },
         passing_score_threshold: cutoffMarks,
-        auto_adjust_by_experience: autoAdjustByExperience,
-        difficulty_distribution: difficultyDistribution,
+        auto_adjust_by_experience: false,
+        difficulty_distribution: {
+          easy: 0.4,
+          medium: 0.4,
+          hard: 0.2,
+        },
         expires_at: expiresAt
           ? new Date(expiresAt).toISOString()
           : undefined,

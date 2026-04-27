@@ -4,8 +4,8 @@ import QuestionnaireConfig, {
 } from "./QuestionnaireConfig";
 import CutoffMarks from "./CutoffMarks";
 import TotalQuestions from "./TotalQuestions";
-import DifficultyDistribution from "./DifficultyDistribution";
-import ExperienceAdjustment from "./ExperienceAdjustment";
+// import DifficultyDistribution from "./DifficultyDistribution";
+// import ExperienceAdjustment from "./ExperienceAdjustment";
 
 interface Props {
     questionDistribution: QuestionDistribution;
@@ -37,9 +37,9 @@ const AssessmentConfigurationBlock: React.FC<Props> = ({
     totalQuestions,
     onTotalQuestionsChange,
     autoAdjustByExperience,
-    onAutoAdjustByExperienceChange,
-    difficultyDistribution,
-    onDifficultyDistributionChange,
+    // onAutoAdjustByExperienceChange,
+    // difficultyDistribution,
+    // onDifficultyDistributionChange,
     roleCategory,
 }) => {
 

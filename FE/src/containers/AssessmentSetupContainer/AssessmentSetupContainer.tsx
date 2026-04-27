@@ -50,8 +50,6 @@ const AssessmentSetupContainer: React.FC = () => {
   const [jdFile, setJdFile] = useState<File | null>(null);
   const [jdId, setJdId] = useState<string | null>(null);
   const [cvFile, setCvFile] = useState<File | null>(null);
-  const [reqDoc] = useState<File | null>(null);
-  const [clientDoc] = useState<File | null>(null);
   const [ragFile, setRagFile] = useState<File | null>(null);
   const [ragUploadProgress, setRagUploadProgress] = useState<number | null>(null);
   const [ragUploadedDocId, setRagUploadedDocId] = useState<string | null>(null);
