@@ -481,13 +481,14 @@ async def submit_questionset_answers(
                 options.append(MCQOption(option_id=k, text=opt_text))
             # Defensive: ensure we return an explicit placeholder when no correct answer is set
             correct_answer = question.correct_answer or ""
+            is_correct_flag = (answer_submit.selected_answer == correct_answer)
         else:
             options = []
-            # For non-mcq question types, return empty-string as placeholder for correct_answer
-            correct_answer = ""
+            # For long-form questions, return the saved suggested answer for feedback.
+            correct_answer = question.correct_answer or ""
+            is_correct_flag = False
 
         # Compute points and suggestion
-        is_correct_flag = (answer_submit.selected_answer == correct_answer)
         points = 1 if is_correct_flag else 0
         if is_correct_flag:
             suggestion_text = "Good work!"
@@ -714,13 +715,14 @@ async def submit_questionset_answers_anonymous(
                 options.append(MCQOption(option_id=k, text=opt_text))
             # Defensive: ensure we return an explicit placeholder when no correct answer is set
             correct_answer = question.correct_answer or ""
+            is_correct_flag = (answer_submit.selected_answer == correct_answer)
         else:
             options = []
-            # For non-mcq question types, return empty-string as placeholder for correct_answer
-            correct_answer = ""
+            # For long-form questions, return the saved suggested answer for feedback.
+            correct_answer = question.correct_answer or ""
+            is_correct_flag = False
 
         # Compute points and suggestion
-        is_correct_flag = (answer_submit.selected_answer == correct_answer)
         points = 1 if is_correct_flag else 0
         if is_correct_flag:
             suggestion_text = "Good work!"

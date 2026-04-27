@@ -181,7 +181,8 @@ STRICT RULES:
 - NO scenario storytelling
 - NO Docker, Kubernetes, cloud, monitoring, or architecture topics
 - NO MCQs
-- NO solutions
+- Every question MUST include a concise suggested answer
+- The suggested answer MUST be 250 words or fewer
 
 QUESTION REQUIREMENTS:
 Each question MUST include:
@@ -190,6 +191,7 @@ Each question MUST include:
 3. Explicit output description
 4. Constraints section (time/space or value bounds)
 5. Language-agnostic logic (even if language is specified)
+6. A short suggested answer describing the expected approach, key logic, and edge cases without writing full executable code
 
 OUTPUT FORMAT (STRICT JSON ONLY):
 Return ONLY a valid JSON array of EXACTLY {coding_count} items.
@@ -204,7 +206,8 @@ Each item MUST follow this format EXACTLY:
   "constraints": [
     "Example: 1 <= n <= 10^5",
     "Example: O(n log n) or better solution required"
-  ]
+  ],
+  "suggested_answer": "Concise ideal approach in 250 words or fewer"
 }}
 
 ABSOLUTE PROHIBITIONS:
@@ -236,7 +239,9 @@ STRICT RULES:
 - Do NOT generate coding challenges
 - Do NOT generate system design questions
 - Do NOT generate MCQs
-- No answers or solutions
+- Every question MUST include a suggested answer
+- The suggested answer MUST be 250 words or fewer
+- The suggested answer should model a strong, practical response with clear reasoning, trade-offs, and next steps
 
 OUTPUT FORMAT (STRICT JSON ONLY):
 Return ONLY a valid JSON array of EXACTLY {reasoning_count} items.
@@ -247,7 +252,8 @@ Each item MUST follow this format EXACTLY:
   "question_id": 1,
   "title": "Concise reasoning prompt title",
   "description": "Scenario-based question requiring structured reasoning",
-  "focus_areas": ["Prioritization", "Stakeholder Communication", "Judgment"]
+  "focus_areas": ["Prioritization", "Stakeholder Communication", "Judgment"],
+  "suggested_answer": "Concise ideal response in 250 words or fewer"
 }}
 
 No markdown.
@@ -276,7 +282,9 @@ STRICT RULES:
 - Each question MUST include a unique question_id (1–2)
 - Questions must be real-world and design-focused
 - No MCQ options
-- No answers or solutions
+- Every question MUST include a suggested answer
+- The suggested answer MUST be 250 words or fewer
+- The suggested answer should explain a strong design direction, core components, trade-offs, and reliability/scalability considerations
 
 OUTPUT FORMAT (STRICT):
 Return ONLY a valid JSON array of EXACTLY {architecture_count} items.
@@ -287,7 +295,8 @@ Each item must follow this format:
   "question_id": 1,
   "title": "System design problem title",
   "description": "Design problem statement",
-  "focus_areas": ["Scalability", "Reliability", "Trade-offs"]
+  "focus_areas": ["Scalability", "Reliability", "Trade-offs"],
+  "suggested_answer": "Concise ideal design response in 250 words or fewer"
 }}
 
 No markdown.
@@ -334,6 +343,28 @@ def _parse_json_array_response(raw_content, label: str) -> list:
         raise ValueError(f"{label} output was not a JSON array")
 
     return parsed
+
+
+def _limit_words(text: str, max_words: int = 250) -> str:
+    normalized = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not normalized:
+        return ""
+
+    words = normalized.split()
+    if len(words) <= max_words:
+        return normalized
+
+    return " ".join(words[:max_words]).rstrip(" ,;:.") + "..."
+
+
+def _extract_suggested_answer(item: dict, label: str) -> str:
+    for key in ("suggested_answer", "ideal_answer", "sample_answer", "answer"):
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            return _limit_words(value, 250)
+
+    question_id = item.get("question_id", "?")
+    raise ValueError(f"{label} item {question_id} is missing a suggested_answer")
 
 # ------------------------------------------------------------
 # MAIN FUNCTION 
@@ -763,7 +794,7 @@ Return ONLY a valid JSON array using this exact schema:
                 "language": cq.get("language"),
                 "constraints": cq.get("constraints", [])
             },
-            correct_answer="N/A",
+            correct_answer=_extract_suggested_answer(cq, "CODING LLM"),
             difficulty="coding",
             generation_model="llama-3.3-70b-versatile",
             generation_time=time.time() - start_time
@@ -781,7 +812,7 @@ Return ONLY a valid JSON array using this exact schema:
                 "type": "architecture",
                 "focus_areas": aq.get("focus_areas", [])
             },
-            correct_answer="N/A",
+            correct_answer=_extract_suggested_answer(aq, "ARCHITECTURE LLM"),
             difficulty="architecture",
             generation_model="llama-3.3-70b-versatile",
             generation_time=time.time() - start_time
@@ -799,7 +830,7 @@ Return ONLY a valid JSON array using this exact schema:
                 "type": "scenario",
                 "focus_areas": rq.get("focus_areas", [])
             },
-            correct_answer="N/A",
+            correct_answer=_extract_suggested_answer(rq, "REASONING LLM"),
             difficulty="scenario",
             generation_model="llama-3.3-70b-versatile",
             generation_time=time.time() - start_time

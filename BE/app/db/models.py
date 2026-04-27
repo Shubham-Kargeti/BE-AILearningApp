@@ -150,7 +150,7 @@ class Question(Base, TimestampMixin):
     
     question_text: Mapped[str] = mapped_column(Text, nullable=False)
     options: Mapped[dict] = mapped_column(JSON, nullable=False)  # {"A": "text", "B": "text", ...}
-    correct_answer: Mapped[str] = mapped_column(String(10), nullable=False)  # "A", "B", "C", "D"
+    correct_answer: Mapped[str] = mapped_column(Text, nullable=False)  # MCQ option key or suggested answer for long-form questions
     difficulty: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # easy, medium, hard
     topic: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     
