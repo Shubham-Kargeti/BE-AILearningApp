@@ -1,4 +1,4 @@
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 import os
 from config import GROQ_API_KEY as CONFIG_GROQ_API_KEY
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
@@ -41,15 +41,15 @@ class _StubLLM:
 
 
 def _get_llm():
-    """Lazily initialize the ChatGroq client when needed.
+    api_key = os.getenv("OPENAI_API_KEY")
 
-    If a GROQ API key is available via environment or config, instantiate
-    a real ChatGroq client; otherwise return a stub that raises a clear
-    error at call time (so the app can import and run without the key).
-    """
-    api_key = os.getenv("GROQ_API_KEY") or CONFIG_GROQ_API_KEY
     if api_key:
-        return ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=api_key)
+        return ChatOpenAI(
+            model="gpt-4o",
+            temperature=0,
+            api_key=api_key
+        )
+
     return _StubLLM()
 
 def parse_mcqs_from_response(response_text: str):

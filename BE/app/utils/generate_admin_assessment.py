@@ -1,4 +1,4 @@
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 import os
 import re
 from config import GROQ_API_KEY as CONFIG_GROQ_API_KEY
@@ -191,7 +191,8 @@ Each question MUST include:
 3. Explicit output description
 4. Constraints section (time/space or value bounds)
 5. Language-agnostic logic (even if language is specified)
-6. A short suggested answer describing the expected approach, key logic, and edge cases without writing full executable code
+6. A clear, step-by-step algorithm in structured pseudocode (suggested_answer)
+7. A complete working function implementation in the specified language (reference_solution)
 
 OUTPUT FORMAT (STRICT JSON ONLY):
 Return ONLY a valid JSON array of EXACTLY {coding_count} items.
@@ -207,7 +208,8 @@ Each item MUST follow this format EXACTLY:
     "Example: 1 <= n <= 10^5",
     "Example: O(n log n) or better solution required"
   ],
-  "suggested_answer": "Concise ideal approach in 250 words or fewer"
+  "suggested_answer": "Structured pseudocode",
+  "reference_solution": "Actual working code"
 }}
 
 ABSOLUTE PROHIBITIONS:
@@ -316,9 +318,15 @@ class _StubLLM:
 
 
 def _get_llm():
-    api_key = os.getenv("GROQ_API_KEY") or CONFIG_GROQ_API_KEY
+    api_key = os.getenv("OPENAI_API_KEY")
+
     if api_key:
-        return ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=api_key)
+        return ChatOpenAI(
+            model="gpt-4o",   
+            temperature=0,
+            api_key=api_key
+        )
+
     return _StubLLM()
 
 
@@ -744,7 +752,7 @@ Return ONLY a valid JSON array using this exact schema:
         skill="multiple-skills",
         level="mixed",
         total_questions=total_questions,
-        generation_model="llama-3.3-70b-versatile"
+        generation_model="gpt-4o"
     )
 
     db.add(qs)
@@ -776,7 +784,7 @@ Return ONLY a valid JSON array using this exact schema:
             options=options_dict,
             correct_answer=q["correct_answer"],
             difficulty=intended_difficulty,
-            generation_model="llama-3.3-70b-versatile",
+            generation_model="gpt-4o",
             generation_time=time.time() - start_time
         )
 
@@ -796,7 +804,7 @@ Return ONLY a valid JSON array using this exact schema:
             },
             correct_answer=_extract_suggested_answer(cq, "CODING LLM"),
             difficulty="coding",
-            generation_model="llama-3.3-70b-versatile",
+            generation_model="gpt-4o",
             generation_time=time.time() - start_time
         )
         db.add(db_question)
@@ -814,7 +822,7 @@ Return ONLY a valid JSON array using this exact schema:
             },
             correct_answer=_extract_suggested_answer(aq, "ARCHITECTURE LLM"),
             difficulty="architecture",
-            generation_model="llama-3.3-70b-versatile",
+            generation_model="gpt-4o",
             generation_time=time.time() - start_time
         )
         db.add(db_question)
@@ -832,7 +840,7 @@ Return ONLY a valid JSON array using this exact schema:
             },
             correct_answer=_extract_suggested_answer(rq, "REASONING LLM"),
             difficulty="scenario",
-            generation_model="llama-3.3-70b-versatile",
+            generation_model="gpt-4o",
             generation_time=time.time() - start_time
         )
         db.add(db_question)
