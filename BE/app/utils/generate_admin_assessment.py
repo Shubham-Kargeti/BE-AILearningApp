@@ -1,7 +1,6 @@
 from langchain_openai import ChatOpenAI
-import os
 import re
-from config import GROQ_API_KEY as CONFIG_GROQ_API_KEY
+from config import settings
 from langchain_core.prompts import (
     ChatPromptTemplate,
     HumanMessagePromptTemplate,
@@ -313,21 +312,19 @@ No explanations.
 class _StubLLM:
     def invoke(self, *args, **kwargs):
         raise RuntimeError(
-            "GROQ API key is not configured. Set GROQ_API_KEY to enable LLM features."
+            "OPENAI API key is not configured. Set OPENAI_API_KEY to enable LLM features."
         )
 
 
 def _get_llm():
-    api_key = os.getenv("OPENAI_API_KEY")
+    if not settings.OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY is not configured")
 
-    if api_key:
-        return ChatOpenAI(
-            model="gpt-4o",   
-            temperature=0,
-            api_key=api_key
-        )
-
-    return _StubLLM()
+    return ChatOpenAI(
+        model="gpt-4o",
+        temperature=0,
+        api_key=settings.OPENAI_API_KEY
+    )
 
 
 def _parse_json_array_response(raw_content, label: str) -> list:

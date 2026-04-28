@@ -1,6 +1,5 @@
 from langchain_openai import ChatOpenAI
-import os
-from config import GROQ_API_KEY as CONFIG_GROQ_API_KEY
+from config import settings
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from app.models.schemas import MCQQuestion, MCQOption
 import json
@@ -33,24 +32,22 @@ human_message = HumanMessagePromptTemplate.from_template(
 chat_prompt = ChatPromptTemplate.from_messages([system_message, human_message])
 
 class _StubLLM:
-    """Simple stub to raise a clear error when GROQ is unavailable."""
+    """Simple stub to raise a clear error when OPENAI is unavailable."""
     def invoke(self, *args, **kwargs):
         raise RuntimeError(
-            "GROQ API key is not configured. Set GROQ_API_KEY to enable LLM features."
+            "OPENAI API key is not configured. Set OPENAI_API_KEY to enable LLM features."
         )
 
 
 def _get_llm():
-    api_key = os.getenv("OPENAI_API_KEY")
+    if not settings.OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY is not configured")
 
-    if api_key:
-        return ChatOpenAI(
-            model="gpt-4o",
-            temperature=0,
-            api_key=api_key
-        )
-
-    return _StubLLM()
+    return ChatOpenAI(
+        model="gpt-4o",
+        temperature=0,
+        api_key=settings.OPENAI_API_KEY
+    )
 
 def parse_mcqs_from_response(response_text: str):
     cleaned = re.sub(r'``````', '', response_text.strip())

@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     """Application settings with environment variable support."""
     
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=".env",                
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore"
@@ -125,7 +125,8 @@ class Settings(BaseSettings):
     SENTRY_PROFILES_SAMPLE_RATE: float = 0.1
     
     # AI/ML
-    GROQ_API_KEY: str = ""
+    # GROQ_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
     MAX_QUESTIONS_PER_TEST: int = 20
     QUESTION_GENERATION_TIMEOUT: int = 300  # 5 minutes
 
@@ -184,4 +185,5 @@ def get_settings() -> Settings:
 
 # Legacy support for existing code
 settings = get_settings()
-GROQ_API_KEY = settings.GROQ_API_KEY
+OPENAI_API_KEY = settings.OPENAI_API_KEY
+
