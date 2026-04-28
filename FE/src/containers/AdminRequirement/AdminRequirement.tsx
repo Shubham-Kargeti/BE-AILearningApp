@@ -15,13 +15,19 @@ import {
 } from "../../API/services";
 import Toast from "../../components/Toast/Toast";
 import FileUpload from "../AssessmentSetupContainer/components/FileUpload";
-import RoleSkillPlaceholder from "../AssessmentSetupContainer/components/RoleSkillPlaceholder";
+import RoleSkillPlaceholder, { type SkillLevel } from "../AssessmentSetupContainer/components/RoleSkillPlaceholder";
 import AssessmentSetupSubmitButton from "../AssessmentSetupContainer/components/AssessmentSetupSubmitButton";
 import AssessmentLinkModal from "../AssessmentSetupContainer/components/AssessmentLinkModal";
 import "./AdminRequirement.scss";
 
 type RoleCategory = "tech" | "non-tech";
 type SkillPriority = "must-have" | "good-to-have" | "resume-based" | "soft";
+const normalizeSkillLevel = (value?: string): SkillLevel => {
+  if (value === "beginner" || value === "advanced") {
+    return value;
+  }
+  return "intermediate";
+};
 
 interface ValidationError {
   field: string;
@@ -244,6 +250,7 @@ const AdminRequirement: React.FC = () => {
   //   {}
   // );
   const [skillPriorities, setSkillPriorities] = useState<Record<string, SkillPriority>>({});
+  const [skillLevels, setSkillLevels] = useState<Record<string, SkillLevel>>({});
   const [questionDistribution, setQuestionDistribution] =
     useState<RequirementQuestionDistribution>(TECH_DEFAULT_DISTRIBUTION);
   const [totalQuestions, setTotalQuestions] = useState(10);
@@ -253,7 +260,6 @@ const AdminRequirement: React.FC = () => {
   //   DEFAULT_DIFFICULTY_DISTRIBUTION
   // );
   const [expiresAt, setExpiresAt] = useState("");
-  const [difficulty, setDifficulty] = useState<"beginner" | "intermediate" | "advanced">("intermediate");
   const [processLoading, setProcessLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formValid, setFormValid] = useState(false);
@@ -415,9 +421,8 @@ const AdminRequirement: React.FC = () => {
       const roleResponse =
         roleResult.status === "fulfilled" ? roleResult.value : undefined;
 
-      const extractedSkills = mapSkillNames(
-        skillsResponse?.skills ?? skillsResponse?.extracted_skills
-      );
+      const extractedSkillObjects = skillsResponse?.extracted_skills || [];
+      const extractedSkills = mapSkillNames(extractedSkillObjects);
       const extractedRole = extractRoleName(roleResponse, skillsResponse);
       const resolvedCategory =
         normalizeRoleCategory(roleResponse?.role_type) ??
@@ -433,18 +438,21 @@ const AdminRequirement: React.FC = () => {
         setRole(extractedRole);
       }
 
-     if (extractedSkills.length > 0) {
+      if (extractedSkills.length > 0) {
         setSkills(extractedSkills);
         setSkillPriorities(
-        extractedSkills.reduce<Record<string, "must-have" | "good-to-have">>(
-          (acc, skill) => {
-           acc[skill] = "must-have";
-           return acc;
-          },
-      {}
-    )
-  );
-}
+          extractedSkills.reduce<Record<string, SkillPriority>>((acc, skill) => {
+            acc[skill] = "must-have";
+            return acc;
+          }, {})
+        );
+        setSkillLevels(
+          extractedSkillObjects.reduce<Record<string, SkillLevel>>((acc, skill) => {
+            acc[skill.skill_name] = normalizeSkillLevel(skill.proficiency_level);
+            return acc;
+          }, {})
+        );
+      }
 
       // if (skillsResponse?.skill_durations) {
       //   setSkillDurations(skillsResponse.skill_durations);
@@ -506,9 +514,9 @@ const AdminRequirement: React.FC = () => {
         job_title: role.trim(),
         jd_id: currentJdId ?? undefined,
         required_skills: skills.reduce<Record<string, string>>((acc, skill) => {
-            acc[skill] = difficulty;
-            return acc;
-          }, {}),
+          acc[skill] = skillLevels[skill] || "intermediate";
+          return acc;
+        }, {}),
         skill_priorities: skillPriorities,
         is_draft: false,
         is_published: true,
@@ -808,22 +816,6 @@ const AdminRequirement: React.FC = () => {
           </p>
         </div>
          
-         <div className="difficulty-section">
-               <div className="section-label">
-                      <FiTrendingUp size={16} />
-                    <span>Difficulty Level</span>
-                </div>
-
-            <select
-              value={difficulty}
-                    onChange={(e) => setDifficulty(e.target.value as "beginner" | "intermediate" | "advanced")}
-            >
-          <option value="beginner">Beginner</option>
-          <option value="intermediate">Intermediate</option>
-         <option value="advanced">Advanced</option>
-       </select>
-       </div>
-
         {/* <div className="difficulty-section">
           <div className="section-label">
             <FiTrendingUp size={16} />
@@ -939,3 +931,6 @@ const AdminRequirement: React.FC = () => {
 };
 
 export default AdminRequirement;
+
+
+

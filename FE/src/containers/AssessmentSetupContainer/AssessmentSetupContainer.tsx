@@ -4,7 +4,7 @@ import "./AssessmentSetupContainer.scss";
 import FileUpload from "./components/FileUpload";
 import CandidateInfoSection from "./components/CandidateInfoSection";
 import type { CandidateInfoData } from "./components/CandidateInfoSection";
-import RoleSkillPlaceholder from "./components/RoleSkillPlaceholder";
+import RoleSkillPlaceholder, { type SkillLevel } from "./components/RoleSkillPlaceholder";
 import AssessmentMethodSelector from "./components/AssessmentMethodSelector";
 import AssessmentSetupSubmitButton from "./components/AssessmentSetupSubmitButton";
 import AssessmentLinkModal from "./components/AssessmentLinkModal";
@@ -37,6 +37,13 @@ type ExtractedSkillMeta = {
 type SkillPriority = "must-have" | "good-to-have" | "resume-based" | "soft";
 
 type RoleCategory = "tech" | "non-tech";
+
+const normalizeSkillLevel = (value?: string): SkillLevel => {
+  if (value === "beginner" || value === "advanced") {
+    return value;
+  }
+  return "intermediate";
+};
 
 const AssessmentSetupContainer: React.FC = () => {
   const navigate = useNavigate();
@@ -99,6 +106,7 @@ const AssessmentSetupContainer: React.FC = () => {
   const [skillsError, setSkillsError] = useState("");
   const [jdSkills, setJdSkills] = useState<string[]>([]);
   const [skillPriorities, setSkillPriorities] = useState<Record<string, SkillPriority>>({});
+  const [skillLevels, setSkillLevels] = useState<Record<string, SkillLevel>>({});
   const [extractedSkillMeta, setExtractedSkillMeta] = useState<Record<string, ExtractedSkillMeta>>({});
   const [isDraft, setIsDraft] = useState(false);
 
@@ -196,6 +204,35 @@ const AssessmentSetupContainer: React.FC = () => {
 
         if (assessment.required_skills) {
           setSkills(Object.keys(assessment.required_skills));
+          setSkillLevels(
+            Object.entries(assessment.required_skills).reduce<Record<string, SkillLevel>>((acc, [skill, level]) => {
+              acc[skill] = normalizeSkillLevel(level);
+              return acc;
+            }, {})
+          );
+        }
+
+        const inferredRoleCategory: RoleCategory =
+          assessment.generation_policy?.role_type === "non-tech" || (assessment.question_type_mix?.scenario || 0) > 0
+            ? "non-tech"
+            : "tech";
+        setRoleCategory(inferredRoleCategory);
+
+        if (assessment.question_type_mix) {
+          setQuestionDistribution({
+            mcq: assessment.question_type_mix.mcq || 0,
+            coding: assessment.question_type_mix.coding || 0,
+            architecture: assessment.question_type_mix.architecture || 0,
+            scenario: assessment.question_type_mix.scenario || 0,
+          });
+        }
+
+        if (assessment.total_questions) {
+          setTotalQuestions(assessment.total_questions);
+        }
+
+        if (typeof assessment.passing_score_threshold === "number") {
+          setCutoffMarks(assessment.passing_score_threshold);
         }
 
         if (assessment.assessment_method) {
@@ -390,6 +427,12 @@ const AssessmentSetupContainer: React.FC = () => {
         return acc;
       }, {});
       setSkillPriorities(nextSkillPriorities);
+      setSkillLevels(
+        extractedSkillsList.reduce<Record<string, SkillLevel>>((acc, skill) => {
+          acc[skill.skill_name] = normalizeSkillLevel(skill.proficiency_level);
+          return acc;
+        }, {})
+      );
 
       setToast({
         type: "success",
@@ -415,26 +458,7 @@ const AssessmentSetupContainer: React.FC = () => {
 
     try {
       const requiredSkills = skills.reduce((acc, skill) => {
-        const key = skill.toLowerCase();
-        const meta = extractedSkillMeta[key];
-        const inResume = Boolean(meta?.inResume);
-        const inJd = Boolean(meta?.inJd);
-        const isSoft = meta?.category === "soft";
-
-        let level = "beginner";
-        if (inResume && inJd) {
-          level = "advanced";
-        } else if (inResume) {
-          level = "intermediate";
-        } else if (inJd) {
-          level = "beginner";
-        }
-
-        if (isSoft) {
-          level = "soft";
-        }
-
-        acc[skill] = level;
+        acc[skill] = skillLevels[skill] || "intermediate";
         return acc;
       }, {} as Record<string, string>);
 
@@ -812,6 +836,10 @@ const AssessmentSetupContainer: React.FC = () => {
           onSkillPriorityChange={(skill, priority) => {
             setSkillPriorities({ ...skillPriorities, [skill]: priority });
           }}
+          skillLevels={skillLevels}
+          onSkillLevelChange={(skill, level) => {
+            setSkillLevels({ ...skillLevels, [skill]: level });
+          }}
         />
       </section>
 
@@ -959,3 +987,8 @@ const AssessmentSetupContainer: React.FC = () => {
 };
 
 export default AssessmentSetupContainer;
+
+
+
+
+

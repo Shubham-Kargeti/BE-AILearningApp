@@ -764,3 +764,32 @@
     width: 100%;
   }
 }
+
+.generate-more-modal {
+  width: min(720px, calc(100vw - 2rem));
+  text-align: left;
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  border: none;
+  background: transparent;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.assessment-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.assessment-modal-actions .modal-btn {
+  margin-top: 0;
+}

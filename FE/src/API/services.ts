@@ -150,6 +150,7 @@ export interface Assessment {
     mode: "rag" | "llm" | "mix";
     rag_pct: number;
     llm_pct: number;
+    role_type?: string;
   };
   // Session statistics (for admin dashboard)
   total_sessions?: number;
@@ -223,6 +224,7 @@ export interface AssessmentCreateRequest {
     mode: "rag" | "llm" | "mix";
     rag_pct: number;
     llm_pct: number;
+    role_type?: string;
   };
 }
 
@@ -306,8 +308,10 @@ export interface SkillExtractionResponse {
   skills?: Array<string | { skill_name?: string }>;
   experience_level?: string;
   extracted_text?: string;
-  extracted_skills?: Array<string | { skill_name?: string }>;
+  extracted_skills?: ExtractedSkill[];
   skill_durations?: Record<string, number>;
+  documents?: DocumentSkillExtractionResponse[];
+  message?: string;
 }
 
 export interface RoleExtractionResponse {
@@ -1079,3 +1083,6 @@ export const assessmentResultsService = {
 };
 
 export default apiClient;
+
+
+

@@ -27,6 +27,7 @@ import {
 import { assessmentService, quizService, assessmentResultsService } from "../../API/services";
 import type { Assessment, AssessmentCreateRequest } from "../../API/services";
 import Toast from "../../components/Toast/Toast";
+import GenerateMoreModal, { type GenerateMoreOverrides } from "./components/GenerateMoreModal";
 import "./AssessmentViewContainer.scss";
 
 // Simple QR Code generator component
@@ -94,6 +95,7 @@ const AssessmentViewContainer: React.FC = () => {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
   const [generatingVariant, setGeneratingVariant] = useState(false);
+  const [showGenerateMoreModal, setShowGenerateMoreModal] = useState(false);
   const [testSessions, setTestSessions] = useState<Array<{
     session_id: string;
     candidate_name: string | null;
@@ -192,13 +194,18 @@ const AssessmentViewContainer: React.FC = () => {
     }
   };
 
-  const buildAssessmentPayload = (sourceAssessment: Assessment): AssessmentCreateRequest => {
+  const buildAssessmentPayload = (
+    sourceAssessment: Assessment,
+    overrides?: GenerateMoreOverrides
+  ): AssessmentCreateRequest => {
+    const roleType = overrides?.roleCategory || sourceAssessment.generation_policy?.role_type || ((sourceAssessment.question_type_mix?.scenario || 0) > 0 ? "non-tech" : "tech");
+    const questionTypeMix = overrides?.questionTypeMix || sourceAssessment.question_type_mix;
     const payload: AssessmentCreateRequest = {
       title: sourceAssessment.title,
       description: sourceAssessment.description,
       job_title: sourceAssessment.job_title,
       jd_id: sourceAssessment.jd_id,
-      required_skills: sourceAssessment.required_skills,
+      required_skills: overrides?.requiredSkills || sourceAssessment.required_skills,
       required_roles: sourceAssessment.required_roles,
       duration_minutes: sourceAssessment.duration_minutes,
       is_questionnaire_enabled: sourceAssessment.is_questionnaire_enabled,
@@ -207,17 +214,23 @@ const AssessmentViewContainer: React.FC = () => {
       is_draft: !sourceAssessment.is_published,
       is_published: sourceAssessment.is_published,
       candidate_info: sourceAssessment.candidate_info,
-      questionnaire_config: sourceAssessment.question_type_mix,
+      questionnaire_config: {
+        ...questionTypeMix,
+        role_type: roleType,
+      },
       skill_priorities: sourceAssessment.skill_priorities,
       screening_questions: sourceAssessment.screening_questions,
       manual_questions: sourceAssessment.manual_questions,
-      total_questions: sourceAssessment.total_questions,
-      question_type_mix: sourceAssessment.question_type_mix,
+      total_questions: overrides?.totalQuestions || sourceAssessment.total_questions,
+      question_type_mix: questionTypeMix,
       passing_score_threshold: sourceAssessment.passing_score_threshold,
       auto_adjust_by_experience: sourceAssessment.auto_adjust_by_experience,
       difficulty_distribution: sourceAssessment.difficulty_distribution,
-      generation_policy: sourceAssessment.generation_policy,
-      parent_assessment_id:sourceAssessment.id,
+      generation_policy: {
+        ...(sourceAssessment.generation_policy || {}),
+        role_type: roleType,
+      },
+      parent_assessment_id: sourceAssessment.id,
     };
 
     return payload;
@@ -444,12 +457,18 @@ const AssessmentViewContainer: React.FC = () => {
   };
 
   const handleGenerateMore = async () => {
+    if (!assessment) return;
+    setShowGenerateMoreModal(true);
+  };
+
+  const handleConfirmGenerateMore = async (overrides: GenerateMoreOverrides) => {
     if (!assessment || !id) return;
 
     try {
       setGeneratingVariant(true);
-      const payload = buildAssessmentPayload(assessment);
+      const payload = buildAssessmentPayload(assessment, overrides);
       const res = await assessmentService.createAssessment(payload);
+      setShowGenerateMoreModal(false);
       setToast({
         type: "success",
         message: res?.assessment_id
@@ -571,6 +590,14 @@ const AssessmentViewContainer: React.FC = () => {
           onClose={() => setToast(null)}
         />
       )}
+
+      <GenerateMoreModal
+        open={showGenerateMoreModal}
+        assessment={assessment}
+        loading={generatingVariant}
+        onClose={() => setShowGenerateMoreModal(false)}
+        onConfirm={handleConfirmGenerateMore}
+      />
 
       <div className="view-header">
         <button className="btn-back" onClick={() => navigate("/admin/dashboard")}>
@@ -3174,3 +3201,8 @@ const AssessmentViewContainer: React.FC = () => {
 };
 
 export default AssessmentViewContainer;
+
+
+
+
+
