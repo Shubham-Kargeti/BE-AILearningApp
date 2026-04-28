@@ -550,7 +550,7 @@ const DashboardContainer = () => {
           )}
 
           {/* Completed Assessment History Section */}
-          <Paper sx={{ 
+          {/* <Paper sx={{ 
             padding: '2.5rem', 
             borderRadius: '24px', 
             backgroundColor: 'white',
@@ -650,7 +650,7 @@ const DashboardContainer = () => {
                         }}
                       >
                         {/* Rank Badge */}
-                        {index < 3 && (
+                        {/* {index < 3 && (
                           <Box 
                             className="rank-badge"
                             sx={{ 
@@ -676,18 +676,18 @@ const DashboardContainer = () => {
                           >
                             #{index + 1}
                           </Box>
-                        )}
+                        )} */}
 
                         {/* Gradient Bar */}
-                        <Box sx={{ 
+                        {/* <Box sx={{ 
                           height: '8px', 
                           background: `linear-gradient(90deg, ${scoreColor} 0%, ${scoreColor}aa 100%)`,
                           boxShadow: `0 2px 8px ${scoreColor}40`
-                        }} />
+                        }} /> */}
                         
-                        <CardContent sx={{ padding: '1.75rem 1.5rem' }}>
+                        {/* <CardContent sx={{ padding: '1.75rem 1.5rem' }}>
                           {/* Header */}
-                          <Box sx={{ marginBottom: '1.25rem' }}>
+                          {/* <Box sx={{ marginBottom: '1.25rem' }}>
                             <Typography variant="h6" sx={{ 
                               fontWeight: 700, 
                               color: '#0f172a', 
@@ -731,10 +731,10 @@ const DashboardContainer = () => {
                                 }}
                               />
                             </Box>
-                          </Box>
+                          </Box> */}
 
                           {/* Score Circle */}
-                          <Box sx={{ 
+                          {/* <Box sx={{ 
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
@@ -778,10 +778,10 @@ const DashboardContainer = () => {
                             }}>
                               {session.correct_answers || 0} / {session.total_questions} Correct
                             </Typography>
-                          </Box>
+                          </Box> */}
 
                           {/* Details Grid */}
-                          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                          {/* <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
                             <Box sx={{ 
                               padding: '0.75rem',
                               backgroundColor: '#f8fafc',
@@ -814,10 +814,10 @@ const DashboardContainer = () => {
                                 {formatDuration(session.duration_seconds)}
                               </Typography>
                             </Box>
-                          </Box>
+                          </Box> */}
 
                           {/* Achievement Badge */}
-                          {session.score_percentage !== null && session.score_percentage >= 70 && (
+                          {/* {session.score_percentage !== null && session.score_percentage >= 70 && (
                             <Box sx={{ 
                               padding: '0.875rem 1rem', 
                               background: `linear-gradient(135deg, ${scoreColor}20 0%, ${scoreColor}10 100%)`,
@@ -843,15 +843,15 @@ const DashboardContainer = () => {
                                 </Typography>
                               </Box>
                             </Box>
-                          )}
-                        </CardContent>
-                      </Card>
+                          )} */}
+                        {/* </CardContent> */} */
+                      {/* </Card>
                     </Grid>
                   );
                 })}
               </Grid>
-            )}
-          </Paper>
+            )} */}
+          {/* </Paper> */}
 
           {/* Recommended Courses Section */}
           {recommendedCoursesData.length > 0 && (

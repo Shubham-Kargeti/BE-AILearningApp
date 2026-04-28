@@ -508,6 +508,9 @@ export const quizService = {
 
   getQuestionSetTestResults: async (sessionId: string): Promise<{
     session_id: string;
+    assessment_title?: string;
+    assessment_description?: string;
+    job_title?: string;
     question_set_id: string;
     skill: string;
     level: string;
