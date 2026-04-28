@@ -96,6 +96,10 @@ class TestResultResponse(BaseModel):
     question_set_id: str
     skill: str
     level: str
+    assessment_id: Optional[str] = None
+    assessment_title: Optional[str] = None
+    assessment_description: Optional[str] = None
+    job_title: Optional[str] = None
     total_questions: int
     correct_answers: int
     score_percentage: Optional[float] = None

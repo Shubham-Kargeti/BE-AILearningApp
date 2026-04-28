@@ -3,10 +3,10 @@ from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, desc
 
 from app.db.session import get_db
-from app.db.models import User, TestSession, Question, Answer, QuestionSet
+from app.db.models import User, TestSession, Question, Answer, QuestionSet, Assessment
 from app.core.dependencies import get_current_user, optional_user
 from app.core.security import is_admin_user
 from app.utils.streak_manager import check_and_update_quiz_completion
@@ -69,6 +69,33 @@ def serialize_question_for_test(question: Question) -> dict:
         }
 
     return payload
+
+
+async def get_linked_assessment(
+    db: AsyncSession,
+    question_set_id: Optional[str]
+) -> Optional[Assessment]:
+    """
+    Fetch the most relevant assessment linked to a question set.
+
+    Sessions only store question_set_id, so we use the latest active
+    assessment tied to that question set as the source of assessment metadata.
+    """
+    if not question_set_id:
+        return None
+
+    result = await db.execute(
+        select(Assessment)
+        .where(
+            and_(
+                Assessment.question_set_id == question_set_id,
+                Assessment.is_active == True
+            )
+        )
+        .order_by(desc(Assessment.created_at))
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
 @router.post("/questionset-tests/start")
 async def start_questionset_test(
     request: StartQuestionSetTestRequest,
@@ -318,6 +345,8 @@ async def submit_questionset_answers(
             detail="QuestionSet not found"
         )
 
+    assessment = await get_linked_assessment(db, session.question_set_id)
+
     # --------------------------------------------------
     # Load questions
     # --------------------------------------------------
@@ -522,6 +551,10 @@ async def submit_questionset_answers(
         question_set_id=session.question_set_id,
         skill=question_set.skill,
         level=question_set.level,
+        assessment_id=assessment.assessment_id if assessment else None,
+        assessment_title=assessment.title if assessment else None,
+        assessment_description=assessment.description if assessment else None,
+        job_title=assessment.job_title if assessment else None,
         total_questions=session.total_questions,
         correct_answers=correct_count,
         score_percentage=score_percentage,
@@ -596,6 +629,8 @@ async def submit_questionset_answers_anonymous(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="QuestionSet not found"
         )
+
+    assessment = await get_linked_assessment(db, session.question_set_id)
 
     # --------------------------------------------------
     # Load questions
@@ -755,6 +790,10 @@ async def submit_questionset_answers_anonymous(
         question_set_id=session.question_set_id,
         skill=question_set.skill,
         level=question_set.level,
+        assessment_id=assessment.assessment_id if assessment else None,
+        assessment_title=assessment.title if assessment else None,
+        assessment_description=assessment.description if assessment else None,
+        job_title=assessment.job_title if assessment else None,
         total_questions=session.total_questions,
         correct_answers=correct_count,
         score_percentage=score_percentage,
@@ -844,6 +883,14 @@ async def get_questionset_test_results(
             detail="QuestionSet not found"
         )
 
+    assessment = await get_linked_assessment(db, session.question_set_id)
+    skills_str = ""
+
+    if assessment and assessment.required_skills:
+       skills_str = ", ".join(assessment.required_skills.keys())
+
+    print("skills:", skills_str)   
+
     # --------------------------------------------------
     # Get all answers with questions
     # --------------------------------------------------
@@ -895,11 +942,17 @@ async def get_questionset_test_results(
             )
         )
 
+         
+
     return TestResultResponse(
         session_id=session_id,
         question_set_id=session.question_set_id,
-        skill=question_set.skill,
+        skill=skills_str,
         level=question_set.level,
+        assessment_id=assessment.assessment_id if assessment else None,
+        assessment_title=assessment.title if assessment else None,
+        assessment_description=assessment.description if assessment else None,
+        job_title=assessment.job_title if assessment else None,
         total_questions=session.total_questions,
         correct_answers=session.correct_answers if session.is_completed else len(detailed_results),
         score_percentage=session.score_percentage if session.is_completed else None,
