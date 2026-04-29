@@ -238,6 +238,47 @@ class TestSession(Base, TimestampMixin):
     def __repr__(self) -> str:
         return f"<TestSession(id={self.id}, session_id='{self.session_id}')>"
 
+class QuestionFeedback(Base, TimestampMixin):
+    __tablename__ = "question_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    # Relations
+    test_session_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("test_sessions.id"),
+        nullable=False,
+        index=True
+    )
+
+    answer_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("answers.id"),
+        nullable=False,
+        index=True
+    )
+
+    question_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("questions.id"),
+        nullable=False,
+        index=True
+    )
+
+    created_by: Mapped[int] = mapped_column(
+    Integer,
+    ForeignKey("users.id"),
+    nullable=True
+)
+
+    # Actual feedback
+    feedback_text: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Relationships (optional)
+    test_session: Mapped["TestSession"] = relationship("TestSession")
+    answer: Mapped["Answer"] = relationship("Answer")
+    question: Mapped["Question"] = relationship("Question")    
+
 
 class Answer(Base, TimestampMixin):
     """Answer model for storing candidate responses."""

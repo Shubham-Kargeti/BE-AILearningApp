@@ -2,6 +2,7 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import and_
 from datetime import datetime
 from typing import List, Dict, Optional,Any
 import uuid
@@ -13,11 +14,12 @@ from app.core.storage import get_s3_service
 from app.utils.generate_questions import _get_llm
 import json
 from app.utils.text_extract import extract_text
-from app.db.models import User, UploadedDocument
+from app.db.models import TestSession, User, UploadedDocument, Answer, QuestionFeedback
 from app.models.schemas import (
     AdminBulkSkillExtractionResponse,
     DocumentSkillExtractionResponse,
     ExtractedSkill,
+    FeedbackCreate,
 )
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-skill-extraction"])
@@ -616,4 +618,55 @@ JD:
 
     return {
         "role_type": role_type
+    }
+
+@router.post("/feedback")
+async def create_feedback(
+    payload: FeedbackCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Validate input
+    if not payload.feedback_text.strip():
+        raise HTTPException(status_code=400, detail="Feedback cannot be empty")
+
+    # Get test_session_id (int) from session_id (string)
+    result = await db.execute(
+        select(TestSession.id).where(TestSession.session_id == payload.session_id)
+    )
+    test_session_id = result.scalar_one_or_none()
+
+    if not test_session_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Get answer using session_id (string) + question_id
+    result = await db.execute(
+        select(Answer).where(
+            and_(
+                Answer.session_id == payload.session_id,
+                Answer.question_id == payload.question_id
+            )
+        )
+    )
+    answer = result.scalar_one_or_none()
+
+    if not answer:
+        raise HTTPException(status_code=404, detail="Answer not found")
+
+    # Create feedback
+    feedback = QuestionFeedback(
+        test_session_id=test_session_id,
+        answer_id=answer.id,
+        question_id=payload.question_id,
+        created_by=current_user.id,
+        feedback_text=payload.feedback_text
+    )
+
+    db.add(feedback)
+    await db.commit()
+    await db.refresh(feedback)
+
+    return {
+        "message": "Feedback added successfully",
+        "feedback_id": feedback.id
     }

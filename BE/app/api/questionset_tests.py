@@ -1,12 +1,13 @@
 """QuestionSet Test API - Immediate feedback flow."""
 from datetime import datetime, timezone
 from typing import Optional
+from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc
 
 from app.db.session import get_db
-from app.db.models import User, TestSession, Question, Answer, QuestionSet, Assessment
+from app.db.models import User, TestSession, Question, Answer, QuestionSet, Assessment, QuestionFeedback
 from app.core.dependencies import get_current_user, optional_user
 from app.core.security import is_admin_user
 from app.utils.streak_manager import check_and_update_quiz_completion
@@ -1002,6 +1003,27 @@ async def list_my_test_sessions(
     return sessions_data
 
 
+@router.get("/questionset-tests/feedback/{session_id}")
+async def get_feedback_by_session(session_id: str,  db: AsyncSession = Depends(get_db)):
+    test_session_id=await db.execute(select(TestSession.id).where(TestSession.session_id == session_id))
+    test_session_id = test_session_id.scalar_one_or_none()
+
+    feedbacks = await db.execute(
+        select(QuestionFeedback).where(QuestionFeedback.test_session_id == test_session_id)
+    )
+    feedbacks = feedbacks.scalars().all()
+
+    result = defaultdict(list)
+
+    for fb in feedbacks:
+        result[fb.answer_id].append({
+            "feedback_id": fb.id,
+            "question_id": fb.question_id,
+            "text": fb.feedback_text,
+            "created_at": fb.created_at
+        })
+
+    return {"feedback": result}
 @router.get("/questionset-tests/assessment/{assessment_id}/sessions")
 async def list_assessment_test_sessions(
     assessment_id: str,

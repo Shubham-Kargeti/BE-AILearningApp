@@ -78,6 +78,12 @@ class SubmitAllAnswersRequest(BaseModel):
     session_id: str
     answers: List[AnswerSubmit]
 
+class FeedbackCreate(BaseModel):
+    """Request to create feedback for a question."""
+    session_id: str
+    question_id: int
+    feedback_text: str
+
 class QuestionResultDetailed(BaseModel):
     """Detailed result for a single question."""
     question_id: int
