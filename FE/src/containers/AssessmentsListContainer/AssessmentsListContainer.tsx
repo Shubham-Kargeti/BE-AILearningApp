@@ -24,12 +24,12 @@ import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined
 import CheckCircleOutlinedIcon from "@mui/icons-material/CheckCircleOutlined";
 import HourglassTopOutlinedIcon from "@mui/icons-material/HourglassTopOutlined";
 import QuizOutlinedIcon from "@mui/icons-material/QuizOutlined";
-import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
 import TrendingUpOutlinedIcon from "@mui/icons-material/TrendingUpOutlined";
 import { useNavigate } from "react-router-dom";
 import {
   quizService,
 } from "../../API/services";
+import type { QuestionFeedbackMap } from "../../API/services";
 import Toast from "../../components/Toast/Toast";
 
 interface MyTestSession {
@@ -263,10 +263,29 @@ const AssessmentsListContainer = () => {
   const [sessionCount, setSessionCount] = useState(0);
   const [expandedSessionId, setExpandedSessionId] = useState<string | false>(false);
   const [results, setResults] = useState<CandidateAssessmentResult[]>([]);
+  const [feedbackBySession, setFeedbackBySession] = useState<Record<string, QuestionFeedbackMap>>({});
   const [toast, setToast] = useState<{
     type: "success" | "error" | "info";
     message: string;
   } | null>(null);
+
+  const loadFeedbackForResults = async (candidateResults: CandidateAssessmentResult[]) => {
+    if (candidateResults.length === 0) return;
+
+    const feedbackEntries = await Promise.all(
+      candidateResults.map(async (result) => {
+        try {
+          const feedback = await quizService.getQuestionFeedback(result.session_id);
+          return [result.session_id, feedback] as const;
+        } catch (feedbackError) {
+          console.warn("Unable to load admin feedback:", feedbackError);
+          return [result.session_id, {}] as const;
+        }
+      })
+    );
+
+    setFeedbackBySession(Object.fromEntries(feedbackEntries));
+  };
 
   const loadCandidateResults = async () => {
     try {
@@ -293,6 +312,7 @@ const AssessmentsListContainer = () => {
       );
       setResults(flattenedResults);
       setExpandedSessionId(flattenedResults[0]?.session_id ?? false);
+      await loadFeedbackForResults(flattenedResults);
 
       if (flattenedResults.length === 0) {
         setToast({
@@ -311,6 +331,16 @@ const AssessmentsListContainer = () => {
   useEffect(() => {
     loadCandidateResults();
   }, []);
+
+  useEffect(() => {
+    if (results.length === 0) return;
+
+    const intervalId = window.setInterval(() => {
+      loadFeedbackForResults(results);
+    }, 7000);
+
+    return () => window.clearInterval(intervalId);
+  }, [results]);
 
   return (
     <Box
@@ -704,6 +734,10 @@ const AssessmentsListContainer = () => {
                       {result.questions.map((question, index) => {
                         const normalizedCandidateAnswer = question.candidate_answer || "No answer provided";
                         const normalizedCorrectAnswer = question.correct_answer || "Not available";
+                        const latestFeedback = feedbackBySession[result.session_id]?.[
+                          String(question.question_id)
+                        ]?.slice(-1)[0];
+                        const adminFeedback = latestFeedback?.text?.trim() || "";
 
                         return (
                           <Paper
@@ -850,6 +884,25 @@ const AssessmentsListContainer = () => {
                                   <strong>Expected answer:</strong> {normalizedCorrectAnswer}
                                 </Typography>
                               </>
+                            )}
+
+                            {adminFeedback && (
+                              <Box
+                                sx={{
+                                  mt: 1.5,
+                                  p: 1.5,
+                                  borderRadius: 2,
+                                  backgroundColor: "#eff6ff",
+                                  border: "1px solid #bfdbfe",
+                                }}
+                              >
+                                <Typography sx={{ fontWeight: 800, color: "#1d4ed8", mb: 0.5 }}>
+                                  Admin Feedback
+                                </Typography>
+                                <Typography sx={{ color: "#334155", whiteSpace: "pre-wrap" }}>
+                                  {adminFeedback}
+                                </Typography>
+                              </Box>
                             )}
                           </Paper>
                         );

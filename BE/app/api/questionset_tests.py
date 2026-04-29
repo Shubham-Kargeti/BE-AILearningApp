@@ -1016,7 +1016,7 @@ async def get_feedback_by_session(session_id: str,  db: AsyncSession = Depends(g
     result = defaultdict(list)
 
     for fb in feedbacks:
-        result[fb.answer_id].append({
+        result[fb.question_id].append({
             "feedback_id": fb.id,
             "question_id": fb.question_id,
             "text": fb.feedback_text,

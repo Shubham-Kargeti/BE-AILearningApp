@@ -39,7 +39,7 @@ import {
   Person as PersonIcon,
   Score as ScoreIcon,
 } from "@mui/icons-material";
-import { assessmentResultsService } from "../../API/services";
+import { assessmentResultsService, quizService, uploadService } from "../../API/services";
 import Toast from "../../components/Toast/Toast";
 import "./DetailedResultsView.scss";
 
@@ -52,6 +52,7 @@ interface QuestionResult {
   correct_answer: string;
   is_correct: boolean;
   options: Record<string, string> | null;
+  question_type?: string | null;
   time_taken_seconds: number | null;
 }
 
@@ -88,6 +89,9 @@ const DetailedResultsView: React.FC = () => {
   const [includeAnswers, setIncludeAnswers] = useState(true);
   const [shareMessage, setShareMessage] = useState("");
   const [sharing, setSharing] = useState(false);
+  const [feedbackByQuestion, setFeedbackByQuestion] = useState<Record<number, string>>({});
+  const [submittingFeedback, setSubmittingFeedback] = useState<Set<number>>(new Set());
+  const [submittedFeedback, setSubmittedFeedback] = useState<Set<number>>(new Set());
 
   // tracks which question(s) are being updated to disable buttons
   const [updatingQuestions, setUpdatingQuestions] = useState<Set<number>>(new Set());
@@ -130,6 +134,54 @@ const DetailedResultsView: React.FC = () => {
     }
   };
 
+  const getQuestionType = (question: QuestionResult) => {
+    const explicitType = question.question_type?.toLowerCase();
+    if (explicitType) return explicitType;
+
+    const optionType = question.options?.type;
+    return typeof optionType === "string" ? optionType.toLowerCase() : "mcq";
+  };
+
+  const isNonMcqQuestion = (question: QuestionResult) =>
+    getQuestionType(question) !== "mcq";
+
+  const getMcqOptions = (question: QuestionResult) => {
+    if (isNonMcqQuestion(question) || !question.options) return [];
+
+    return Object.entries(question.options).filter(([key]) => key !== "type");
+  };
+
+  const handleFeedbackChange = (questionId: number, feedback: string) => {
+    setFeedbackByQuestion((prev) => ({
+      ...prev,
+      [questionId]: feedback,
+    }));
+  };
+
+  const handleSubmitFeedback = async (questionId: number) => {
+    if (!sessionId || submittedFeedback.has(questionId)) return;
+
+    setSubmittingFeedback((prev) => new Set(prev).add(questionId));
+    try {
+      await uploadService.submitQuestionFeedback(
+        sessionId,
+        questionId,
+        feedbackByQuestion[questionId] || ""
+      );
+      setSubmittedFeedback((prev) => new Set(prev).add(questionId));
+      setToast({ type: "success", message: "Feedback submitted" });
+    } catch (err: any) {
+      console.error("Error submitting feedback:", err);
+      setToast({ type: "error", message: err?.response?.data?.detail || "Failed to submit feedback" });
+    } finally {
+      setSubmittingFeedback((prev) => {
+        const copy = new Set(prev);
+        copy.delete(questionId);
+        return copy;
+      });
+    }
+  };
+
   useEffect(() => {
     fetchDetailedResult();
   }, [sessionId]);
@@ -145,6 +197,25 @@ const DetailedResultsView: React.FC = () => {
       setLoading(true);
       const data = await assessmentResultsService.getSessionDetailedResult(sessionId);
       setResult(data);
+      try {
+        const feedbackMap = await quizService.getQuestionFeedback(sessionId);
+        const nextFeedback: Record<number, string> = {};
+        const submitted = new Set<number>();
+
+        Object.entries(feedbackMap).forEach(([questionId, feedbackItems]) => {
+          const latestFeedback = feedbackItems[feedbackItems.length - 1];
+          const parsedQuestionId = Number(questionId);
+          if (!Number.isNaN(parsedQuestionId) && latestFeedback) {
+            nextFeedback[parsedQuestionId] = latestFeedback.text || "";
+            submitted.add(parsedQuestionId);
+          }
+        });
+
+        setFeedbackByQuestion(nextFeedback);
+        setSubmittedFeedback(submitted);
+      } catch (feedbackErr) {
+        console.warn("Unable to load existing feedback:", feedbackErr);
+      }
     } catch (err: any) {
       console.error("Error fetching detailed results:", err);
       setError(err?.response?.data?.detail || "Failed to load detailed results");
@@ -470,12 +541,12 @@ const DetailedResultsView: React.FC = () => {
                       <strong>Question:</strong> {question.question_text}
                     </Typography>
 
-                    {question.options && (
+                    {getMcqOptions(question).length > 0 && (
                       <Box mb={2}>
                         <Typography variant="body2" mb={1}>
                           <strong>Options:</strong>
                         </Typography>
-                        {Object.entries(question.options).map(([key, value]) => (
+                        {getMcqOptions(question).map(([key, value]) => (
                           <Typography
                             key={key}
                             variant="body2"
@@ -548,6 +619,47 @@ const DetailedResultsView: React.FC = () => {
                           "Mark Correct"}
                       </Button>
                     </Box>
+
+                    {isNonMcqQuestion(question) && (
+                      <Box mt={2} className="admin-feedback-panel">
+                        <TextField
+                          fullWidth
+                          multiline
+                          minRows={3}
+                          placeholder="Write feedback (optional)"
+                          value={feedbackByQuestion[question.question_id] || ""}
+                          onChange={(e) => handleFeedbackChange(question.question_id, e.target.value)}
+                          disabled={submittedFeedback.has(question.question_id)}
+                        />
+                        <Box mt={1.5} display="flex" alignItems="center" gap={1}>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => handleSubmitFeedback(question.question_id)}
+                            disabled={
+                              submittedFeedback.has(question.question_id) ||
+                              submittingFeedback.has(question.question_id)
+                            }
+                          >
+                            {submittingFeedback.has(question.question_id) ? (
+                              <CircularProgress size={16} />
+                            ) : submittedFeedback.has(question.question_id) ? (
+                              "Feedback Submitted"
+                            ) : (
+                              "Submit Feedback"
+                            )}
+                          </Button>
+                          {submittedFeedback.has(question.question_id) && (
+                            <Chip
+                              size="small"
+                              color="success"
+                              variant="outlined"
+                              label="Submitted"
+                            />
+                          )}
+                        </Box>
+                      </Box>
+                    )}
                   </Box>
                 </AccordionDetails>
               </Accordion>

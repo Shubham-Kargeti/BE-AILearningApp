@@ -301,6 +301,15 @@ export interface QuizResultResponse {
   completed_at: string;
 }
 
+export interface QuestionFeedbackItem {
+  feedback_id: number;
+  question_id: number;
+  text: string;
+  created_at: string;
+}
+
+export type QuestionFeedbackMap = Record<string, QuestionFeedbackItem[]>;
+
 export interface SkillExtractionResponse {
   role?: string;
   skills?: Array<string | { skill_name?: string }>;
@@ -535,6 +544,14 @@ export const quizService = {
     return response.data;
   },
 
+  getQuestionFeedback: async (sessionId: string): Promise<QuestionFeedbackMap> => {
+    const response = await apiClient.get<{ feedback: QuestionFeedbackMap }>(
+      `/questionset-tests/feedback/${sessionId}`,
+      { headers: { "x-cache-skip": "true" } }
+    );
+    return response.data.feedback || {};
+  },
+
 };
 
 export const candidateService = {
@@ -682,6 +699,21 @@ export const uploadService = {
           onProgress(Math.round((event.loaded * 100) / event.total));
         }
       },
+    });
+    return response.data;
+  },
+  submitQuestionFeedback: async (
+    sessionId: string,
+    questionId: number,
+    feedback: string
+  ): Promise<{
+    message: string;
+    feedback_id: number;
+  }> => {
+    const response = await apiClient.post("/admin/feedback", {
+      session_id: sessionId,
+      question_id: questionId,
+      feedback,
     });
     return response.data;
   },
@@ -975,6 +1007,7 @@ export const assessmentResultsService = {
     questions: Array<{
       question_id: number;
       question_text: string;
+      question_type?: string | null;
       topic: string | null;
       difficulty: string | null;
       candidate_answer: string;
@@ -1011,6 +1044,7 @@ export const assessmentResultsService = {
     questions: Array<{
       question_id: number;
       question_text: string;
+      question_type?: string | null;
       topic: string | null;
       difficulty: string | null;
       candidate_answer: string;
@@ -1079,6 +1113,8 @@ export const assessmentResultsService = {
     );
     return response.data;
   },
+
+  
 };
 
 export default apiClient;

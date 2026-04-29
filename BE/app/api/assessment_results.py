@@ -23,6 +23,7 @@ class DetailedQuestionResult(BaseModel):
     """Detailed result for a single question."""
     question_id: int
     question_text: str
+    question_type: Optional[str] = None
     topic: Optional[str] = None
     difficulty: Optional[str] = None
     candidate_answer: str
@@ -30,6 +31,14 @@ class DetailedQuestionResult(BaseModel):
     is_correct: bool
     options: Optional[dict] = None
     time_taken_seconds: Optional[int] = None
+
+
+def resolve_question_type(question: Question) -> str:
+    if isinstance(question.options, dict):
+        qtype = question.options.get("type")
+        if isinstance(qtype, str) and qtype:
+            return qtype
+    return "mcq"
 
 
 class CandidateResultDetail(BaseModel):
@@ -140,6 +149,7 @@ async def get_assessment_detailed_results(
             question_results.append(DetailedQuestionResult(
                 question_id=question.id,
                 question_text=question.question_text,
+                question_type=resolve_question_type(question),
                 topic=question.topic,
                 difficulty=question.difficulty,
                 candidate_answer=answer.selected_answer,
@@ -240,6 +250,7 @@ async def get_session_detailed_result(
         question_results.append(DetailedQuestionResult(
             question_id=question.id,
             question_text=question.question_text,
+            question_type=resolve_question_type(question),
             topic=question.topic,
             difficulty=question.difficulty,
             candidate_answer=answer.selected_answer,

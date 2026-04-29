@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, AliasChoices
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -80,9 +80,11 @@ class SubmitAllAnswersRequest(BaseModel):
 
 class FeedbackCreate(BaseModel):
     """Request to create feedback for a question."""
+    model_config = ConfigDict(populate_by_name=True)
+
     session_id: str
     question_id: int
-    feedback_text: str
+    feedback_text: str = Field(default="", validation_alias=AliasChoices("feedback_text", "feedback"))
 
 class QuestionResultDetailed(BaseModel):
     """Detailed result for a single question."""

@@ -626,9 +626,7 @@ async def create_feedback(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Validate input
-    if not payload.feedback_text.strip():
-        raise HTTPException(status_code=400, detail="Feedback cannot be empty")
+    feedback_text = payload.feedback_text.strip()
 
     # Get test_session_id (int) from session_id (string)
     result = await db.execute(
@@ -659,7 +657,7 @@ async def create_feedback(
         answer_id=answer.id,
         question_id=payload.question_id,
         created_by=current_user.id,
-        feedback_text=payload.feedback_text
+        feedback_text=feedback_text
     )
 
     db.add(feedback)
