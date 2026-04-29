@@ -675,7 +675,7 @@ export const uploadService = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await apiClient.post("/upload-jd", formData, {
+    const response = await apiClient.post("/upload-jd/", formData, {
       headers: { "Content-Type": "multipart/form-data" },
       onUploadProgress: (event) => {
         if (onProgress && event.total) {
