@@ -566,25 +566,34 @@ async def extract_role_from_jd(
         file_bytes = await file.read()
         jd_text = extract_text(file_bytes, file.filename)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Text extraction failed: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Text extraction failed: {str(e)}"
+        )
 
     # 3. Get LLM
     llm = _get_llm()
 
-    # 4. Prompt (STRICT output)
+    # 4. Prompt (STRICT JSON OUTPUT)
     prompt = f"""
-You are an AI that extracts ROLE TYPE from job descriptions.
+You are an AI that extracts ROLE INFORMATION from job descriptions.
 
 Return ONLY raw JSON. Do NOT wrap in backticks or code blocks.
 
 Output format:
 {{
+  "role": "<short role title>",
   "role_type": "tech" | "non-tech"
 }}
 
 Rules:
-- "tech" → software, data, engineering, developer roles
-- "non-tech" → HR, sales, marketing, operations, finance, etc.
+- "role" → Extract a clear, concise job title from the JD (e.g., "Software Engineer", "Data Analyst", "Product Manager", "HR Executive")
+- Do NOT invent roles. Infer from JD content if not explicitly given
+- Keep role short (2-5 words max)
+
+- "tech" → software, data, engineering, developer, IT roles
+- "non-tech" → HR, sales, marketing, operations, finance, business roles
+
 - No explanation
 - No markdown
 - No extra text
@@ -599,6 +608,7 @@ JD:
             {"role": "system", "content": "You are a strict JSON generator."},
             {"role": "user", "content": prompt}
        ])
+
         content = response.content if hasattr(response, "content") else str(response)
         print("\n=== LLM Role RAW RESPONSE ===")
         print(content)
@@ -608,15 +618,22 @@ JD:
 
     except Exception:
         # fallback safety
-        parsed = {"role_type": "tech"}
+        parsed = {
+            "role": "Software Engineer",
+            "role_type": "tech"
+        }
 
     # 6. Ensure default
-    print("\n=== PARSED ROLE EXTRACTION RESULT ===")
     print("Parsed:", parsed)
+    role = parsed.get("role", "Software Engineer")
     role_type = parsed.get("role_type", "tech")
+
+    print("\n=== FINAL PARSED RESULT ===")
+    print("role:", role)
     print("role_type:", role_type)
 
     return {
+        "role": role,
         "role_type": role_type
     }
 

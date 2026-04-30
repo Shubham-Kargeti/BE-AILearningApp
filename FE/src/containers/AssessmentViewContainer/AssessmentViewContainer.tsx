@@ -529,6 +529,8 @@ const AssessmentViewContainer: React.FC = () => {
   }
 
   const statusInfo = getStatusInfo();
+  const desc = assessment.description?.toLowerCase() || "";
+  const isRoleBased = desc.includes("jd") || desc.includes("job description");
   const skills = Object.entries(assessment.required_skills || {});
   const assessmentLink = `${window.location.origin}/candidate-assessment/${assessment.assessment_id}`;
   const variantCards = [assessment, ...variants]
@@ -579,18 +581,20 @@ const AssessmentViewContainer: React.FC = () => {
         </button>
 
         <div className="header-actions">
-          <button
-            className="btn btn-primary"
-            onClick={handleGenerateMore}
-            disabled={generatingVariant}
-          >
-            {generatingVariant ? (
-              <span className="btn-spinner" />
-            ) : (
-              <FiLayers size={16} />
-            )}
-            Generate More
-          </button>
+          {isRoleBased && (
+            <button
+              className="btn btn-primary"
+              onClick={handleGenerateMore}
+              disabled={generatingVariant}
+            >
+              {generatingVariant ? (
+                <span className="btn-spinner" />
+              ) : (
+                <FiLayers size={16} />
+              )}
+              Generate More
+            </button>
+          )}
           <button
             className={`btn ${assessment.is_published ? 'btn-warning' : 'btn-success'}`}
             onClick={handlePublish}
