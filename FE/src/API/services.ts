@@ -373,6 +373,28 @@ export interface RecommendedCourse {
   course_level?: string;
 }
 
+export interface AssignedLearningPath {
+  id: number;
+  learning_path_id: string;
+  session_id: string;
+  assessment_id?: string | null;
+  assessment_title?: string | null;
+  employee_email: string;
+  employee_name?: string | null;
+  topic: string;
+  recommended_courses: RecommendedCourse[];
+  course_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LearningPathEmployeeSummary {
+  employee_email: string;
+  employee_name?: string | null;
+  learning_path_count: number;
+  last_assigned_at: string;
+}
+
 export const authService = {
   login: async (email: string): Promise<TokenResponse> => {
     const response = await apiClient.post<TokenResponse>("/auth/login", { email });
@@ -609,7 +631,13 @@ export const candidateService = {
   },
   getEmployeeLearningPath: async () => {
     const response = await apiClient.get("/learning-path/employee");
-    return response.data;
+    return response.data as { learning_paths: AssignedLearningPath[] };
+  },
+  getEmployeeLearningPathDetail: async (learningPathId: string): Promise<AssignedLearningPath> => {
+    const response = await apiClient.get(
+      `/learning-path/employee/${encodeURIComponent(learningPathId)}`
+    );
+    return response.data as AssignedLearningPath;
   },
 };
 
@@ -906,7 +934,26 @@ export const coursesService = {
       "/learning-path/push-to-employee",
       data
     );
-    return response.data;
+    return response.data as {
+      message: string;
+      email: string;
+      learning_path: AssignedLearningPath;
+      assigned_count: number;
+    };
+  },
+  listLearningPathEmployees: async () => {
+    const response = await apiClient.get("/learning-path/admin/employees");
+    return response.data as { employees: LearningPathEmployeeSummary[] };
+  },
+  listEmployeeLearningPathsForAdmin: async (employeeEmail: string) => {
+    const response = await apiClient.get(
+      `/learning-path/admin/employee/${encodeURIComponent(employeeEmail)}`
+    );
+    return response.data as {
+      employee_email: string;
+      learning_path_count: number;
+      learning_paths: AssignedLearningPath[];
+    };
   },
 };
 

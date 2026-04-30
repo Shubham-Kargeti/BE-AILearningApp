@@ -228,6 +228,145 @@
   }
 }
 
+.admin-assignments-panel {
+  margin-top: 2rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1.5rem;
+  background: #f8fafc;
+
+  .assignments-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+
+    h2 {
+      margin: 0 0 0.35rem;
+      color: #111827;
+      font-size: 1.25rem;
+    }
+
+    p {
+      margin: 0;
+      color: #64748b;
+    }
+  }
+
+  .refresh-assignments-button {
+    border: 1px solid #c7d2fe;
+    color: #4338ca;
+    background: #eef2ff;
+    border-radius: 8px;
+    padding: 0.65rem 1rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .assignments-empty {
+    padding: 1rem;
+    color: #64748b;
+    background: #fff;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+  }
+
+  .assignments-layout {
+    display: grid;
+    grid-template-columns: minmax(240px, 320px) 1fr;
+    gap: 1rem;
+  }
+
+  .employee-assignment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .employee-assignment-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    width: 100%;
+    text-align: left;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.9rem;
+    cursor: pointer;
+
+    &.active,
+    &:hover {
+      border-color: #6366f1;
+      background: #eef2ff;
+    }
+
+    .employee-name {
+      color: #111827;
+      font-weight: 800;
+    }
+
+    .employee-email {
+      color: #64748b;
+      word-break: break-word;
+    }
+
+    .employee-count {
+      color: #4338ca;
+      font-weight: 700;
+    }
+  }
+
+  .employee-path-detail {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+
+    h3 {
+      margin: 0 0 1rem;
+      color: #111827;
+      word-break: break-word;
+    }
+  }
+
+  .employee-path-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .employee-path-card {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+
+    h4 {
+      margin: 0 0 0.35rem;
+      color: #111827;
+    }
+
+    p {
+      margin: 0;
+      color: #4f46e5;
+      font-weight: 700;
+    }
+  }
+
+  .path-card-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.35rem;
+    color: #64748b;
+    white-space: nowrap;
+  }
+}
+
 @media (max-width: 768px) {
   .learning-path-container {
     padding: 1rem;
@@ -244,6 +383,21 @@
       .courses-grid {
         grid-template-columns: 1fr;
       }
+    }
+  }
+
+  .admin-assignments-panel {
+    .assignments-header,
+    .employee-path-card {
+      flex-direction: column;
+    }
+
+    .assignments-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .path-card-meta {
+      align-items: flex-start;
     }
   }
 }

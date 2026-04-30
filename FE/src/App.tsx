@@ -70,6 +70,7 @@ function App() {
           <Route path={client.ASSESSMENTS} element={<AssessmentsListContainer />} />
           {/*<Route path="learning-paths" element={<LearningPathsContainer />} /> */}
           <Route path="learning-paths" element={<EmployeeLearningPath />} />
+          <Route path="learning-paths/:learningPathId" element={<EmployeeLearningPath />} />
         </Route>
 
         <Route

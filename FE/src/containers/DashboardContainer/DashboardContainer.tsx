@@ -24,7 +24,6 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import SchoolIcon from "@mui/icons-material/School";
-import StarIcon from "@mui/icons-material/Star";
 import LocalFireDepartmentIcon from "@mui/icons-material/LocalFireDepartment";
 import Tooltip from "@mui/material/Tooltip";
 import { useNavigate } from "react-router-dom";
@@ -146,13 +145,6 @@ const DashboardContainer = () => {
     } finally {
       setLoadingSessions(false);
     }
-  };
-
-  const formatDuration = (seconds: number | null) => {
-    if (!seconds) return "N/A";
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${minutes}m ${secs}s`;
   };
 
   // Calculate statistics
@@ -844,7 +836,7 @@ const DashboardContainer = () => {
                               </Box>
                             </Box>
                           )} */}
-                        {/* </CardContent> */} */
+                        {/* </CardContent> */} 
                       {/* </Card>
                     </Grid>
                   );

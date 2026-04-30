@@ -280,6 +280,54 @@ class QuestionFeedback(Base, TimestampMixin):
     question: Mapped["Question"] = relationship("Question")    
 
 
+class LearningPath(Base, TimestampMixin):
+    """Assigned learning path snapshot for an employee assessment attempt."""
+
+    __tablename__ = "learning_paths"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    learning_path_id: Mapped[str] = mapped_column(
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: f"lp_{uuid.uuid4().hex[:12]}"
+    )
+
+    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    employee_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    employee_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    session_id: Mapped[str] = mapped_column(
+        String(100),
+        ForeignKey("test_sessions.session_id"),
+        nullable=False,
+        index=True
+    )
+    assessment_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("assessments.id"), nullable=True, index=True)
+    assessment_public_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    assessment_title: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    topic: Mapped[str] = mapped_column(String(500), nullable=False)
+    recommended_courses: Mapped[list] = mapped_column(JSON, nullable=False, default=[])
+    pushed_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[user_id])
+    pushed_by_user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[pushed_by])
+    test_session: Mapped["TestSession"] = relationship("TestSession")
+    assessment: Mapped[Optional["Assessment"]] = relationship("Assessment")
+
+    __table_args__ = (
+        UniqueConstraint("employee_email", "session_id", name="uq_learning_path_employee_session"),
+        Index("ix_learning_paths_employee_created", "employee_email", "created_at"),
+        Index("ix_learning_paths_assessment_created", "assessment_id", "created_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<LearningPath(id={self.id}, employee_email='{self.employee_email}', session_id='{self.session_id}')>"
+
+
 class Answer(Base, TimestampMixin):
     """Answer model for storing candidate responses."""
     

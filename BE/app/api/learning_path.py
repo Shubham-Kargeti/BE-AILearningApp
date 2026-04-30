@@ -1,14 +1,14 @@
 """Learning Path API - Generate personalized learning paths from test results."""
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func, desc
 from typing import List, Optional
 import logging
 from pydantic import BaseModel
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, admin_required
 
 from app.db.session import get_db
-from app.db.models import TestSession, Answer, Question, QuestionSet, User
+from app.db.models import TestSession, Answer, Question, QuestionSet, User, Assessment, LearningPath
 
 
 from app.models.schemas import CourseRecommendation, RecommendedCoursesResponse
@@ -18,6 +18,36 @@ class PushLearningPathRequest(BaseModel):
     session_id: str
     topic: str
     recommended_courses: list
+
+
+def serialize_learning_path(path: LearningPath) -> dict:
+    return {
+        "id": path.id,
+        "learning_path_id": path.learning_path_id,
+        "session_id": path.session_id,
+        "assessment_id": path.assessment_public_id,
+        "assessment_title": path.assessment_title,
+        "employee_email": path.employee_email,
+        "employee_name": path.employee_name,
+        "topic": path.topic,
+        "recommended_courses": path.recommended_courses or [],
+        "course_count": len(path.recommended_courses or []),
+        "created_at": path.created_at,
+        "updated_at": path.updated_at,
+    }
+
+
+async def get_assessment_for_session(db: AsyncSession, session: TestSession) -> Optional[Assessment]:
+    if not session.question_set_id:
+        return None
+
+    result = await db.execute(
+        select(Assessment)
+        .where(Assessment.question_set_id == session.question_set_id)
+        .order_by(desc(Assessment.created_at))
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -29,22 +59,49 @@ import math
 
 @router.get("/learning-path/employee")
 async def get_employee_learning_path(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    from app.utils.learning_path_store import get_learning_path
     """
     📥 Get pushed learning path for logged-in employee
     """
 
-    data = get_learning_path(current_user.email)
-
-    if not data:
-        raise HTTPException(
-            status_code=404,
-            detail="No learning path assigned yet"
+    result = await db.execute(
+        select(LearningPath)
+        .where(
+            and_(
+                LearningPath.employee_email == current_user.email,
+                LearningPath.is_active == True
+            )
         )
+        .order_by(desc(LearningPath.created_at))
+    )
+    paths = result.scalars().all()
 
-    return data
+    return {"learning_paths": [serialize_learning_path(path) for path in paths]}
+
+
+@router.get("/learning-path/employee/{learning_path_id}")
+async def get_employee_learning_path_detail(
+    learning_path_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(LearningPath).where(
+            and_(
+                LearningPath.learning_path_id == learning_path_id,
+                LearningPath.employee_email == current_user.email,
+                LearningPath.is_active == True
+            )
+        )
+    )
+    path = result.scalar_one_or_none()
+
+    if not path:
+        raise HTTPException(status_code=404, detail="Learning path not found")
+
+    return serialize_learning_path(path)
 
 
 
@@ -235,10 +292,9 @@ async def generate_learning_path(
 @router.post("/learning-path/push-to-employee")
 async def push_learning_path(
     payload: PushLearningPathRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required)
 ):
-    
-    from app.utils.learning_path_store import save_learning_path
     """
     📤 Push finalized learning path to employee
     """
@@ -252,26 +308,127 @@ async def push_learning_path(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # 2. Fetch user
-    result = await db.execute(
-        select(User).where(User.id == session.user_id)
-    )
-    user = result.scalar_one_or_none()
+    user = None
+    if session.user_id:
+        result = await db.execute(select(User).where(User.id == session.user_id))
+        user = result.scalar_one_or_none()
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    employee_email = user.email if user else session.candidate_email
+    if not employee_email:
+        raise HTTPException(status_code=404, detail="Employee email not found for this session")
 
-    # 3. Save snapshot
-    save_learning_path(
-        email=user.email,
-        session_id=payload.session_id,
-        topic=payload.topic,
-        courses=payload.recommended_courses
+    employee_name = user.full_name if user and user.full_name else session.candidate_name
+    assessment = await get_assessment_for_session(db, session)
+
+    existing_result = await db.execute(
+        select(LearningPath).where(
+            and_(
+                LearningPath.employee_email == employee_email,
+                LearningPath.session_id == payload.session_id
+            )
+        )
     )
+    learning_path = existing_result.scalar_one_or_none()
+
+    if learning_path:
+        learning_path.user_id = user.id if user else session.user_id
+        learning_path.employee_name = employee_name
+        learning_path.assessment_id = assessment.id if assessment else None
+        learning_path.assessment_public_id = assessment.assessment_id if assessment else None
+        learning_path.assessment_title = assessment.title if assessment else session.question_set_id
+        learning_path.topic = payload.topic
+        learning_path.recommended_courses = payload.recommended_courses
+        learning_path.pushed_by = current_user.id
+        learning_path.is_active = True
+    else:
+        learning_path = LearningPath(
+            user_id=user.id if user else session.user_id,
+            employee_email=employee_email,
+            employee_name=employee_name,
+            session_id=payload.session_id,
+            assessment_id=assessment.id if assessment else None,
+            assessment_public_id=assessment.assessment_id if assessment else None,
+            assessment_title=assessment.title if assessment else session.question_set_id,
+            topic=payload.topic,
+            recommended_courses=payload.recommended_courses,
+            pushed_by=current_user.id,
+            is_active=True,
+        )
+        db.add(learning_path)
+
+    await db.commit()
+    await db.refresh(learning_path)
+
+    count_result = await db.execute(
+        select(func.count(LearningPath.id)).where(
+            and_(
+                LearningPath.employee_email == employee_email,
+                LearningPath.is_active == True
+            )
+        )
+    )
+    assigned_count = count_result.scalar_one()
 
     return {
         "message": "Learning path pushed successfully",
-        "email": user.email
+        "email": employee_email,
+        "learning_path": serialize_learning_path(learning_path),
+        "assigned_count": assigned_count,
+    }
+
+
+@router.get("/learning-path/admin/employees")
+async def list_learning_path_employees(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required)
+):
+    result = await db.execute(
+        select(
+            LearningPath.employee_email,
+            func.max(LearningPath.employee_name),
+            func.count(LearningPath.id),
+            func.max(LearningPath.updated_at),
+        )
+        .where(LearningPath.is_active == True)
+        .group_by(LearningPath.employee_email)
+        .order_by(func.max(LearningPath.updated_at).desc())
+    )
+
+    employees = [
+        {
+            "employee_email": email,
+            "employee_name": name,
+            "learning_path_count": count,
+            "last_assigned_at": last_assigned_at,
+        }
+        for email, name, count, last_assigned_at in result.all()
+    ]
+
+    return {"employees": employees}
+
+
+@router.get("/learning-path/admin/employee/{employee_email}")
+async def list_employee_learning_paths_for_admin(
+    employee_email: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required)
+):
+    result = await db.execute(
+        select(LearningPath)
+        .where(
+            and_(
+                LearningPath.employee_email == employee_email,
+                LearningPath.is_active == True
+            )
+        )
+        .order_by(desc(LearningPath.created_at))
+    )
+    paths = result.scalars().all()
+
+    return {
+        "employee_email": employee_email,
+        "learning_path_count": len(paths),
+        "learning_paths": [serialize_learning_path(path) for path in paths],
     }
 
 
