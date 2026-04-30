@@ -266,23 +266,23 @@ const AssessmentQuestionEditor: React.FC<Props> = ({
         {/* Filter */}
         <FormControl size="small" sx={{ minWidth: 200 }}>
           <InputLabel>Filter</InputLabel>
-          <Select
-            value={questionTypeFilter}
-            onChange={(e) => setQuestionTypeFilter(e.target.value)}
-            label="Filter by Type"
-          >
-            <MenuItem value="all">All</MenuItem>
-            <MenuItem value="mcq">MCQ</MenuItem>
-            {roleCategory === "tech" && (
-              <>
-                <MenuItem value="coding">Coding</MenuItem>
-                <MenuItem value="architecture">Architecture</MenuItem>
-              </>
-            )}
-            {roleCategory === "non-tech" && (
-              <MenuItem value="scenario">Scenario Based</MenuItem>
-            )}
-          </Select>
+           <Select
+             value={questionTypeFilter}
+             onChange={(e) => setQuestionTypeFilter(e.target.value)}
+             label="Filter by Type"
+           >
+             <MenuItem value="all">All</MenuItem>
+             <MenuItem value="mcq">MCQ</MenuItem>
+           
+             {roleCategory === "tech" && [
+               <MenuItem key="coding" value="coding">Coding</MenuItem>,
+               <MenuItem key="architecture" value="architecture">Architecture</MenuItem>
+             ]}
+
+             {roleCategory === "non-tech" && (
+               <MenuItem value="scenario">Scenario Based</MenuItem>
+             )}
+           </Select>
         </FormControl>
       </Box>
 

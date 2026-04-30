@@ -164,20 +164,20 @@ const DashboardContainer = () => {
   useEffect(() => {
     getRecommendedCourses();
     fetchTestSessions();
-    fetchMyAssessments();
+    // fetchMyAssessments();
   }, []);
 
-  const fetchMyAssessments = async () => {
-    try {
-      setLoadingAssessments(true);
-      const assessments = await candidateService.getMyAssessments();
-      setMyAssessments(assessments);
-    } catch (error) {
-      console.error("Error fetching my assessments:", error);
-    } finally {
-      setLoadingAssessments(false);
-    }
-  };
+  // const fetchMyAssessments = async () => {
+  //   try {
+  //     setLoadingAssessments(true);
+  //     const assessments = await candidateService.getMyAssessments();
+  //     setMyAssessments(assessments);
+  //   } catch (error) {
+  //     console.warn("Error fetching my assessments:", error);
+  //   } finally {
+  //     setLoadingAssessments(false);
+  //   }
+  // };
   
   return (
     <>
