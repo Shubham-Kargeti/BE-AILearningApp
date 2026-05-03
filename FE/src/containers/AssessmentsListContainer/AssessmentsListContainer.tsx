@@ -346,6 +346,7 @@ const AssessmentsListContainer = () => {
     <Box
       sx={{
         minHeight: "100vh",
+        ml: { xs: 0, md: "100px" },
         background:
           "radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 28%), linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%)",
         px: { xs: 2, md: 4 },
