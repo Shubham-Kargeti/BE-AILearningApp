@@ -6,6 +6,7 @@ from typing import List, Optional
 import logging
 from pydantic import BaseModel
 from app.core.dependencies import get_current_user, admin_required
+from datetime import datetime
 
 from app.db.session import get_db
 from app.db.models import TestSession, Answer, Question, QuestionSet, User, Assessment, LearningPath
@@ -18,6 +19,10 @@ class PushLearningPathRequest(BaseModel):
     session_id: str
     topic: str
     recommended_courses: list
+
+
+class SelfLearningPathRequest(BaseModel):
+    session_id: str
 
 
 def serialize_learning_path(path: LearningPath) -> dict:
@@ -48,6 +53,12 @@ async def get_assessment_for_session(db: AsyncSession, session: TestSession) -> 
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+def build_self_assessed_title(topic: str) -> str:
+    date_label = datetime.now().strftime("%b %d, %Y")
+    skill_label = (topic or "General").strip()
+    return f"Self assessed learning path - {date_label} - {skill_label}"
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -285,6 +296,93 @@ async def generate_learning_path(
     
     return safe_response
 
+
+
+@router.post("/learning-path/self")
+async def save_self_assessed_learning_path(
+    payload: SelfLearningPathRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Save a learning path generated from the logged-in employee's self assessment.
+    """
+
+    result = await db.execute(
+        select(TestSession).where(TestSession.session_id == payload.session_id)
+    )
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Test session not found")
+
+    if session.user_id and session.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You cannot save a learning path for this session")
+
+    if not session.user_id and session.candidate_email != current_user.email:
+        raise HTTPException(status_code=403, detail="You cannot save a learning path for this session")
+
+    if not session.is_completed:
+        raise HTTPException(status_code=400, detail="Test session not yet completed")
+
+    learning_path_data = await generate_learning_path(payload.session_id, db)
+    topic = learning_path_data.get("topic") or "General"
+    recommended_courses = learning_path_data.get("recommended_courses") or []
+
+    title_topic = topic
+    if session.question_set_id:
+        question_set_result = await db.execute(
+            select(QuestionSet).where(QuestionSet.question_set_id == session.question_set_id)
+        )
+        question_set = question_set_result.scalar_one_or_none()
+        if question_set and question_set.skill:
+            title_topic = question_set.skill
+
+    existing_result = await db.execute(
+        select(LearningPath).where(
+            and_(
+                LearningPath.employee_email == current_user.email,
+                LearningPath.session_id == payload.session_id
+            )
+        )
+    )
+    learning_path = existing_result.scalar_one_or_none()
+
+    self_title = build_self_assessed_title(title_topic)
+
+    if learning_path:
+        learning_path.user_id = current_user.id
+        learning_path.employee_name = current_user.full_name
+        learning_path.assessment_id = None
+        learning_path.assessment_public_id = None
+        learning_path.assessment_title = self_title
+        learning_path.topic = topic
+        learning_path.recommended_courses = recommended_courses
+        learning_path.pushed_by = None
+        learning_path.is_active = True
+    else:
+        learning_path = LearningPath(
+            user_id=current_user.id,
+            employee_email=current_user.email,
+            employee_name=current_user.full_name,
+            session_id=payload.session_id,
+            assessment_id=None,
+            assessment_public_id=None,
+            assessment_title=self_title,
+            topic=topic,
+            recommended_courses=recommended_courses,
+            pushed_by=None,
+            is_active=True,
+        )
+        db.add(learning_path)
+
+    await db.commit()
+    await db.refresh(learning_path)
+
+    return {
+        "message": "Self assessed learning path saved successfully",
+        "learning_path": serialize_learning_path(learning_path),
+    }
 
 
 

@@ -425,8 +425,8 @@ export const quizService = {
     const params = new URLSearchParams({
       topic,
       level,
-      ...(subtopics.length > 0 && { subtopics: subtopics.join(",") }),
     });
+    subtopics.forEach((subtopic) => params.append("subtopics", subtopic));
     const response = await apiClient.get<QuestionSet>(`/generate-mcqs/?${params}`);
     return response.data;
   },
@@ -939,6 +939,15 @@ export const coursesService = {
       email: string;
       learning_path: AssignedLearningPath;
       assigned_count: number;
+    };
+  },
+  saveSelfAssessedLearningPath: async (sessionId: string) => {
+    const response = await apiClient.post("/learning-path/self", {
+      session_id: sessionId,
+    });
+    return response.data as {
+      message: string;
+      learning_path: AssignedLearningPath;
     };
   },
   listLearningPathEmployees: async () => {

@@ -15,7 +15,7 @@ import {
   DialogActions,
 } from "@mui/material";
 import "./QuizContainer.scss";
-import { quizService, assessmentService, assessmentProgressService } from "../../API/services";
+import { quizService, assessmentService, assessmentProgressService, coursesService } from "../../API/services";
 import type {
   AssessmentQuestion,
   QuestionSet,
@@ -718,6 +718,15 @@ const QuizContainer = () => {
 
         submitSuccess = true;
         score = res.score_percentage ?? 0;
+
+        if (!isAdminAssessment && sessionId) {
+          try {
+            await coursesService.saveSelfAssessedLearningPath(sessionId);
+          } catch (learningPathError) {
+            console.warn("Self assessed learning path could not be saved:", learningPathError);
+          }
+        }
+
         const correctCount = res.correct_answers ?? Math.round((score / 100) * payloadAnswers.length);
         
         const mcqCount = mcqQuestions.questions.filter(q => q.question_type === 'mcq').length;
@@ -799,7 +808,7 @@ const QuizContainer = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [sessionId, sessionStartedAnonymous, screeningQuestions, locationState, candidateEmail]);
+  }, [sessionId, sessionStartedAnonymous, screeningQuestions, locationState, candidateEmail, isAdminAssessment]);
 
   const goNext = useCallback(() => {
 

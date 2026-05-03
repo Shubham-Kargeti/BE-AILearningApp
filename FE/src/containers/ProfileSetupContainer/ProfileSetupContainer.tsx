@@ -10,6 +10,7 @@ import {
   Chip,
   Paper,
   Container,
+  createFilterOptions,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import "./ProfileSetupContainer.scss";
@@ -24,6 +25,56 @@ import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 const skillOptions = ["Agentic AI"];
 
 const profeciencyOptions = ["Beginner", "Intermediate", "Advanced"];
+
+type CreatableOption = string | { inputValue: string; title: string };
+
+const creatableSkillOptions: CreatableOption[] = skillOptions;
+
+const filter = createFilterOptions<CreatableOption>();
+
+const getOptionLabel = (option: CreatableOption) => {
+  if (typeof option === "string") return option;
+  return option.inputValue;
+};
+
+const normalizeTags = (values: CreatableOption[]) => {
+  const seen = new Set<string>();
+  return values.reduce<string[]>((acc, value) => {
+    const tag = getOptionLabel(value).trim();
+    const key = tag.toLowerCase();
+    if (tag && !seen.has(key)) {
+      seen.add(key);
+      acc.push(tag);
+    }
+    return acc;
+  }, []);
+};
+
+const getHelperText = (error: unknown) =>
+  typeof error === "string" ? error : undefined;
+
+const renderCreatableTags = (
+  value: readonly CreatableOption[],
+  getTagProps: (args: { index: number }) => Record<string, unknown>
+) =>
+  value.map((option: CreatableOption, index: number) => (
+    <Chip
+      {...getTagProps({ index })}
+      key={`${getOptionLabel(option)}-${index}`}
+      label={getOptionLabel(option)}
+      sx={{
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: 'white',
+        fontWeight: 600,
+        '& .MuiChip-deleteIcon': {
+          color: 'rgba(255,255,255,0.8)',
+          '&:hover': {
+            color: 'white'
+          }
+        }
+      }}
+    />
+  ));
 
 interface ProfileSetupFormValues {
   role: string;
@@ -56,7 +107,8 @@ const ProfileSetupContainer = () => {
 
       const { expertise, skills, subSkills } = values;
       const userprofileData = {
-        topic: skills[0] || "",
+        topic: skills.join(", "),
+        skills,
         subtopics: subSkills,
         level: convertProficiency(expertise) || "",
       };
@@ -66,10 +118,20 @@ const ProfileSetupContainer = () => {
   });
 
   const getSubTopicsBasedOnSkills = async (skills: string[]) => {
+    if (skills.length === 0) {
+      setSubSkillsOptions([]);
+      return;
+    }
+
     try {
       setLoading(true);
-      const res = await quizService.getSubSkills(skills[0]);
-      setSubSkillsOptions(res || []);
+      const results = await Promise.allSettled(
+        skills.map((skill) => quizService.getSubSkills(skill))
+      );
+      const fetchedSubSkills = results.flatMap((result) =>
+        result.status === "fulfilled" ? result.value : []
+      );
+      setSubSkillsOptions(normalizeTags(fetchedSubSkills));
       setLoading(false);
     } catch (error) {
       console.error("Error fetching sub topics:", error);
@@ -78,11 +140,14 @@ const ProfileSetupContainer = () => {
   };
 
   const handleChange = (field: string, value: any) => {
-    formik.setFieldValue(field, value);
     if (field === "skills") {
-      formik.setFieldValue("subSkills", []);
-      getSubTopicsBasedOnSkills(value);
+      const normalizedSkills = normalizeTags(value);
+      formik.setFieldValue("skills", normalizedSkills);
+      getSubTopicsBasedOnSkills(normalizedSkills);
+      return;
     }
+
+    formik.setFieldValue(field, value);
   };
 
   if (loading) return <Loader fullscreen message="Loading SubSkills..." />;
@@ -205,37 +270,45 @@ const ProfileSetupContainer = () => {
               </Box>
 
               <Autocomplete
+                <CreatableOption, true, false, true>
                 multiple
+                freeSolo
+                selectOnFocus
+                clearOnBlur
+                handleHomeEndKeys
                 id="skills"
-                options={skillOptions}
+                options={creatableSkillOptions}
                 value={formik.values.skills}
                 onChange={(_event, value) => handleChange("skills", value)}
-                renderTags={(value: readonly string[], getTagProps) =>
-                  value.map((option: string, index: number) => (
-                    <Chip
-                      {...getTagProps({ index })}
-                      key={index}
-                      label={option}
-                      sx={{
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        color: 'white',
-                        fontWeight: 600,
-                        '& .MuiChip-deleteIcon': {
-                          color: 'rgba(255,255,255,0.8)',
-                          '&:hover': {
-                            color: 'white'
-                          }
-                        }
-                      }}
-                    />
-                  ))
-                }
+                filterOptions={(options, params) => {
+                  const filtered = filter(options, params);
+                  const inputValue = params.inputValue.trim();
+                  const alreadySelected = formik.values.skills.some(
+                    (skill) => skill.toLowerCase() === inputValue.toLowerCase()
+                  );
+
+                  if (inputValue !== "" && !alreadySelected) {
+                    filtered.push({
+                      inputValue,
+                      title: `Add skill "${inputValue}"`,
+                    });
+                  }
+
+                  return filtered;
+                }}
+                getOptionLabel={getOptionLabel}
+                renderOption={(props, option) => (
+                  <li {...props}>
+                    {typeof option === "string" ? option : option.title}
+                  </li>
+                )}
+                renderTags={renderCreatableTags}
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    placeholder="Search or select skills"
+                    placeholder="Type a skill and press Enter"
                     error={formik.touched.skills && Boolean(formik.errors.skills)}
-                    helperText={formik.touched.skills && formik.errors.skills}
+                    helperText={formik.touched.skills && getHelperText(formik.errors.skills)}
                     sx={{
                       '& .MuiOutlinedInput-root': {
                         borderRadius: '12px',
@@ -273,37 +346,47 @@ const ProfileSetupContainer = () => {
               </Box>
 
               <Autocomplete
+                <CreatableOption, true, false, true>
                 multiple
+                freeSolo
+                selectOnFocus
+                clearOnBlur
+                handleHomeEndKeys
                 id="subSkills"
                 options={subSkillsOptions}
                 value={formik.values.subSkills}
-                onChange={(_event, value) => handleChange("subSkills", value)}
-                renderTags={(value: readonly string[], getTagProps) =>
-                  value.map((option: string, index: number) => (
-                    <Chip
-                      {...getTagProps({ index })}
-                      key={index}
-                      label={option}
-                      sx={{
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        color: 'white',
-                        fontWeight: 600,
-                        '& .MuiChip-deleteIcon': {
-                          color: 'rgba(255,255,255,0.8)',
-                          '&:hover': {
-                            color: 'white'
-                          }
-                        }
-                      }}
-                    />
-                  ))
+                onChange={(_event, value) =>
+                  formik.setFieldValue("subSkills", normalizeTags(value))
                 }
+                filterOptions={(options, params) => {
+                  const filtered = filter(options, params);
+                  const inputValue = params.inputValue.trim();
+                  const alreadySelected = formik.values.subSkills.some(
+                    (subSkill) => subSkill.toLowerCase() === inputValue.toLowerCase()
+                  );
+
+                  if (inputValue !== "" && !alreadySelected) {
+                    filtered.push({
+                      inputValue,
+                      title: `Add sub-skill "${inputValue}"`,
+                    });
+                  }
+
+                  return filtered;
+                }}
+                getOptionLabel={getOptionLabel}
+                renderOption={(props, option) => (
+                  <li {...props}>
+                    {typeof option === "string" ? option : option.title}
+                  </li>
+                )}
+                renderTags={renderCreatableTags}
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    placeholder="Search or select sub-skills"
+                    placeholder="Type a sub-skill and press Enter"
                     error={formik.touched.subSkills && Boolean(formik.errors.subSkills)}
-                    helperText={formik.touched.subSkills && formik.errors.subSkills}
+                    helperText={formik.touched.subSkills && getHelperText(formik.errors.subSkills)}
                     sx={{
                       '& .MuiOutlinedInput-root': {
                         borderRadius: '12px',
