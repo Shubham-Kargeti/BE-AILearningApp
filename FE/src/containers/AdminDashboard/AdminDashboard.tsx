@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { 
   FiPlus, FiSearch, FiFilter, FiEye, FiTrash2, 
   FiAlertCircle, FiX, FiCheckCircle, FiClock, FiActivity, FiRefreshCw,
-  FiUsers, FiTrendingUp, FiCalendar
+  FiUsers, FiTrendingUp, FiCalendar, FiBookOpen
 } from "react-icons/fi";
 import Toast from "../../components/Toast/Toast";
 import { assessmentService } from "../../API/services";
@@ -302,13 +302,22 @@ const AdminDashboard: React.FC = () => {
               <FiCalendar size={16} />
               <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
             </div>
-            <button 
-              className="btn btn-primary btn-new-assessment"
-              onClick={() => navigate("/admin/assessment")}
-            >
-              <FiPlus size={18} />
-              <span>New Assessment</span>
-            </button>
+            <div className="header-action-buttons">
+              <button
+                className="btn btn-primary btn-new-assessment"
+                onClick={() => navigate("/admin/assessment")}
+              >
+                <FiPlus size={18} />
+                <span>New Assessment</span>
+              </button>
+              <button
+                className="btn btn-primary btn-view-learning-paths"
+                onClick={() => navigate("/admin/learning-paths/assigned")}
+              >
+                <FiBookOpen size={18} />
+                <span>View Assigned Learning Paths</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

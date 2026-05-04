@@ -25,6 +25,7 @@ import AdminRequirement from "./containers/AdminRequirement/AdminRequirement";
 import AdminSettings from "./containers/AdminSettings/AdminSettings";
 import QuestionBankContainer from "./containers/QuestionBankContainer";
 import LearningPathContainer from "./containers/LearningPathContainer/LearningPathContainer";
+import AdminLearningPathsContainer from "./containers/AdminLearningPathsContainer/AdminLearningPathsContainer";
 //import LearningPathsContainer from "./containers/LearningPathsContainer/LearningPathsContainer";
 import DetailedResultsView from "./containers/DetailedResultsView/DetailedResultsView";
 import AdminAssessmentLandingContainer from "./containers/AdminAssessmentLandingContainer/AdminAssessmentLandingContainer";
@@ -98,6 +99,9 @@ function App() {
           <Route path="assessment/:id/edit" element={<AssessmentSetupContainer />} />
           <Route path="questions" element={<QuestionBankContainer />} />
           <Route path="learning-path/:sessionId" element={<LearningPathContainer />} />
+          <Route path="learning-paths/assigned" element={<AdminLearningPathsContainer />} />
+          <Route path="learning-paths/assigned/:employeeEmail" element={<AdminLearningPathsContainer />} />
+          <Route path="learning-paths/assigned/:employeeEmail/:learningPathId" element={<AdminLearningPathsContainer />} />
           <Route path="assessment-results/:sessionId" element={<DetailedResultsView />} />
           <Route path="add-candidate" element={<AdminAddCandidate />} />
           <Route path="requirement" element={<AdminRequirement />} />
