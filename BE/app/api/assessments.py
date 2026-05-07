@@ -356,7 +356,7 @@ async def get_assessment_variants(
 ) -> List[AssessmentResponse]:
     assessment = await db.get(Assessment, assessment_id)
 
-    if not assessment:
+    if not assessment or not assessment.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Assessment not found",
@@ -369,7 +369,8 @@ async def get_assessment_variants(
             or_(
                 Assessment.parent_assessment_id == root_id,
                 Assessment.id == root_id,
-            )
+            ),
+            Assessment.is_active == True,
         )
         .order_by(Assessment.created_at.asc())
     )
@@ -393,6 +394,12 @@ async def get_assessment(
     assessment = result.scalars().first()
     
     if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assessment not found"
+        )
+
+    if not assessment.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Assessment not found"
@@ -932,7 +939,7 @@ async def update_assessment_metadata(
     # ✅ 1. Update metadata
     # -------------------------
     update_fields = [
-        "title", "description", "job_title",
+        "title", "job_title",
         "required_skills", "required_roles",
         "expires_at",
         "is_active", "is_published"

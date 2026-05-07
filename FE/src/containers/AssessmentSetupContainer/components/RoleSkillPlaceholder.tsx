@@ -2,8 +2,6 @@ import React, { useMemo, useState } from "react";
 import {
   FiAlertCircle,
   FiCheck,
-  FiChevronDown,
-  FiChevronUp,
   FiSliders,
   FiStar,
   FiX,
@@ -119,7 +117,6 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
   const [tempSkillPriority, setTempSkillPriority] = useState<SkillPriority>("must-have");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
-  const [showOtherSkills, setShowOtherSkills] = useState(false);
 
   const getConfig = (skillName: string): SkillConfiguration => {
     const key = skillName.toLowerCase();
@@ -142,54 +139,27 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
     };
   };
 
-  const groupedSkills = useMemo(() => {
-    return skills
-      .map((skill) => {
-        const cfg = getConfig(skill);
-        const isMatched =
-          Boolean(cfg.matched_with_jd) ||
-          jdSkills.some(
-            (jd) =>
-              jd.toLowerCase() === skill.toLowerCase() ||
-              skill.toLowerCase().includes(jd.toLowerCase()) ||
-              jd.toLowerCase().includes(skill.toLowerCase())
-          );
-        const priority = (cfg.priority || skillPriorities[skill] || "").toLowerCase();
-        const confidence = cfg.confidence ?? 1;
-        const important =
-          cfg.effective_level === "advanced" ||
-          isMatched ||
-          priority === "critical" ||
-          priority === "high" ||
-          priority === "must-have" ||
-          cfg.source === "jd" ||
-          cfg.source === "both";
-        const other =
-          cfg.effective_level === "beginner" ||
-          confidence < 0.65 ||
-          cfg.category === "soft" ||
-          priority === "low" ||
-          priority === "resume-based" ||
-          priority === "soft";
-        return {
-          name: skill,
-          config: cfg,
-          isMatched,
-          group: important && !other ? "primary" : "other",
-        };
-      })
-      .sort((a, b) => {
-        if (a.group !== b.group) return a.group === "primary" ? -1 : 1;
-        if (a.isMatched !== b.isMatched) return a.isMatched ? -1 : 1;
-        if (a.config.effective_level === "advanced" && b.config.effective_level !== "advanced") return -1;
-        if (a.config.effective_level !== "advanced" && b.config.effective_level === "advanced") return 1;
-        return a.name.localeCompare(b.name);
-      });
+  const skillRows = useMemo(() => {
+    return skills.map((skill) => {
+      const cfg = getConfig(skill);
+      const isMatched =
+        Boolean(cfg.matched_with_jd) ||
+        jdSkills.some(
+          (jd) =>
+            jd.toLowerCase() === skill.toLowerCase() ||
+            skill.toLowerCase().includes(jd.toLowerCase()) ||
+            jd.toLowerCase().includes(skill.toLowerCase())
+        );
+
+      return {
+        name: skill,
+        config: cfg,
+        isMatched,
+      };
+    });
   }, [skills, jdSkills, skillConfig, skillLevels, skillPriorities]);
 
-  const primarySkills = groupedSkills.filter((skill) => skill.group === "primary");
-  const otherSkills = groupedSkills.filter((skill) => skill.group === "other");
-  const matchedCount = groupedSkills.filter((skill) => skill.isMatched).length;
+  const matchedCount = skillRows.filter((skill) => skill.isMatched).length;
 
   const handleRoleChange = (value: string) => {
     setRole(value);
@@ -294,7 +264,7 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
     });
   };
 
-  const renderSkillRow = (skillData: (typeof groupedSkills)[number]) => {
+  const renderSkillRow = (skillData: (typeof skillRows)[number]) => {
     const cfg = skillData.config;
     const priority = priorityForSkill(skillData.name, cfg);
     const priorityPresentation = getPriorityPresentation(priority);
@@ -507,26 +477,13 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
           </div>
         )}
 
-        {primarySkills.length > 0 && (
+        {skillRows.length > 0 && (
           <div className="skill-config-section">
             <div className="skill-section-header">
               <h3>Skills</h3>
-              <span>{primarySkills.length} prioritized</span>
+              <span>{skillRows.length} total</span>
             </div>
-            <div className="skill-config-list">{primarySkills.map(renderSkillRow)}</div>
-          </div>
-        )}
-
-        {otherSkills.length > 0 && (
-          <div className="skill-config-section">
-            <button type="button" className="collapse-toggle" onClick={() => setShowOtherSkills(!showOtherSkills)}>
-              {showOtherSkills ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
-              {showOtherSkills ? "Hide Other Skills" : `Show Other Skills (${otherSkills.length})`}
-            </button>
-
-            {showOtherSkills && (
-              <div className="skill-config-list collapsed-skills">{otherSkills.map(renderSkillRow)}</div>
-            )}
+            <div className="skill-config-list">{skillRows.map(renderSkillRow)}</div>
           </div>
         )}
 
