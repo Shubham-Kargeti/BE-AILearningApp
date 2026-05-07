@@ -4,15 +4,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import and_
 from datetime import datetime
-from typing import List, Dict, Optional,Any
+from typing import List, Dict, Optional, Any
 import uuid
 import re
 import asyncio
+import json
 
 from app.core.dependencies import get_db, get_current_user
 from app.core.storage import get_s3_service
 from app.utils.generate_questions import _get_llm
-import json
 from app.utils.text_extract import extract_text
 from app.db.models import TestSession, User, UploadedDocument, Answer, QuestionFeedback
 from app.models.schemas import (
@@ -20,6 +20,11 @@ from app.models.schemas import (
     DocumentSkillExtractionResponse,
     ExtractedSkill,
     FeedbackCreate,
+)
+from app.services.skill_intelligence import (
+    SkillIntelligenceResult,
+    SemanticSkill,
+    extract_skill_intelligence,
 )
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-skill-extraction"])
@@ -34,6 +39,63 @@ def allowed_file(filename: str) -> bool:
     """Check if file has allowed extension."""
     ext = filename.split(".")[-1].lower()
     return ext in ALLOWED_EXTENSIONS
+
+
+def _to_response_skill(skill: SemanticSkill, frequency: int = 1) -> ExtractedSkill:
+    return ExtractedSkill(
+        skill_name=skill.skill_name,
+        canonical_name=skill.canonical_name,
+        proficiency_level=skill.proficiency_level,
+        category=skill.category,
+        frequency=frequency,
+        confidence=skill.confidence,
+        inferred=skill.inferred,
+        source=skill.source,
+        evidence=skill.evidence,
+        priority=skill.priority,
+        matched_with_jd=skill.matched_with_jd,
+    )
+
+
+def _skill_summary(skills: List[ExtractedSkill]) -> tuple[dict, dict]:
+    skills_by_category = {}
+    proficiency_distribution = {}
+    for skill in skills:
+        skills_by_category[skill.category] = skills_by_category.get(skill.category, 0) + 1
+        proficiency_distribution[skill.proficiency_level] = proficiency_distribution.get(skill.proficiency_level, 0) + 1
+    return skills_by_category, proficiency_distribution
+
+
+def _summary_from_result(result: SkillIntelligenceResult, skills: List[ExtractedSkill]) -> dict:
+    skills_by_category, proficiency_distribution = _skill_summary(skills)
+    return {
+        "skills_by_category": skills_by_category,
+        "proficiency_distribution": proficiency_distribution,
+        "total_skills_found": len(skills),
+        "role": result.role,
+        "role_type": result.role_type,
+        "role_seniority": result.role_seniority,
+        "role_expectations": result.role_expectations,
+        "inferred_competencies": result.inferred_competencies,
+        "extraction_strategy": result.extraction_strategy,
+        "extraction_confidence": result.extraction_confidence,
+        "fallback_reason": result.fallback_reason,
+    }
+
+
+async def _extract_intelligence_for_doc(text: str, doc_type: str) -> SkillIntelligenceResult:
+    if doc_type == "cv":
+        print("[Skill Extraction] LLM-first resume-only extraction requested")
+        return await extract_skill_intelligence(
+            resume_text=text,
+            fallback_extractor=extract_skills_from_text_advanced,
+        )
+
+    print("[Skill Extraction] LLM-first JD/role extraction requested")
+    return await extract_skill_intelligence(
+        jd_text=text,
+        fallback_extractor=extract_skills_from_text_advanced,
+    )
 
 
 def extract_skills_from_text_advanced(text: str, filename: str = "") -> Dict[str, tuple]:
@@ -205,7 +267,7 @@ async def extract_skills_from_documents(
     - Bulk upload support (single or multiple files)
     - Text extraction from PDF, DOCX, TXT
     - Intelligent skill pattern matching with confidence scores
-    - Proficiency level detection (beginner, intermediate, advanced, expert)
+    - Proficiency level detection (beginner, intermediate, advanced)
     - Aggregated skill summary across all documents
     - Per-document extraction details
     
@@ -292,33 +354,33 @@ async def extract_skills_from_documents(
             print(f"Text extraction failed for {file.filename}: {str(e)}")
             continue
         
-        extracted_skills_dict = extract_skills_from_text_advanced(extracted_text, file.filename)
-        
-        document_skills = []
-        for skill_name, (proficiency, category, confidence) in extracted_skills_dict.items():
-            skill_obj = ExtractedSkill(
-                skill_name=skill_name,
-                proficiency_level=proficiency,
-                category=category,
-                confidence=confidence,
-            )
-            document_skills.append(skill_obj)
-            
-            if skill_name in all_extracted_skills:
-                existing = all_extracted_skills[skill_name]
+        intelligence = await _extract_intelligence_for_doc(extracted_text, doc_type)
+        document_skills = [_to_response_skill(skill) for skill in intelligence.skills]
+
+        print("\n=== LLM-FIRST DOCUMENT SKILLS ===")
+        print(
+            {
+                "file": file.filename,
+                "doc_type": doc_type,
+                "strategy": intelligence.extraction_strategy,
+                "role": intelligence.role,
+                "role_type": intelligence.role_type,
+                "skills": [skill.model_dump() for skill in document_skills],
+            }
+        )
+        print("=================================\n")
+
+        for skill_obj in document_skills:
+            key = skill_obj.canonical_name or skill_obj.skill_name.lower()
+            if key in all_extracted_skills:
+                existing = all_extracted_skills[key]
                 existing.frequency += 1
-                existing.confidence = max(existing.confidence, confidence)
+                existing.confidence = max(existing.confidence, skill_obj.confidence)
             else:
-                all_extracted_skills[skill_name] = ExtractedSkill(
-                    skill_name=skill_name,
-                    proficiency_level=proficiency,
-                    category=category,
-                    frequency=1,
-                    confidence=confidence,
-                )
-            
-            skills_by_category[category] = skills_by_category.get(category, 0) + 1
-            proficiency_distribution[proficiency] = proficiency_distribution.get(proficiency, 0) + 1
+                all_extracted_skills[key] = skill_obj
+
+            skills_by_category[skill_obj.category] = skills_by_category.get(skill_obj.category, 0) + 1
+            proficiency_distribution[skill_obj.proficiency_level] = proficiency_distribution.get(skill_obj.proficiency_level, 0) + 1
         
         try:
             file_id = f"file_{uuid.uuid4().hex[:12]}"
@@ -467,34 +529,22 @@ async def extract_skills_single_file(
             detail="Could not extract text from the document"
         )
     
-    # Extract skills from text
-    extracted_skills_dict = extract_skills_from_text_advanced(extracted_text, file.filename)
+    intelligence = await _extract_intelligence_for_doc(extracted_text, doc_type)
+    document_skills = [_to_response_skill(skill) for skill in intelligence.skills]
 
-# Debug: Print raw extracted skills before model conversion
-    print("\n=== RAW EXTRACTED SKILLS (Before Model Conversion) ===")
-    for skill, (proficiency, category, confidence) in extracted_skills_dict.items():
-        print(f"Skill: {skill} | Level: {proficiency} | Category: {category} | Confidence: {confidence}")
-    print("========================================================\n")
-# End Debug
-    
-    # Convert to ExtractedSkill objects
-    document_skills = []
-    skills_by_category = {}
-    proficiency_distribution = {}
-    
-    for skill_name, (proficiency, category, confidence) in extracted_skills_dict.items():
-        skill_obj = ExtractedSkill(
-            skill_name=skill_name,
-            proficiency_level=proficiency,
-            category=category,
-            confidence=confidence,
-            frequency=1,
-        )
-        document_skills.append(skill_obj)
-        
-        # Track statistics
-        skills_by_category[category] = skills_by_category.get(category, 0) + 1
-        proficiency_distribution[proficiency] = proficiency_distribution.get(proficiency, 0) + 1
+    print("\n=== LLM-FIRST SKILL EXTRACTION RESULT ===")
+    print(
+        {
+            "file": file.filename,
+            "doc_type": doc_type,
+            "strategy": intelligence.extraction_strategy,
+            "fallback_reason": intelligence.fallback_reason,
+            "role": intelligence.role,
+            "role_type": intelligence.role_type,
+            "skills": [skill.model_dump() for skill in document_skills],
+        }
+    )
+    print("=========================================\n")
     
     # Generate a file ID for reference (without S3 storage)
     file_id = f"file_{uuid.uuid4().hex[:12]}"
@@ -534,11 +584,7 @@ async def extract_skills_single_file(
     total_unique_skills=len(document_skills),
     extracted_skills=document_skills,
     documents=[document_result],
-    extraction_summary={
-        "skills_by_category": skills_by_category,
-        "proficiency_distribution": proficiency_distribution,
-        "total_skills_found": len(document_skills),
-    },
+    extraction_summary=_summary_from_result(intelligence, document_skills),
 )
 
 # 🔥 Debug: print exact JSON response (Pydantic v2)
@@ -547,6 +593,121 @@ async def extract_skills_single_file(
     print("================================================\n")
 
     return response_payload
+
+
+@router.post("/extract-skills-candidate", response_model=AdminBulkSkillExtractionResponse)
+async def extract_skills_candidate_flow(
+    jd_file: UploadFile = File(..., description="Job description document"),
+    resume_file: UploadFile = File(..., description="Candidate resume/CV document"),
+    current_user: User = Depends(get_current_user),
+) -> AdminBulkSkillExtractionResponse:
+    """
+    Candidate-based extraction: JD + resume.
+
+    LLM is the primary extractor. The legacy regex/dictionary extractor runs only
+    if the LLM call, JSON parsing, validation, or confidence checks fail.
+    """
+    for upload, label in ((jd_file, "JD"), (resume_file, "resume")):
+        if not upload.filename or not allowed_file(upload.filename):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid {label} file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
+            )
+
+    jd_bytes = await jd_file.read()
+    resume_bytes = await resume_file.read()
+
+    if len(jd_bytes) > MAX_FILE_SIZE or len(resume_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File too large. Max size: {MAX_FILE_SIZE // (1024*1024)}MB",
+        )
+
+    try:
+        jd_text = extract_text(jd_bytes, jd_file.filename)
+        resume_text = extract_text(resume_bytes, resume_file.filename)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Text extraction failed: {str(e)}",
+        )
+
+    if not jd_text or not resume_text:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Could not extract text from both JD and resume documents",
+        )
+
+    print(
+        "[Skill Extraction] Candidate flow requested",
+        {
+            "user_id": current_user.id,
+            "jd_file": jd_file.filename,
+            "resume_file": resume_file.filename,
+        },
+    )
+
+    intelligence = await extract_skill_intelligence(
+        jd_text=jd_text,
+        resume_text=resume_text,
+        fallback_extractor=extract_skills_from_text_advanced,
+    )
+
+    all_skills = [_to_response_skill(skill) for skill in intelligence.skills]
+    jd_skills = [skill for skill in all_skills if skill.source in {"jd", "both"}]
+    resume_skills = [skill for skill in all_skills if skill.source in {"resume", "both"}]
+
+    print("\n=== CANDIDATE FLOW FINAL SKILLS ===")
+    print(
+        {
+            "strategy": intelligence.extraction_strategy,
+            "fallback_reason": intelligence.fallback_reason,
+            "role": intelligence.role,
+            "role_type": intelligence.role_type,
+            "total_skills": len(all_skills),
+            "overlap": [skill.skill_name for skill in all_skills if skill.matched_with_jd],
+            "skills": [skill.model_dump() for skill in all_skills],
+        }
+    )
+    print("===================================\n")
+
+    jd_file_id = f"file_{uuid.uuid4().hex[:12]}"
+    resume_file_id = f"file_{uuid.uuid4().hex[:12]}"
+
+    documents = [
+        DocumentSkillExtractionResponse(
+            file_id=jd_file_id,
+            original_filename=jd_file.filename,
+            document_category="jd",
+            extracted_skills=jd_skills,
+            total_skills_found=len(jd_skills),
+            extraction_preview=jd_text[:500],
+        ),
+        DocumentSkillExtractionResponse(
+            file_id=resume_file_id,
+            original_filename=resume_file.filename,
+            document_category="cv",
+            extracted_skills=resume_skills,
+            total_skills_found=len(resume_skills),
+            extraction_preview=resume_text[:500],
+        ),
+    ]
+
+    return AdminBulkSkillExtractionResponse(
+        success=True,
+        message=f"Successfully extracted {len(all_skills)} prioritized skills from JD and resume",
+        documents_processed=2,
+        total_unique_skills=len(all_skills),
+        extracted_skills=all_skills,
+        documents=documents,
+        extraction_summary={
+            **_summary_from_result(intelligence, all_skills),
+            "overlapping_skills": [skill.skill_name for skill in all_skills if skill.matched_with_jd],
+            "jd_skill_count": len(jd_skills),
+            "resume_skill_count": len(resume_skills),
+        },
+    )
+
 
 @router.post("/extract-role")
 async def extract_role_from_jd(
@@ -570,6 +731,28 @@ async def extract_role_from_jd(
             status_code=400,
             detail=f"Text extraction failed: {str(e)}"
         )
+
+    intelligence = await extract_skill_intelligence(
+        jd_text=jd_text,
+        fallback_extractor=extract_skills_from_text_advanced,
+    )
+
+    role = intelligence.role or "Unknown Role"
+    role_type = intelligence.role_type or "unknown"
+
+    print("\n=== FINAL PARSED RESULT ===")
+    print("strategy:", intelligence.extraction_strategy)
+    print("role:", role)
+    print("role_type:", role_type)
+
+    return {
+        "role": role,
+        "role_type": role_type,
+        "role_seniority": intelligence.role_seniority,
+        "role_expectations": intelligence.role_expectations,
+        "extraction_strategy": intelligence.extraction_strategy,
+        "extraction_confidence": intelligence.extraction_confidence,
+    }
 
     # 3. Get LLM
     llm = _get_llm()

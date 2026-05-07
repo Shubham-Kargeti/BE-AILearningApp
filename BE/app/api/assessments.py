@@ -101,6 +101,32 @@ def _infer_role_type(*values: Optional[str], skills: Optional[dict] = None) -> s
     return "tech"
 
 
+def _skill_level_to_difficulty(level: object) -> str:
+    normalized = str(level or "").strip().lower()
+    if normalized in {"basic", "beginner", "junior", "easy"}:
+        return "easy"
+    if normalized in {"advanced", "expert", "senior", "lead", "principal", "hard"}:
+        return "hard"
+    return "medium"
+
+
+def _derive_difficulty_distribution_from_skills(required_skills: Optional[dict]) -> dict:
+    if not required_skills:
+        return {"easy": 0.0, "medium": 1.0, "hard": 0.0}
+
+    counts = {"easy": 0, "medium": 0, "hard": 0}
+    for level in required_skills.values():
+        counts[_skill_level_to_difficulty(level)] += 1
+
+    total = max(1, sum(counts.values()))
+    distribution = {
+        key: round(value / total, 3)
+        for key, value in counts.items()
+    }
+    print("[DEBUG] Skill-level-derived difficulty distribution:", distribution)
+    return distribution
+
+
 def serialize_question(question: Question) -> dict:
     """
     Convert DB question into FE-safe payload.
@@ -640,6 +666,9 @@ async def create_assessment(
         )
 
     
+    skill_level_difficulty_distribution = _derive_difficulty_distribution_from_skills(request.required_skills)
+    print("[DEBUG] Assessment required_skills with per-skill levels:", request.required_skills)
+
     explicit_role_type = _normalize_role_type(questionnaire_config.get("role_type"))
 
     if explicit_role_type:
@@ -798,8 +827,8 @@ async def create_assessment(
         total_questions=request.total_questions,
         question_type_mix=question_type_mix,
         passing_score_threshold=request.passing_score_threshold,
-        auto_adjust_by_experience=request.auto_adjust_by_experience,
-        difficulty_distribution=request.difficulty_distribution or {"easy": 0.2, "medium": 0.5, "hard": 0.3},
+        auto_adjust_by_experience=False,
+        difficulty_distribution=skill_level_difficulty_distribution,
         is_interview_enabled=request.is_interview_enabled,
         is_published=True,
         expires_at=request.expires_at,

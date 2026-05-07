@@ -278,14 +278,14 @@ class AssessmentCreate(BaseModel):
     screening_questions: Optional[List[str]] = None
     manual_questions: Optional[List[Dict[str, Any]]] = None  # ✅ Manual questions
     
-    # Question configuration (experience-based)
+    # Question configuration. Difficulty is driven by required_skills per-skill proficiency.
     total_questions: int = 15
     question_type_mix: Optional[Dict[str, float]] = None  # {"mcq": 0.5, "coding": 0.3, "architecture": 0.2}
     
     # Scoring configuration
     passing_score_threshold: int = 70  # percentage
-    auto_adjust_by_experience: bool = True
-    difficulty_distribution: Optional[Dict[str, float]] = None  # {"easy": 0.2, "medium": 0.5, "hard": 0.3}
+    auto_adjust_by_experience: bool = False
+    difficulty_distribution: Optional[Dict[str, float]] = None  # Derived from required_skills for compatibility.
     generation_policy: Optional[Dict[str, Any]] = None
 
 
@@ -418,10 +418,16 @@ class UploadedDocumentResponse(BaseModel):
 class ExtractedSkill(BaseModel):
     """Extracted skill with proficiency level."""
     skill_name: str
-    proficiency_level: str  # e.g., "beginner", "intermediate", "advanced", "expert"
+    canonical_name: Optional[str] = None
+    proficiency_level: str  # beginner, intermediate, advanced
     category: str  # e.g., "technical", "soft", "language"
     frequency: int = 1  # How many times mentioned in documents
     confidence: float = Field(default=0.8, ge=0.0, le=1.0)  # Confidence score 0-1
+    inferred: bool = False
+    source: Optional[str] = None  # jd, resume, both, fallback
+    evidence: Optional[str] = None
+    priority: Optional[str] = None  # critical, high, medium, low
+    matched_with_jd: bool = False
 
 
 class DocumentSkillExtractionResponse(BaseModel):

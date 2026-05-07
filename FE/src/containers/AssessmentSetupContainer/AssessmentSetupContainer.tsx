@@ -11,6 +11,7 @@ import AssessmentLinkModal from "./components/AssessmentLinkModal";
 import Toast from "../../components/Toast/Toast";
 import { isAdmin } from "../../utils/adminUsers";
 import { uploadService, assessmentService } from "../../API/services";
+import type { ExtractedSkill } from "../../API/services";
 import { parseResume, getExtractionConfidence } from "../../utils/resumeParser";
 import type { QuestionDistribution } from "./components/QuestionnaireConfig";
 import AssessmentConfigurationBlock from "./components/AssessmentConfigurationBlock";
@@ -32,11 +33,42 @@ type ExtractedSkillMeta = {
   frequency: number;
   inResume: boolean;
   inJd: boolean;
+  proficiencyLevel: string;
+  confidence: number;
+  source: string;
+  priority: string;
+  matchedWithJd: boolean;
 };
 
 type SkillPriority = "must-have" | "good-to-have" | "resume-based" | "soft";
 
 type RoleCategory = "tech" | "non-tech";
+
+const normalizeProficiencyLevel = (value?: string) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["beginner", "intermediate", "advanced"].includes(normalized)) {
+    return normalized;
+  }
+  if (["basic", "easy", "junior"].includes(normalized)) return "beginner";
+  if (["medium", "mid", "proficient"].includes(normalized)) return "intermediate";
+  if (["hard", "senior", "high", "expert", "lead", "principal"].includes(normalized)) return "advanced";
+  return "intermediate";
+};
+
+const fallbackLevelFromPriority = (priority?: SkillPriority) => {
+  if (priority === "must-have" || priority === "good-to-have") return "advanced";
+  if (priority === "soft" || priority === "resume-based") return "intermediate";
+  return "intermediate";
+};
+
+const priorityFromExtractedSkill = (skill: ExtractedSkill): SkillPriority => {
+  if (skill.category === "soft") return "soft";
+  if (skill.source === "resume") return "resume-based";
+  if (skill.priority === "critical" || skill.priority === "high" || skill.source === "jd" || skill.source === "both") {
+    return "must-have";
+  }
+  return "good-to-have";
+};
 
 const AssessmentSetupContainer: React.FC = () => {
   const navigate = useNavigate();
@@ -119,14 +151,8 @@ const AssessmentSetupContainer: React.FC = () => {
 
   const [cutoffMarks, setCutoffMarks] = useState<number>(70);
 
-  // NEW: Experience-based configuration state
+  // Question configuration. Difficulty is now inferred per skill by the LLM.
   const [totalQuestions, setTotalQuestions] = useState<number>(10);
-  const [autoAdjustByExperience, setAutoAdjustByExperience] = useState<boolean>(false);
-  const [difficultyDistribution, setDifficultyDistribution] = useState<Record<string, number>>({
-    easy: 0.4,
-    medium: 0.4,
-    hard: 0.2,
-  });
 
   const [generationPolicy, setGenerationPolicy] = useState<GenerationPolicy>({
     mode: "llm",
@@ -195,7 +221,25 @@ const AssessmentSetupContainer: React.FC = () => {
         }
 
         if (assessment.required_skills) {
-          setSkills(Object.keys(assessment.required_skills));
+          const existingSkills = Object.keys(assessment.required_skills);
+          setSkills(existingSkills);
+          setExtractedSkillMeta(
+            existingSkills.reduce<Record<string, ExtractedSkillMeta>>((acc, skill) => {
+              const level = assessment.required_skills[skill];
+              acc[skill.toLowerCase()] = {
+                category: "unknown",
+                frequency: 1,
+                inResume: false,
+                inJd: true,
+                proficiencyLevel: normalizeProficiencyLevel(level),
+                confidence: 1,
+                source: "assessment",
+                priority: "high",
+                matchedWithJd: true,
+              };
+              return acc;
+            }, {})
+          );
         }
 
         if (assessment.assessment_method) {
@@ -317,22 +361,19 @@ const AssessmentSetupContainer: React.FC = () => {
         setJdId(currentJdId);
       }
 
-      const filesToProcess = [cvFile, jdFile].filter((file): file is File => Boolean(file));
-      const res = await uploadService.extractSkillsBulk(
-        filesToProcess,
-        "jd"
-      );
+      const res = await uploadService.extractCandidateSkills(jdFile, cvFile);
+      const extractedRoleType = res.extraction_summary?.role_type;
 
-      const roleResponse = await uploadService.extractRoleFromJD(jdFile);
-
-      applyRoleCategoryPreset(roleResponse.role_type as RoleCategory);
+      if (extractedRoleType === "tech" || extractedRoleType === "non-tech") {
+        applyRoleCategoryPreset(extractedRoleType);
+      }
 
       const extractedSkillsList = res.extracted_skills || [];
-      const skillNames = extractedSkillsList.map((skill) => skill.skill_name);
+      const skillNames = Array.from(new Set(extractedSkillsList.map((skill) => skill.skill_name)));
 
-      const extractedRole = candidateInfo.currentRole?.trim() || role.trim();
+      const extractedRole = res.extraction_summary?.role?.trim() || candidateInfo.currentRole?.trim() || role.trim();
 
-      if (extractedRole && !role.trim()) {
+      if (extractedRole) {
         setRole(extractedRole);
         setRoleError("");
       }
@@ -342,8 +383,8 @@ const AssessmentSetupContainer: React.FC = () => {
       }
 
       const documents = res.documents || [];
-      const resumeDocument = documents[0];
-      const jdDocument = documents[1];
+      const resumeDocument = documents.find((doc) => doc.document_category === "cv");
+      const jdDocument = documents.find((doc) => doc.document_category === "jd");
 
       const jdSkillsList = jdDocument?.extracted_skills || [];
       if (jdSkillsList.length > 0) {
@@ -367,33 +408,27 @@ const AssessmentSetupContainer: React.FC = () => {
         acc[key] = {
           category: skill.category,
           frequency: skill.frequency,
-          inResume: resumeSkillSet.has(key),
-          inJd: jdSkillSet.has(key),
+          inResume: skill.source === "resume" || skill.source === "both" || resumeSkillSet.has(key),
+          inJd: skill.source === "jd" || skill.source === "both" || jdSkillSet.has(key),
+          proficiencyLevel: normalizeProficiencyLevel(skill.proficiency_level),
+          confidence: skill.confidence,
+          source: skill.source || "unknown",
+          priority: skill.priority || "medium",
+          matchedWithJd: Boolean(skill.matched_with_jd),
         };
         return acc;
       }, {});
       setExtractedSkillMeta(nextSkillMeta);
 
       const nextSkillPriorities = extractedSkillsList.reduce<Record<string, SkillPriority>>((acc, skill) => {
-        const meta = nextSkillMeta[skill.skill_name.toLowerCase()];
-        if (meta?.category === "soft") {
-          acc[skill.skill_name] = "soft";
-        } else if (meta?.inResume && meta?.inJd) {
-          acc[skill.skill_name] = "good-to-have";
-        } else if (meta?.inJd && !meta?.inResume) {
-          acc[skill.skill_name] = "must-have";
-        } else if (meta?.inResume && !meta?.inJd) {
-          acc[skill.skill_name] = "resume-based";
-        } else {
-          acc[skill.skill_name] = "good-to-have";
-        }
+        acc[skill.skill_name] = priorityFromExtractedSkill(skill);
         return acc;
       }, {});
       setSkillPriorities(nextSkillPriorities);
 
       setToast({
         type: "success",
-        message: res.message || `Processed ${filesToProcess.length} document(s) and extracted ${skillNames.length} skills successfully!`,
+        message: res.message || `Processed JD and resume and extracted ${skillNames.length} skills successfully!`,
       });
     } catch (err: any) {
       console.error("Error processing resume:", err);
@@ -417,24 +452,10 @@ const AssessmentSetupContainer: React.FC = () => {
       const requiredSkills = skills.reduce((acc, skill) => {
         const key = skill.toLowerCase();
         const meta = extractedSkillMeta[key];
-        const inResume = Boolean(meta?.inResume);
-        const inJd = Boolean(meta?.inJd);
-        const isSoft = meta?.category === "soft";
 
-        let level = "beginner";
-        if (inResume && inJd) {
-          level = "advanced";
-        } else if (inResume) {
-          level = "intermediate";
-        } else if (inJd) {
-          level = "beginner";
-        }
-
-        if (isSoft) {
-          level = "soft";
-        }
-
-        acc[skill] = level;
+        acc[skill] = normalizeProficiencyLevel(
+          meta?.proficiencyLevel || fallbackLevelFromPriority(skillPriorities[skill])
+        );
         return acc;
       }, {} as Record<string, string>);
 
@@ -475,7 +496,7 @@ const AssessmentSetupContainer: React.FC = () => {
           time_limit: q.time_limit,
         })),
 
-        // NEW: Experience-based question configuration
+        // Skill proficiency levels in required_skills drive question difficulty.
         total_questions: totalQuestions,
         question_type_mix:
           roleCategory === "tech"
@@ -489,8 +510,7 @@ const AssessmentSetupContainer: React.FC = () => {
               scenario: questionDistribution.scenario || 0,
             },
         passing_score_threshold: cutoffMarks,
-        auto_adjust_by_experience: autoAdjustByExperience,
-        difficulty_distribution: difficultyDistribution,
+        auto_adjust_by_experience: false,
         generation_policy: generationPolicy,
       };
 
@@ -809,6 +829,9 @@ const AssessmentSetupContainer: React.FC = () => {
           setSkillsError={setSkillsError}
           jdSkills={jdSkills}
           skillPriorities={skillPriorities}
+          skillLevels={Object.fromEntries(
+            Object.entries(extractedSkillMeta).map(([key, meta]) => [key, meta.proficiencyLevel])
+          )}
           onSkillPriorityChange={(skill, priority) => {
             setSkillPriorities({ ...skillPriorities, [skill]: priority });
           }}
@@ -842,10 +865,6 @@ const AssessmentSetupContainer: React.FC = () => {
           onCutoffMarksChange={setCutoffMarks}
           totalQuestions={totalQuestions}
           onTotalQuestionsChange={setTotalQuestions}
-          autoAdjustByExperience={autoAdjustByExperience}
-          onAutoAdjustByExperienceChange={setAutoAdjustByExperience}
-          difficultyDistribution={difficultyDistribution}
-          onDifficultyDistributionChange={setDifficultyDistribution}
           roleCategory={roleCategory}
         />
       )}

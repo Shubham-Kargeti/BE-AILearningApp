@@ -18,12 +18,36 @@ from app.services.doc_ingest import query_text
 # Difficulty normalization (ADMIN → DB)
 # ------------------------------------------------------------
 LEVEL_MAP = {
+    "easy": "easy",
+    "medium": "medium",
+    "hard": "hard",
     "basic": "easy",
     "beginner": "easy",
     "intermediate": "medium",
     "advanced": "hard",
     "expert": "hard"
 }
+
+VALID_SKILL_LEVELS = {"beginner", "intermediate", "advanced"}
+
+
+def _normalize_skill_level(level) -> str:
+    normalized = str(level or "").strip().lower()
+    aliases = {
+        "basic": "beginner",
+        "easy": "beginner",
+        "junior": "beginner",
+        "medium": "intermediate",
+        "mid": "intermediate",
+        "proficient": "intermediate",
+        "hard": "advanced",
+        "senior": "advanced",
+        "lead": "advanced",
+        "principal": "advanced",
+        "expert": "advanced",
+    }
+    normalized = aliases.get(normalized, normalized)
+    return normalized if normalized in VALID_SKILL_LEVELS else "intermediate"
 
 # ------------------------------------------------------------
 # DOWNWARD-ONLY Validators (SAFE & ASYMMETRIC)
@@ -461,11 +485,12 @@ async def generate_assessment_question_set(
     skills_with_levels = [
         {
             "skill": skill,
-            "level": level,
-            "difficulty": LEVEL_MAP.get(level.lower(), "medium")
+            "level": _normalize_skill_level(level),
+            "difficulty": LEVEL_MAP.get(_normalize_skill_level(level), "medium")
         }
         for skill, level in required_skills.items()
     ]
+    print("[DEBUG] Skill-level-driven assessment plan:", skills_with_levels)
 
     formatted = json.dumps(skills_with_levels, indent=2)
 

@@ -4,8 +4,6 @@ import QuestionnaireConfig, {
 } from "./QuestionnaireConfig";
 import CutoffMarks from "./CutoffMarks";
 import TotalQuestions from "./TotalQuestions";
-// import DifficultyDistribution from "./DifficultyDistribution";
-// import ExperienceAdjustment from "./ExperienceAdjustment";
 
 interface Props {
     questionDistribution: QuestionDistribution;
@@ -17,12 +15,6 @@ interface Props {
     // NEW: Experience-based configuration props
     totalQuestions: number;
     onTotalQuestionsChange: (v: number) => void;
-
-    autoAdjustByExperience: boolean;
-    onAutoAdjustByExperienceChange: (v: boolean) => void;
-
-    difficultyDistribution: Record<string, number>;
-    onDifficultyDistributionChange: (v: Record<string, number>) => void;
 
     roleCategory: "tech" | "non-tech";
 
@@ -36,10 +28,6 @@ const AssessmentConfigurationBlock: React.FC<Props> = ({
     onCutoffMarksChange,
     totalQuestions,
     onTotalQuestionsChange,
-    autoAdjustByExperience,
-    // onAutoAdjustByExperienceChange,
-    // difficultyDistribution,
-    // onDifficultyDistributionChange,
     roleCategory,
 }) => {
 
@@ -48,8 +36,8 @@ const AssessmentConfigurationBlock: React.FC<Props> = ({
             <div className="card-header">
                 <h2>Assessment Configuration</h2>
                 <p className="hint">
-                    Configure question distribution, screening criteria, and cut-off
-                    marks.
+                    Configure question type counts and cut-off marks. Skill difficulty
+                    is inferred per extracted skill.
                 </p>
             </div>
 
@@ -66,22 +54,10 @@ const AssessmentConfigurationBlock: React.FC<Props> = ({
                     roleCategory={roleCategory}
                 />
 
-                {/* <DifficultyDistribution
-                    value={difficultyDistribution}
-                    onChange={onDifficultyDistributionChange}
-                /> */}
-
-                {/* <ExperienceAdjustment
-                    value={autoAdjustByExperience}
-                    onChange={onAutoAdjustByExperienceChange}
-                    cutoffMarks={cutoffMarks}
-                    onCutoffChange={onCutoffMarksChange}
-                /> */}
-
                 <CutoffMarks
                     value={cutoffMarks}
                     onChange={onCutoffMarksChange}
-                    disabled={autoAdjustByExperience}
+                    disabled={false}
                 />
             </div>
         </section>

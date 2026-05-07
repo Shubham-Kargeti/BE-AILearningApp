@@ -8,6 +8,7 @@ from typing import List, Optional
 from app.core.dependencies import get_db
 from app.db.models import Skill, Role, JobDescription, UploadedDocument
 from app.models.schemas import SkillResponse, RoleResponse
+from app.services.skill_intelligence import extract_skill_intelligence
 
 router = APIRouter(prefix="/api/v1", tags=["skills-roles"])
 
@@ -112,17 +113,28 @@ async def get_jd_extraction_results(
             detail="Job description not found"
         )
     
-    # Extract skills and roles from the JD title/description
-    extracted_skills = extract_skills_from_text(jd.description or "")
-    extracted_roles = extract_roles_from_text(jd.title or "", jd.description or "")
+    jd_text = jd.extracted_text or jd.description or ""
+    intelligence = await extract_skill_intelligence(
+        jd_text=jd_text,
+        fallback_extractor=_legacy_skill_fallback,
+    )
+    extracted_skills = {
+        skill.skill_name: skill.proficiency_level
+        for skill in intelligence.skills
+    }
+    extracted_roles = [intelligence.role] if intelligence.role else extract_roles_from_text(jd.title or "", jd_text)
     
     return {
         "jd_id": jd.jd_id,
         "title": jd.title,
         "description": jd.description,
-        "extracted_text": jd.extracted_text[:500] if jd.extracted_text else "",  # Preview
+        "extracted_text": jd_text[:500] if jd_text else "",  # Preview
         "extracted_skills": extracted_skills,
+        "extracted_skill_details": [skill.model_dump() for skill in intelligence.skills],
         "extracted_roles": extracted_roles,
+        "role_type": intelligence.role_type,
+        "extraction_strategy": intelligence.extraction_strategy,
+        "extraction_confidence": intelligence.extraction_confidence,
         "file_name": jd.file_name,
         "file_size": jd.file_size,
         "created_at": jd.created_at,
@@ -163,10 +175,16 @@ async def extract_skills_from_uploaded_file(
             detail=f"Cannot extract skills from {doc.document_category} documents. Supported: jd, requirements, specifications"
         )
     
-    # Extract text and skills
     extracted_text = doc.extracted_text or doc.extraction_preview or ""
-    extracted_skills = extract_skills_from_text(extracted_text)
-    extracted_roles = extract_roles_from_text(doc.original_filename, extracted_text)
+    intelligence = await extract_skill_intelligence(
+        jd_text=extracted_text,
+        fallback_extractor=_legacy_skill_fallback,
+    )
+    extracted_skills = {
+        skill.skill_name: skill.proficiency_level
+        for skill in intelligence.skills
+    }
+    extracted_roles = [intelligence.role] if intelligence.role else extract_roles_from_text(doc.original_filename, extracted_text)
     
     return {
         "file_id": file_id,
@@ -174,9 +192,20 @@ async def extract_skills_from_uploaded_file(
         "document_category": doc.document_category,
         "extracted_text_preview": extracted_text[:500],
         "extracted_skills": extracted_skills,
+        "extracted_skill_details": [skill.model_dump() for skill in intelligence.skills],
         "extracted_roles": extracted_roles,
-        "extraction_confidence": 0.75,  # Placeholder - would be calculated by NLP
+        "role_type": intelligence.role_type,
+        "extraction_strategy": intelligence.extraction_strategy,
+        "extraction_confidence": intelligence.extraction_confidence,
         "extraction_timestamp": doc.created_at,
+    }
+
+
+def _legacy_skill_fallback(text: str, filename: str = "") -> dict[str, tuple[str, str, float]]:
+    legacy = extract_skills_from_text(text)
+    return {
+        skill_name: (level, "technical", 0.75)
+        for skill_name, level in legacy.items()
     }
 
 

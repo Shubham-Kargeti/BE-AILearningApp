@@ -17,6 +17,7 @@ interface Props {
   extractedSkills?: string[];
   jdSkills?: string[];
   skillPriorities?: Record<string, SkillPriority>;
+  skillLevels?: Record<string, string>;
   onSkillPriorityChange?: (skill: string, priority: SkillPriority) => void;
   onClearExtraction?: () => void;
 }
@@ -57,6 +58,7 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
   extractedSkills,
   jdSkills = [],
   skillPriorities = {},
+  skillLevels = {},
   onSkillPriorityChange,
   onClearExtraction: _onClearExtraction,
 }) => {
@@ -185,6 +187,8 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
     }
     return { label: "G", title: "Good to have", background: "#fff3e0", color: "#f57c00" };
   };
+
+  const getSkillLevel = (skillName: string) => skillLevels[skillName.toLowerCase()];
 
   return (
     <div className="role-skill-wrapper">
@@ -364,6 +368,11 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
               >
                 {skillData.isMatched && <FiStar className="match-star" size={12} />}
                 <span className="skill-name">{skillData.name}</span>
+                {getSkillLevel(skillData.name) && (
+                  <span className="level-badge" title="Inferred proficiency level">
+                    {getSkillLevel(skillData.name)}
+                  </span>
+                )}
                 {onSkillPriorityChange && (
                   <button
                     className="priority-badge"
@@ -429,6 +438,11 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
                     >
                       {skillData.isMatched && <FiStar className="match-star" size={12} />}
                       <span className="skill-name">{skillData.name}</span>
+                      {getSkillLevel(skillData.name) && (
+                        <span className="level-badge" title="Inferred proficiency level">
+                          {getSkillLevel(skillData.name)}
+                        </span>
+                      )}
                       {isExtracted && !skillData.isMatched && <span className="source-label">auto</span>}
                       <button
                         type="button"

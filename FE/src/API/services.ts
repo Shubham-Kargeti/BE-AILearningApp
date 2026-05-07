@@ -331,10 +331,16 @@ export interface RoleExtractionResponse {
 
 export interface ExtractedSkill {
   skill_name: string;
+  canonical_name?: string;
   proficiency_level: string;
   category: string;
   frequency: number;
   confidence: number;
+  inferred?: boolean;
+  source?: string;
+  evidence?: string;
+  priority?: string;
+  matched_with_jd?: boolean;
 }
 
 export interface DocumentSkillExtractionResponse {
@@ -357,6 +363,16 @@ export interface AdminBulkSkillExtractionResponse {
     skills_by_category?: Record<string, number>;
     proficiency_distribution?: Record<string, number>;
     total_skills_found?: number;
+    role?: string;
+    role_type?: string;
+    role_seniority?: string;
+    role_expectations?: string[];
+    inferred_competencies?: string[];
+    extraction_strategy?: string;
+    extraction_confidence?: number;
+    overlapping_skills?: string[];
+    jd_skill_count?: number;
+    resume_skill_count?: number;
   };
   timestamp?: string;
 }
@@ -780,13 +796,29 @@ export const uploadService = {
     return response.data;
   },
 
+  extractCandidateSkills: async (
+    jdFile: File,
+    resumeFile: File
+  ): Promise<AdminBulkSkillExtractionResponse> => {
+    const formData = new FormData();
+    formData.append("jd_file", jdFile);
+    formData.append("resume_file", resumeFile);
+
+    const response = await apiClient.post<AdminBulkSkillExtractionResponse>(
+      "/admin/extract-skills-candidate",
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
+    return response.data;
+  },
+
   extractSkillsFromJD: async (
     jdFile: File
-  ): Promise<SkillExtractionResponse> => {
+  ): Promise<AdminBulkSkillExtractionResponse> => {
     const formData = new FormData();
     formData.append("file", jdFile);
 
-    const response = await apiClient.post<SkillExtractionResponse>(
+    const response = await apiClient.post<AdminBulkSkillExtractionResponse>(
       "/admin/extract-skills?doc_type=jd",
       formData,
       { headers: { "Content-Type": "multipart/form-data" } }

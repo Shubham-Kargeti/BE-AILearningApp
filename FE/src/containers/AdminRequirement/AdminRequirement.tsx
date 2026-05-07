@@ -5,13 +5,12 @@ import {
   FiClipboard,
   FiLayers,
   FiTarget,
-  FiTrendingUp,
 } from "react-icons/fi";
 import {
   assessmentService,
   uploadService,
   type RoleExtractionResponse,
-  type SkillExtractionResponse,
+  type ExtractedSkill,
 } from "../../API/services";
 import Toast from "../../components/Toast/Toast";
 import FileUpload from "../AssessmentSetupContainer/components/FileUpload";
@@ -48,12 +47,6 @@ const NON_TECH_DEFAULT_DISTRIBUTION: RequirementQuestionDistribution = {
   architecture: 0,
   scenario: 4,
 };
-
-// const DEFAULT_DIFFICULTY_DISTRIBUTION = {
-//   easy: 0.4,
-//   medium: 0.4,
-//   hard: 0.2,
-// };
 
 const TECH_ROLE_KEYWORDS = [
   "developer",
@@ -201,9 +194,34 @@ const mapSkillNames = (
   return Array.from(new Set(names));
 };
 
+const normalizeProficiencyLevel = (value?: string) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["beginner", "intermediate", "advanced"].includes(normalized)) {
+    return normalized;
+  }
+  if (["basic", "easy", "junior"].includes(normalized)) return "beginner";
+  if (["medium", "mid", "proficient"].includes(normalized)) return "intermediate";
+  if (["hard", "senior", "high", "expert", "lead", "principal"].includes(normalized)) return "advanced";
+  return "intermediate";
+};
+
+const fallbackLevelFromPriority = (priority?: SkillPriority) => {
+  if (priority === "must-have" || priority === "good-to-have") return "advanced";
+  return "intermediate";
+};
+
+const priorityFromExtractedSkill = (skill: ExtractedSkill): SkillPriority => {
+  if (skill.category === "soft") return "soft";
+  if (skill.source === "resume") return "resume-based";
+  if (skill.priority === "critical" || skill.priority === "high" || skill.source === "jd" || skill.source === "both") {
+    return "must-have";
+  }
+  return "good-to-have";
+};
+
 const extractRoleName = (
   ...responses: Array<
-    Partial<SkillExtractionResponse | RoleExtractionResponse> | undefined
+    Partial<RoleExtractionResponse> | undefined
   >
 ): string => {
   for (const response of responses) {
@@ -248,12 +266,8 @@ const AdminRequirement: React.FC = () => {
     useState<RequirementQuestionDistribution>(TECH_DEFAULT_DISTRIBUTION);
   const [totalQuestions, setTotalQuestions] = useState(10);
   const [cutoffMarks, setCutoffMarks] = useState(70);
-  // const [autoAdjustByExperience, setAutoAdjustByExperience] = useState(false);
-  // const [difficultyDistribution, setDifficultyDistribution] = useState(
-  //   DEFAULT_DIFFICULTY_DISTRIBUTION
-  // );
   const [expiresAt, setExpiresAt] = useState("");
-  const [difficulty, setDifficulty] = useState<"beginner" | "intermediate" | "advanced">("intermediate");
+  const [skillLevels, setSkillLevels] = useState<Record<string, string>>({});
   const [processLoading, setProcessLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formValid, setFormValid] = useState(false);
@@ -280,24 +294,6 @@ const AdminRequirement: React.FC = () => {
       ),
     [effectiveQuestionTypeMix]
   );
-
-  // const difficultyPercentage = useMemo(
-  //   () => ({
-  //     easy: Math.round(difficultyDistribution.easy * 100),
-  //     medium: Math.round(difficultyDistribution.medium * 100),
-  //     hard: Math.round(difficultyDistribution.hard * 100),
-  //   }),
-  //   [difficultyDistribution]
-  // );
-
-  // const difficultyTotal = useMemo(
-  //   () =>
-  //     Object.values(difficultyDistribution).reduce(
-  //       (sum, value) => sum + value,
-  //       0
-  //     ),
-  //   [difficultyDistribution]
-  // );
 
   useEffect(() => {
     const errors: ValidationError[] = [];
@@ -331,13 +327,6 @@ const AdminRequirement: React.FC = () => {
       });
     }
 
-    // if (Math.abs(difficultyTotal - 1) > 0.01) {
-    //   errors.push({
-    //     field: "difficulty_distribution",
-    //     message: "Difficulty percentages must total 100%",
-    //   });
-    // }
-
     setValidationErrors(errors);
     setFormValid(errors.length === 0);
   }, [distributionTotal, jdFile, role, skills, totalQuestions]);
@@ -366,18 +355,6 @@ const AdminRequirement: React.FC = () => {
       [key]: Math.max(0, value),
     }));
   };
-
-  // const handleDifficultyChange = (
-  //   key: keyof typeof difficultyDistribution,
-  //   value: number
-  // ) => {
-  //   const boundedValue = Math.min(100, Math.max(0, value));
-
-  //   setDifficultyDistribution((prev) => ({
-  //     ...prev,
-  //     [key]: boundedValue / 100,
-  //   }));
-  // };
 
   const handleExtractRoleAndSkills = async () => {
     if (!jdFile) {
@@ -415,12 +392,12 @@ const AdminRequirement: React.FC = () => {
       const roleResponse =
         roleResult.status === "fulfilled" ? roleResult.value : undefined;
 
-      const extractedSkills = mapSkillNames(
-        skillsResponse?.skills ?? skillsResponse?.extracted_skills
-      );
-      const extractedRole = extractRoleName(roleResponse, skillsResponse);
+      const extractedSkillDetails = skillsResponse?.extracted_skills ?? [];
+      const extractedSkills = mapSkillNames(extractedSkillDetails);
+      const extractedRole = extractRoleName(roleResponse) || skillsResponse?.extraction_summary?.role || "";
       const resolvedCategory =
         normalizeRoleCategory(roleResponse?.role_type) ??
+        normalizeRoleCategory(skillsResponse?.extraction_summary?.role_type) ??
         normalizeRoleCategory(roleResponse?.role_category) ??
         normalizeRoleCategory(roleResponse?.category) ??
         inferRoleCategory(extractedRole, extractedSkills);
@@ -436,14 +413,20 @@ const AdminRequirement: React.FC = () => {
      if (extractedSkills.length > 0) {
         setSkills(extractedSkills);
         setSkillPriorities(
-        extractedSkills.reduce<Record<string, "must-have" | "good-to-have">>(
-          (acc, skill) => {
-           acc[skill] = "must-have";
-           return acc;
-          },
-      {}
-    )
-  );
+          extractedSkillDetails.reduce<Record<string, SkillPriority>>(
+            (acc, skill) => {
+              acc[skill.skill_name] = priorityFromExtractedSkill(skill);
+              return acc;
+            },
+            {}
+          )
+        );
+        setSkillLevels(
+          extractedSkillDetails.reduce<Record<string, string>>((acc, skill) => {
+            acc[skill.skill_name.toLowerCase()] = normalizeProficiencyLevel(skill.proficiency_level);
+            return acc;
+          }, {})
+        );
 }
 
       // if (skillsResponse?.skill_durations) {
@@ -506,7 +489,9 @@ const AdminRequirement: React.FC = () => {
         job_title: role.trim(),
         jd_id: currentJdId ?? undefined,
         required_skills: skills.reduce<Record<string, string>>((acc, skill) => {
-            acc[skill] = difficulty;
+            acc[skill] = normalizeProficiencyLevel(
+              skillLevels[skill.toLowerCase()] || fallbackLevelFromPriority(skillPriorities[skill])
+            );
             return acc;
           }, {}),
         skill_priorities: skillPriorities,
@@ -526,11 +511,6 @@ const AdminRequirement: React.FC = () => {
         },
         passing_score_threshold: cutoffMarks,
         auto_adjust_by_experience: false,
-        difficulty_distribution: {
-          easy: 0.4,
-          medium: 0.4,
-          hard: 0.2,
-        },
         expires_at: expiresAt
           ? new Date(expiresAt).toISOString()
           : undefined,
@@ -660,6 +640,7 @@ const AdminRequirement: React.FC = () => {
           skillsError={skillsError}
           setSkillsError={setSkillsError}
           skillPriorities={skillPriorities}
+          skillLevels={skillLevels}
           onSkillPriorityChange={(skill, priority) => {
             setSkillPriorities((prev) => ({
               ...prev,
@@ -712,18 +693,6 @@ const AdminRequirement: React.FC = () => {
             />
           </div>
 
-          {/* <div className="config-field checkbox-field">
-            <label htmlFor="auto-adjust">
-              <FiTrendingUp size={16} />
-              Auto Adjust By Experience
-            </label>
-            <input
-              id="auto-adjust"
-              type="checkbox"
-              checked={autoAdjustByExperience}
-              onChange={(e) => setAutoAdjustByExperience(e.target.checked)}
-            />
-          </div> */}
         </div>
 
         <div className="question-type-section">
@@ -807,79 +776,6 @@ const AdminRequirement: React.FC = () => {
             Current total: <strong>{distributionTotal}</strong> / {totalQuestions}
           </p>
         </div>
-         
-         <div className="difficulty-section">
-               <div className="section-label">
-                      <FiTrendingUp size={16} />
-                    <span>Difficulty Level</span>
-                </div>
-
-            <select
-              value={difficulty}
-                    onChange={(e) => setDifficulty(e.target.value as "beginner" | "intermediate" | "advanced")}
-            >
-          <option value="beginner">Beginner</option>
-          <option value="intermediate">Intermediate</option>
-         <option value="advanced">Advanced</option>
-       </select>
-       </div>
-
-        {/* <div className="difficulty-section">
-          <div className="section-label">
-            <FiTrendingUp size={16} />
-            <span>Difficulty Distribution (%)</span>
-          </div>
-
-          <div className="question-type-grid">
-            <div className="config-field">
-              <label>Easy</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={difficultyPercentage.easy}
-                onChange={(e) =>
-                  handleDifficultyChange("easy", Number(e.target.value) || 0)
-                }
-              />
-            </div>
-
-            <div className="config-field">
-              <label>Medium</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={difficultyPercentage.medium}
-                onChange={(e) =>
-                  handleDifficultyChange("medium", Number(e.target.value) || 0)
-                }
-              />
-            </div>
-
-            <div className="config-field">
-              <label>Hard</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={difficultyPercentage.hard}
-                onChange={(e) =>
-                  handleDifficultyChange("hard", Number(e.target.value) || 0)
-                }
-              />
-            </div>
-          </div>
-
-          <p
-            className={`config-summary ${
-              Math.abs(difficultyTotal - 1) > 0.01 ? "invalid" : ""
-            }`}
-          >
-            Current total:{" "}
-            <strong>{Math.round(difficultyTotal * 100)}%</strong>
-          </p>
-        </div> */}
       </section>
 
       <section className="card expiry-card">
