@@ -15,6 +15,7 @@ import {
 import Toast from "../../components/Toast/Toast";
 import FileUpload from "../AssessmentSetupContainer/components/FileUpload";
 import RoleSkillPlaceholder from "../AssessmentSetupContainer/components/RoleSkillPlaceholder";
+import type { SkillConfiguration } from "../AssessmentSetupContainer/components/RoleSkillPlaceholder";
 import AssessmentSetupSubmitButton from "../AssessmentSetupContainer/components/AssessmentSetupSubmitButton";
 import AssessmentLinkModal from "../AssessmentSetupContainer/components/AssessmentLinkModal";
 import "./AdminRequirement.scss";
@@ -262,6 +263,7 @@ const AdminRequirement: React.FC = () => {
   //   {}
   // );
   const [skillPriorities, setSkillPriorities] = useState<Record<string, SkillPriority>>({});
+  const [skillConfig, setSkillConfig] = useState<Record<string, SkillConfiguration>>({});
   const [questionDistribution, setQuestionDistribution] =
     useState<RequirementQuestionDistribution>(TECH_DEFAULT_DISTRIBUTION);
   const [totalQuestions, setTotalQuestions] = useState(10);
@@ -280,6 +282,32 @@ const AdminRequirement: React.FC = () => {
   } | null>(null);
   const [showAssessmentLinkModal, setShowAssessmentLinkModal] = useState(false);
   const [assessmentLink, setAssessmentLink] = useState("");
+
+  const updateSkillConfig = (skill: string, patch: Partial<SkillConfiguration>) => {
+    const key = skill.toLowerCase();
+    setSkillConfig((prev) => {
+      const existing = prev[key] || {
+        skill_name: skill,
+        extracted_level: normalizeProficiencyLevel(skillLevels[key]),
+        effective_level: normalizeProficiencyLevel(skillLevels[key]),
+        level_source: "llm" as const,
+      };
+      const next = {
+        ...existing,
+        ...patch,
+        skill_name: patch.skill_name || existing.skill_name || skill,
+      };
+      return {
+        ...prev,
+        [key]: {
+          ...next,
+          extracted_level: normalizeProficiencyLevel(next.extracted_level),
+          effective_level: normalizeProficiencyLevel(next.effective_level),
+          override_level: next.override_level ? normalizeProficiencyLevel(next.override_level) : undefined,
+        },
+      };
+    });
+  };
 
   const effectiveQuestionTypeMix = useMemo(
     () => getQuestionTypeMix(roleCategory, questionDistribution),
@@ -427,6 +455,25 @@ const AdminRequirement: React.FC = () => {
             return acc;
           }, {})
         );
+        setSkillConfig(
+          extractedSkillDetails.reduce<Record<string, SkillConfiguration>>((acc, skill) => {
+            const level = normalizeProficiencyLevel(skill.proficiency_level);
+            acc[skill.skill_name.toLowerCase()] = {
+              skill_name: skill.skill_name,
+              extracted_level: level,
+              effective_level: level,
+              level_source: "llm",
+              confidence: skill.confidence,
+              matched_with_jd: Boolean(skill.matched_with_jd),
+              priority: skill.priority || "high",
+              category: skill.category,
+              source: skill.source,
+              inferred: Boolean(skill.inferred),
+              evidence: skill.evidence,
+            };
+            return acc;
+          }, {})
+        );
 }
 
       // if (skillsResponse?.skill_durations) {
@@ -490,10 +537,34 @@ const AdminRequirement: React.FC = () => {
         jd_id: currentJdId ?? undefined,
         required_skills: skills.reduce<Record<string, string>>((acc, skill) => {
             acc[skill] = normalizeProficiencyLevel(
-              skillLevels[skill.toLowerCase()] || fallbackLevelFromPriority(skillPriorities[skill])
+              skillConfig[skill.toLowerCase()]?.effective_level ||
+              skillLevels[skill.toLowerCase()] ||
+              fallbackLevelFromPriority(skillPriorities[skill])
             );
             return acc;
           }, {}),
+        skill_configuration: skills.reduce<Record<string, SkillConfiguration>>((acc, skill) => {
+          const key = skill.toLowerCase();
+          const effectiveLevel = normalizeProficiencyLevel(
+            skillConfig[key]?.effective_level || skillLevels[key] || fallbackLevelFromPriority(skillPriorities[skill])
+          );
+          acc[skill] = {
+            skill_name: skill,
+            extracted_level: normalizeProficiencyLevel(skillConfig[key]?.extracted_level || skillLevels[key] || effectiveLevel),
+            effective_level: effectiveLevel,
+            level_source: skillConfig[key]?.level_source || "llm",
+            override_experience_years: skillConfig[key]?.override_experience_years,
+            override_level: skillConfig[key]?.override_level,
+            confidence: skillConfig[key]?.confidence,
+            matched_with_jd: skillConfig[key]?.matched_with_jd,
+            priority: skillConfig[key]?.priority || skillPriorities[skill],
+            category: skillConfig[key]?.category,
+            source: skillConfig[key]?.source,
+            inferred: skillConfig[key]?.inferred,
+            evidence: skillConfig[key]?.evidence,
+          };
+          return acc;
+        }, {}),
         skill_priorities: skillPriorities,
         is_draft: false,
         is_published: true,
@@ -508,6 +579,28 @@ const AdminRequirement: React.FC = () => {
         questionnaire_config: {
           ...effectiveQuestionTypeMix,
           role_type: roleCategory,
+          skill_intelligence: skills.reduce<Record<string, SkillConfiguration>>((acc, skill) => {
+            const key = skill.toLowerCase();
+            const effectiveLevel = normalizeProficiencyLevel(
+              skillConfig[key]?.effective_level || skillLevels[key] || fallbackLevelFromPriority(skillPriorities[skill])
+            );
+            acc[skill] = {
+              skill_name: skill,
+              extracted_level: normalizeProficiencyLevel(skillConfig[key]?.extracted_level || skillLevels[key] || effectiveLevel),
+              effective_level: effectiveLevel,
+              level_source: skillConfig[key]?.level_source || "llm",
+              override_experience_years: skillConfig[key]?.override_experience_years,
+              override_level: skillConfig[key]?.override_level,
+              confidence: skillConfig[key]?.confidence,
+              matched_with_jd: skillConfig[key]?.matched_with_jd,
+              priority: skillConfig[key]?.priority || skillPriorities[skill],
+              category: skillConfig[key]?.category,
+              source: skillConfig[key]?.source,
+              inferred: skillConfig[key]?.inferred,
+              evidence: skillConfig[key]?.evidence,
+            };
+            return acc;
+          }, {}),
         },
         passing_score_threshold: cutoffMarks,
         auto_adjust_by_experience: false,
@@ -641,11 +734,17 @@ const AdminRequirement: React.FC = () => {
           setSkillsError={setSkillsError}
           skillPriorities={skillPriorities}
           skillLevels={skillLevels}
+          skillConfig={skillConfig}
+          onSkillConfigChange={updateSkillConfig}
           onSkillPriorityChange={(skill, priority) => {
             setSkillPriorities((prev) => ({
               ...prev,
               [skill]: priority,
             }));
+            updateSkillConfig(skill, {
+              priority,
+              category: priority === "soft" ? "soft" : skillConfig[skill.toLowerCase()]?.category,
+            });
           }}
         />
       </section>

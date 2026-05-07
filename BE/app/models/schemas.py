@@ -264,6 +264,7 @@ class AssessmentCreate(BaseModel):
     job_title: str
     jd_id: Optional[str] = None
     required_skills: dict = {}
+    skill_configuration: Optional[Dict[str, Any]] = None
     skill_priorities: Optional[Dict[str, str]] = None  # ✅ NEW: must-have/good-to-have
     required_roles: list = []
     question_set_id: Optional[str] = None
@@ -296,6 +297,7 @@ class AssessmentUpdate(BaseModel):
     description: Optional[str] = None
     job_title: Optional[str] = None
     required_skills: Optional[dict] = None
+    skill_configuration: Optional[Dict[str, Any]] = None
     required_roles: Optional[list] = None
     duration_minutes: Optional[int] = None
     is_questionnaire_enabled: Optional[bool] = None

@@ -32,6 +32,8 @@ VALID_SKILL_LEVELS = {"beginner", "intermediate", "advanced"}
 
 
 def _normalize_skill_level(level) -> str:
+    if isinstance(level, dict):
+        level = level.get("effective_level") or level.get("override_level") or level.get("extracted_level")
     normalized = str(level or "").strip().lower()
     aliases = {
         "basic": "beginner",
@@ -48,6 +50,23 @@ def _normalize_skill_level(level) -> str:
     }
     normalized = aliases.get(normalized, normalized)
     return normalized if normalized in VALID_SKILL_LEVELS else "intermediate"
+
+
+def _skill_metadata_for(skill_name: str, skill_intelligence: dict) -> dict:
+    if not isinstance(skill_intelligence, dict):
+        return {}
+
+    direct = skill_intelligence.get(skill_name)
+    if isinstance(direct, dict):
+        return direct
+
+    lowered = skill_name.lower()
+    for key, value in skill_intelligence.items():
+        if str(key).lower() == lowered and isinstance(value, dict):
+            return value
+        if isinstance(value, dict) and str(value.get("skill_name", "")).lower() == lowered:
+            return value
+    return {}
 
 # ------------------------------------------------------------
 # DOWNWARD-ONLY Validators (SAFE & ASYMMETRIC)
@@ -410,6 +429,7 @@ async def generate_assessment_question_set(
     questionnaire_config = questionnaire_config or {}
     job_description = questionnaire_config.get("job_description")
     role_type = str(questionnaire_config.get("role_type", "tech")).strip().lower()
+    skill_intelligence = questionnaire_config.get("skill_intelligence") or {}
     is_non_technical = role_type in {"non-tech", "nontechnical", "non-technical", "non tech"}
     # mode = questionnaire_config.get("mode")
 
@@ -482,14 +502,27 @@ async def generate_assessment_question_set(
 
 
     # Normalize skills
-    skills_with_levels = [
-        {
-            "skill": skill,
-            "level": _normalize_skill_level(level),
-            "difficulty": LEVEL_MAP.get(_normalize_skill_level(level), "medium")
-        }
-        for skill, level in required_skills.items()
-    ]
+    skills_with_levels = []
+    for skill, level in required_skills.items():
+        metadata = _skill_metadata_for(skill, skill_intelligence)
+        effective_level = _normalize_skill_level(metadata.get("effective_level") or level)
+        skills_with_levels.append(
+            {
+                "skill": skill,
+                "level": effective_level,
+                "difficulty": LEVEL_MAP.get(effective_level, "medium"),
+                "level_source": metadata.get("level_source", "llm"),
+                "extracted_level": _normalize_skill_level(metadata.get("extracted_level") or level),
+                "override_experience_years": metadata.get("override_experience_years"),
+                "override_level": metadata.get("override_level"),
+                "priority": metadata.get("priority"),
+                "category": metadata.get("category"),
+                "matched_with_jd": metadata.get("matched_with_jd"),
+                "confidence": metadata.get("confidence"),
+                "source": metadata.get("source"),
+                "inferred": metadata.get("inferred"),
+            }
+        )
     print("[DEBUG] Skill-level-driven assessment plan:", skills_with_levels)
 
     formatted = json.dumps(skills_with_levels, indent=2)

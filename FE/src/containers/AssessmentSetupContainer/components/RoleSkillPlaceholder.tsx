@@ -1,8 +1,33 @@
-import React, { useState, useMemo } from "react";
-import { FiX, FiCheck, FiAlertCircle, FiChevronDown, FiChevronUp, FiStar } from "react-icons/fi";
+import React, { useMemo, useState } from "react";
+import {
+  FiAlertCircle,
+  FiCheck,
+  FiChevronDown,
+  FiChevronUp,
+  FiSliders,
+  FiStar,
+  FiX,
+} from "react-icons/fi";
 import "./RoleSkillPlaceholder.scss";
 
 type SkillPriority = "must-have" | "good-to-have" | "resume-based" | "soft";
+type SkillLevel = "beginner" | "intermediate" | "advanced";
+
+export interface SkillConfiguration {
+  skill_name: string;
+  extracted_level: string;
+  effective_level: string;
+  level_source: "llm" | "manual";
+  override_experience_years?: number;
+  override_level?: string;
+  confidence?: number;
+  matched_with_jd?: boolean;
+  priority?: string;
+  category?: string;
+  source?: string;
+  inferred?: boolean;
+  evidence?: string;
+}
 
 interface Props {
   role: string;
@@ -18,6 +43,8 @@ interface Props {
   jdSkills?: string[];
   skillPriorities?: Record<string, SkillPriority>;
   skillLevels?: Record<string, string>;
+  skillConfig?: Record<string, SkillConfiguration>;
+  onSkillConfigChange?: (skill: string, patch: Partial<SkillConfiguration>) => void;
   onSkillPriorityChange?: (skill: string, priority: SkillPriority) => void;
   onClearExtraction?: () => void;
 }
@@ -45,6 +72,30 @@ const SKILL_SUGGESTIONS = [
   "Groq",
 ];
 
+const normalizeLevel = (value?: string): SkillLevel => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "beginner" || normalized === "intermediate" || normalized === "advanced") {
+    return normalized;
+  }
+  if (["basic", "easy", "junior"].includes(normalized)) return "beginner";
+  if (["hard", "senior", "expert", "lead", "principal"].includes(normalized)) return "advanced";
+  return "intermediate";
+};
+
+const levelFromYears = (years: number): SkillLevel => {
+  if (years <= 3) return "beginner";
+  if (years <= 7) return "intermediate";
+  return "advanced";
+};
+
+const defaultYearsForLevel = (level: SkillLevel) => {
+  if (level === "beginner") return 2;
+  if (level === "intermediate") return 5;
+  return 8;
+};
+
+const levelClass = (level: string) => `level-${level}`;
+
 const RoleSkillPlaceholder: React.FC<Props> = ({
   role,
   setRole,
@@ -59,6 +110,8 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
   jdSkills = [],
   skillPriorities = {},
   skillLevels = {},
+  skillConfig = {},
+  onSkillConfigChange,
   onSkillPriorityChange,
   onClearExtraction: _onClearExtraction,
 }) => {
@@ -66,86 +119,124 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
   const [tempSkillPriority, setTempSkillPriority] = useState<SkillPriority>("must-have");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
-  const [showAllSkills, setShowAllSkills] = useState(false);
+  const [showOtherSkills, setShowOtherSkills] = useState(false);
 
-  const TOP_SKILLS_COUNT = 5;
+  const getConfig = (skillName: string): SkillConfiguration => {
+    const key = skillName.toLowerCase();
+    const existing = skillConfig[key];
+    const extractedLevel = normalizeLevel(existing?.extracted_level || skillLevels[key]);
+    return {
+      skill_name: skillName,
+      extracted_level: extractedLevel,
+      effective_level: normalizeLevel(existing?.effective_level || extractedLevel),
+      level_source: existing?.level_source || "llm",
+      override_experience_years: existing?.override_experience_years,
+      override_level: existing?.override_level,
+      confidence: existing?.confidence,
+      matched_with_jd: existing?.matched_with_jd,
+      priority: existing?.priority,
+      category: existing?.category,
+      source: existing?.source,
+      inferred: existing?.inferred,
+      evidence: existing?.evidence,
+    };
+  };
 
-  const sortedSkills = useMemo(() => {
+  const groupedSkills = useMemo(() => {
     return skills
-      .map(skill => ({
-        name: skill,
-        isMatched: jdSkills.some(jd =>
-          jd.toLowerCase() === skill.toLowerCase() ||
-          skill.toLowerCase().includes(jd.toLowerCase()) ||
-          jd.toLowerCase().includes(skill.toLowerCase())
-        )
-      }))
+      .map((skill) => {
+        const cfg = getConfig(skill);
+        const isMatched =
+          Boolean(cfg.matched_with_jd) ||
+          jdSkills.some(
+            (jd) =>
+              jd.toLowerCase() === skill.toLowerCase() ||
+              skill.toLowerCase().includes(jd.toLowerCase()) ||
+              jd.toLowerCase().includes(skill.toLowerCase())
+          );
+        const priority = (cfg.priority || skillPriorities[skill] || "").toLowerCase();
+        const confidence = cfg.confidence ?? 1;
+        const important =
+          cfg.effective_level === "advanced" ||
+          isMatched ||
+          priority === "critical" ||
+          priority === "high" ||
+          priority === "must-have" ||
+          cfg.source === "jd" ||
+          cfg.source === "both";
+        const other =
+          cfg.effective_level === "beginner" ||
+          confidence < 0.65 ||
+          cfg.category === "soft" ||
+          priority === "low" ||
+          priority === "resume-based" ||
+          priority === "soft";
+        return {
+          name: skill,
+          config: cfg,
+          isMatched,
+          group: important && !other ? "primary" : "other",
+        };
+      })
       .sort((a, b) => {
-        if (a.isMatched && !b.isMatched) return -1;
-        if (!a.isMatched && b.isMatched) return 1;
+        if (a.group !== b.group) return a.group === "primary" ? -1 : 1;
+        if (a.isMatched !== b.isMatched) return a.isMatched ? -1 : 1;
+        if (a.config.effective_level === "advanced" && b.config.effective_level !== "advanced") return -1;
+        if (a.config.effective_level !== "advanced" && b.config.effective_level === "advanced") return 1;
         return a.name.localeCompare(b.name);
       });
-  }, [skills, jdSkills]);
+  }, [skills, jdSkills, skillConfig, skillLevels, skillPriorities]);
 
-  const topSkills = sortedSkills.slice(0, TOP_SKILLS_COUNT);
-  const remainingSkills = sortedSkills.slice(TOP_SKILLS_COUNT);
-  const hasMoreSkills = remainingSkills.length > 0;
-  const matchedCount = sortedSkills.filter(s => s.isMatched).length;
+  const primarySkills = groupedSkills.filter((skill) => skill.group === "primary");
+  const otherSkills = groupedSkills.filter((skill) => skill.group === "other");
+  const matchedCount = groupedSkills.filter((skill) => skill.isMatched).length;
 
   const handleRoleChange = (value: string) => {
     setRole(value);
-    if (value.trim()) {
-      setRoleError?.("");
-    }
+    if (value.trim()) setRoleError?.("");
   };
 
   const handleSkillInput = (value: string) => {
     setTempSkill(value);
-    if (value.trim().length > 0) {
-      const filtered = SKILL_SUGGESTIONS.filter(
-        (skill) =>
-          skill.toLowerCase().includes(value.toLowerCase()) &&
-          !skills.includes(skill)
-      );
-      setFilteredSuggestions(filtered);
-      setShowSuggestions(true);
-    } else {
+    if (!value.trim()) {
       setShowSuggestions(false);
+      return;
     }
+
+    const filtered = SKILL_SUGGESTIONS.filter(
+      (skill) => skill.toLowerCase().includes(value.toLowerCase()) && !skills.includes(skill)
+    );
+    setFilteredSuggestions(filtered);
+    setShowSuggestions(true);
   };
 
   const addSkill = (skillName: string, priority?: SkillPriority) => {
     const trimmed = skillName.trim();
     if (!trimmed || skills.includes(trimmed)) return;
 
+    const nextPriority = priority || tempSkillPriority;
+    const level = nextPriority === "must-have" ? "advanced" : "intermediate";
+
     setSkills([...skills, trimmed]);
-    
-    // Set priority for the newly added skill
-    if (onSkillPriorityChange) {
-      const priorityToUse = priority || tempSkillPriority;
-      onSkillPriorityChange(trimmed, priorityToUse);
-    }
-    
+    onSkillPriorityChange?.(trimmed, nextPriority);
+    onSkillConfigChange?.(trimmed, {
+      skill_name: trimmed,
+      extracted_level: level,
+      effective_level: level,
+      level_source: "manual",
+      category: nextPriority === "soft" ? "soft" : "manual",
+      priority: nextPriority,
+      confidence: 1,
+    });
+
     setTempSkill("");
     setShowSuggestions(false);
     setSkillsError?.("");
-    // Reset to default priority
     setTempSkillPriority("must-have");
   };
 
-  const handleSkillKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addSkill(tempSkill);
-    } else if (e.key === "Escape") {
-      setShowSuggestions(false);
-    }
-  };
-
-  const removeSkill = (index: number) => {
-    const updated = [...skills];
-    updated.splice(index, 1);
-    setSkills(updated);
+  const removeSkill = (skillName: string) => {
+    setSkills(skills.filter((skill) => skill !== skillName));
   };
 
   const useExtractedRole = () => {
@@ -156,58 +247,179 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
   };
 
   const useExtractedSkills = () => {
-    if (extractedSkills && extractedSkills.length > 0) {
-      const newSkills = [
-        ...skills,
-        ...extractedSkills.filter((s) => !skills.includes(s)),
-      ];
-      setSkills(newSkills);
-      setSkillsError?.("");
-      
-      // Set all extracted skills as "must-have" by default
-      if (onSkillPriorityChange) {
-        extractedSkills.forEach(skill => {
-          if (!skills.includes(skill)) {
-            onSkillPriorityChange(skill, "good-to-have");
-          }
-        });
-      }
-    }
+    if (!extractedSkills?.length) return;
+
+    const newSkills = [...skills, ...extractedSkills.filter((skill) => !skills.includes(skill))];
+    setSkills(newSkills);
+    setSkillsError?.("");
+    extractedSkills.forEach((skill) => {
+      if (!skills.includes(skill)) onSkillPriorityChange?.(skill, "good-to-have");
+    });
   };
 
   const getPriorityPresentation = (priority: SkillPriority) => {
-    if (priority === "must-have") {
-      return { label: "M", title: "Must have", background: "#e3f2fd", color: "#1976d2" };
-    }
-    if (priority === "resume-based") {
-      return { label: "R", title: "Resume-based", background: "#e8f5e9", color: "#2e7d32" };
-    }
-    if (priority === "soft") {
-      return { label: "S", title: "Soft skill", background: "#f3e5f5", color: "#7b1fa2" };
-    }
-    return { label: "G", title: "Good to have", background: "#fff3e0", color: "#f57c00" };
+    if (priority === "must-have") return { label: "Must have", title: "Must have", background: "#e3f2fd", color: "#1976d2" };
+    if (priority === "resume-based") return { label: "Resume", title: "Resume-based", background: "#e8f5e9", color: "#2e7d32" };
+    if (priority === "soft") return { label: "Soft", title: "Soft skill", background: "#f3e5f5", color: "#7b1fa2" };
+    return { label: "Optional", title: "Good to have", background: "#fff3e0", color: "#f57c00" };
   };
 
-  const getSkillLevel = (skillName: string) => skillLevels[skillName.toLowerCase()];
+  const priorityForSkill = (skillName: string, cfg: SkillConfiguration): SkillPriority => {
+    const configured = skillPriorities[skillName];
+    if (configured) return configured;
+    if (cfg.category === "soft") return "soft";
+    if (cfg.priority === "critical" || cfg.priority === "high") return "must-have";
+    if (cfg.source === "resume") return "resume-based";
+    return "good-to-have";
+  };
+
+  const applyExperienceOverride = (skillName: string, years: number) => {
+    const boundedYears = Math.max(0, Math.min(20, years));
+    const overrideLevel = levelFromYears(boundedYears);
+    onSkillConfigChange?.(skillName, {
+      override_experience_years: boundedYears,
+      override_level: overrideLevel,
+      effective_level: overrideLevel,
+      level_source: "manual",
+    });
+  };
+
+  const resetExperienceOverride = (skillName: string) => {
+    const cfg = getConfig(skillName);
+    onSkillConfigChange?.(skillName, {
+      override_experience_years: undefined,
+      override_level: undefined,
+      effective_level: cfg.extracted_level,
+      level_source: "llm",
+    });
+  };
+
+  const renderSkillRow = (skillData: (typeof groupedSkills)[number]) => {
+    const cfg = skillData.config;
+    const priority = priorityForSkill(skillData.name, cfg);
+    const priorityPresentation = getPriorityPresentation(priority);
+    const sliderValue = cfg.override_experience_years ?? defaultYearsForLevel(normalizeLevel(cfg.extracted_level));
+    const isOverridden = cfg.level_source === "manual";
+
+    return (
+      <div
+        key={skillData.name}
+        className={`skill-config-row ${skillData.isMatched ? "matched" : ""} ${cfg.category === "soft" ? "soft" : ""}`}
+      >
+        <div className="skill-config-main">
+          <div className="skill-title-line">
+            {skillData.isMatched && <FiStar className="match-star" size={14} />}
+            <span className="skill-config-name">{skillData.name}</span>
+            {cfg.inferred && <span className="mini-badge inferred">inferred</span>}
+            {cfg.matched_with_jd && <span className="mini-badge match">JD match</span>}
+          </div>
+
+          <div className="skill-meta-line">
+            <span className="meta-item">{cfg.category || "skill"}</span>
+            <span className="meta-item">{cfg.source || "llm"}</span>
+            {typeof cfg.confidence === "number" && (
+              <span className="meta-item">{Math.round(cfg.confidence * 100)}% confidence</span>
+            )}
+          </div>
+
+          {cfg.evidence && <p className="skill-evidence">{cfg.evidence}</p>}
+        </div>
+
+        <div className="level-stack">
+          <div className="level-pair">
+            <span>LLM</span>
+            <strong className={levelClass(cfg.extracted_level)}>{cfg.extracted_level}</strong>
+          </div>
+          <div className="level-pair">
+            <span>Effective</span>
+            <strong className={levelClass(cfg.effective_level)}>{cfg.effective_level}</strong>
+          </div>
+          <span className={`source-pill ${isOverridden ? "manual" : "llm"}`}>
+            {isOverridden ? "manual override" : "LLM level"}
+          </span>
+        </div>
+
+        <div className="experience-control">
+          <div className="experience-header">
+            <FiSliders size={14} />
+            <span>Experience Override</span>
+            {isOverridden && (
+              <button type="button" onClick={() => resetExperienceOverride(skillData.name)}>
+                Reset
+              </button>
+            )}
+          </div>
+          <div className="experience-inputs">
+            <input
+              type="range"
+              min={0}
+              max={20}
+              value={sliderValue}
+              onChange={(event) => applyExperienceOverride(skillData.name, Number(event.target.value))}
+            />
+            <input
+              type="number"
+              min={0}
+              max={20}
+              value={isOverridden ? cfg.override_experience_years ?? "" : ""}
+              placeholder={`${sliderValue}`}
+              onChange={(event) => applyExperienceOverride(skillData.name, Number(event.target.value || 0))}
+            />
+            <span>{isOverridden ? `${cfg.override_experience_years} yrs` : "LLM"}</span>
+          </div>
+        </div>
+
+        <div className="row-actions">
+          {onSkillPriorityChange && (
+            <button
+              type="button"
+              className="priority-badge"
+              onClick={() => {
+                const current = skillPriorities[skillData.name] || priority;
+                const nextPriority: SkillPriority =
+                  current === "good-to-have"
+                    ? "must-have"
+                    : current === "must-have"
+                      ? "resume-based"
+                      : current === "resume-based"
+                        ? "soft"
+                        : "good-to-have";
+                onSkillPriorityChange(skillData.name, nextPriority);
+                onSkillConfigChange?.(skillData.name, {
+                  priority: nextPriority,
+                  category: nextPriority === "soft" ? "soft" : cfg.category,
+                });
+              }}
+              style={{ background: priorityPresentation.background, color: priorityPresentation.color }}
+              title={priorityPresentation.title}
+            >
+              {priorityPresentation.label}
+            </button>
+          )}
+          <button
+            type="button"
+            className="remove-skill"
+            onClick={() => removeSkill(skillData.name)}
+            aria-label={`Remove ${skillData.name}`}
+            title={`Remove ${skillData.name}`}
+          >
+            <FiX size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="role-skill-wrapper">
-      {/* ROLE SECTION */}
       <div className={`form-group ${roleError ? "error" : ""}`}>
         <div className="group-header">
           <label className="form-label">
             Role *
-            {extractedRole && extractedRole !== role && (
-              <span className="extraction-badge">auto-extracted</span>
-            )}
+            {extractedRole && extractedRole !== role && <span className="extraction-badge">auto-extracted</span>}
           </label>
           {extractedRole && extractedRole !== role && (
-            <button
-              type="button"
-              className="use-extraction-btn"
-              onClick={useExtractedRole}
-              title="Use extracted role"
-            >
+            <button type="button" className="use-extraction-btn" onClick={useExtractedRole}>
               Use suggestion
             </button>
           )}
@@ -219,7 +431,7 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
             className="form-input"
             value={role}
             placeholder="Enter or edit candidate role"
-            onChange={(e) => handleRoleChange(e.target.value)}
+            onChange={(event) => handleRoleChange(event.target.value)}
           />
           {role && <FiCheck size={18} className="check-icon" />}
         </div>
@@ -232,104 +444,55 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
         )}
       </div>
 
-      {/* SKILLS SECTION */}
       <div className={`form-group ${skillsError ? "error" : ""}`}>
         <div className="group-header">
           <label className="form-label">
-            Skills * ({skills.length})
+            Skill Configuration * ({skills.length})
             {extractedSkills && extractedSkills.length > 0 && (
-              <span className="extraction-badge">
-                {extractedSkills.length} extracted
-              </span>
+              <span className="extraction-badge">{extractedSkills.length} extracted</span>
             )}
           </label>
           {extractedSkills && extractedSkills.length > 0 && (
-            <button
-              type="button"
-              className="use-extraction-btn"
-              onClick={useExtractedSkills}
-              title="Add extracted skills"
-            >
+            <button type="button" className="use-extraction-btn" onClick={useExtractedSkills}>
               Add all
             </button>
           )}
         </div>
 
-        {/* Skill Input with Suggestions */}
-        <div className="skill-input-container" style={{ position: 'relative' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div className="skill-input-container">
+          <div className="skill-add-row">
             <input
               type="text"
               className="form-input"
-              placeholder="Type skill name or press Ctrl+Space for suggestions"
+              placeholder="Add a skill manually"
               value={tempSkill}
-              onChange={(e) => handleSkillInput(e.target.value)}
-              onKeyDown={handleSkillKeyDown}
-              onFocus={() => tempSkill && setShowSuggestions(true)}
-              style={{ flex: 1 }}
-            />
-            
-            {/* Priority Selector */}
-            <select
-              value={tempSkillPriority}
-              onChange={(e) => setTempSkillPriority(e.target.value as SkillPriority)}
-              style={{
-                padding: '0.5rem',
-                borderRadius: '6px',
-                border: '1px solid #ddd',
-                background:
-                  tempSkillPriority === "must-have" ? "#e3f2fd" :
-                  tempSkillPriority === "good-to-have" ? "#fff3e0" :
-                  tempSkillPriority === "resume-based" ? "#e8f5e9" :
-                  "#f3e5f5",
-                color:
-                  tempSkillPriority === "must-have" ? "#1976d2" :
-                  tempSkillPriority === "good-to-have" ? "#f57c00" :
-                  tempSkillPriority === "resume-based" ? "#2e7d32" :
-                  "#7b1fa2",
-                fontWeight: 600,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                minWidth: '130px',
+              onChange={(event) => handleSkillInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addSkill(tempSkill);
+                }
+                if (event.key === "Escape") setShowSuggestions(false);
               }}
-            >
-              <option value="must-have" style={{ background: '#fff' }}>Must Have</option>
-              <option value="good-to-have" style={{ background: '#fff' }}>Good to Have</option>
-              <option value="resume-based" style={{ background: '#fff' }}>Resume-based</option>
-              <option value="soft" style={{ background: '#fff' }}>Soft</option>
+              onFocus={() => tempSkill && setShowSuggestions(true)}
+            />
+
+            <select value={tempSkillPriority} onChange={(event) => setTempSkillPriority(event.target.value as SkillPriority)}>
+              <option value="must-have">Must Have</option>
+              <option value="good-to-have">Optional</option>
+              <option value="resume-based">Resume-based</option>
+              <option value="soft">Soft</option>
             </select>
-            
-            {/* Add Button */}
-            {tempSkill.trim() && (
-              <button
-                type="button"
-                onClick={() => addSkill(tempSkill)}
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: '#1976d2',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  fontSize: '0.85rem',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Add
-              </button>
-            )}
+
+            <button type="button" className="add-skill-btn" disabled={!tempSkill.trim()} onClick={() => addSkill(tempSkill)}>
+              Add
+            </button>
           </div>
 
-          {/* Suggestions Dropdown */}
           {showSuggestions && filteredSuggestions.length > 0 && (
             <div className="suggestions-dropdown">
               {filteredSuggestions.map((skill) => (
-                <div
-                  key={skill}
-                  className="suggestion-item"
-                  onClick={() => addSkill(skill)}
-                >
+                <div key={skill} className="suggestion-item" onClick={() => addSkill(skill)}>
                   {skill}
                 </div>
               ))}
@@ -344,136 +507,37 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Strong Skills label — show only when we actually have top skills to display */}
-        {topSkills.length > 0 && (
-          <div
-            className="collapse-toggle strong-skills-label"
-            style={{ cursor: "default", display: "flex", alignItems: "center", gap: 8 }}
-          >
-            <FiStar size={16} />
-            <span style={{ fontWeight: 600 }}>Strong Skills</span>
+        {primarySkills.length > 0 && (
+          <div className="skill-config-section">
+            <div className="skill-section-header">
+              <h3>Skills</h3>
+              <span>{primarySkills.length} prioritized</span>
+            </div>
+            <div className="skill-config-list">{primarySkills.map(renderSkillRow)}</div>
           </div>
         )}
 
-
-
-        <div className="skills-list">
-          {topSkills.map((skillData, index) => {
-            const isExtracted = extractedSkills?.includes(skillData.name);
-            const originalIndex = skills.indexOf(skillData.name);
-            return (
-              <div
-                key={index}
-                className={`skill-chip ${isExtracted ? "extracted" : "manual"} ${skillData.isMatched ? "matched" : ""}`}
-              >
-                {skillData.isMatched && <FiStar className="match-star" size={12} />}
-                <span className="skill-name">{skillData.name}</span>
-                {getSkillLevel(skillData.name) && (
-                  <span className="level-badge" title="Inferred proficiency level">
-                    {getSkillLevel(skillData.name)}
-                  </span>
-                )}
-                {onSkillPriorityChange && (
-                  <button
-                    className="priority-badge"
-                    onClick={() => {
-                      const current = skillPriorities[skillData.name] || "must-have";
-                      const newPriority: SkillPriority =
-                        current === "good-to-have" ? "must-have" :
-                        current === "must-have" ? "resume-based" :
-                        current === "resume-based" ? "soft" :
-                        "good-to-have";
-                      onSkillPriorityChange(skillData.name, newPriority);
-                    }}
-                    style={{
-                      padding: '2px 6px',
-                      fontSize: '0.7em',
-                      borderRadius: '4px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      background: getPriorityPresentation(skillPriorities[skillData.name] || "must-have").background,
-                      color: getPriorityPresentation(skillPriorities[skillData.name] || "must-have").color,
-                      marginLeft: '4px',
-                    }}
-                    title={getPriorityPresentation(skillPriorities[skillData.name] || "must-have").title}
-                  >
-                    {getPriorityPresentation(skillPriorities[skillData.name] || "must-have").label}
-                  </button>
-                )}
-                {isExtracted && !skillData.isMatched && <span className="source-label">auto</span>}
-                <button
-                  type="button"
-                  className="remove-skill"
-                  onClick={() => removeSkill(originalIndex)}
-                  aria-label={`Remove ${skillData.name}`}
-                  title={`Remove ${skillData.name}`}
-                >
-                  <FiX size={14} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        {hasMoreSkills && (
-          <div className="skills-collapse-section">
-            <button
-              type="button"
-              className="collapse-toggle"
-              onClick={() => setShowAllSkills(!showAllSkills)}
-            >
-              {showAllSkills ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
-              {showAllSkills ? "Show less (Other Skills)" : `Show ${remainingSkills.length} more (Other Skills)`}
+        {otherSkills.length > 0 && (
+          <div className="skill-config-section">
+            <button type="button" className="collapse-toggle" onClick={() => setShowOtherSkills(!showOtherSkills)}>
+              {showOtherSkills ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
+              {showOtherSkills ? "Hide Other Skills" : `Show Other Skills (${otherSkills.length})`}
             </button>
 
-            {showAllSkills && (
-              <div className="skills-list collapsed-skills">
-                {remainingSkills.map((skillData, index) => {
-                  const isExtracted = extractedSkills?.includes(skillData.name);
-                  const originalIndex = skills.indexOf(skillData.name);
-                  return (
-                    <div
-                      key={index}
-                      className={`skill-chip ${isExtracted ? "extracted" : "manual"} ${skillData.isMatched ? "matched" : ""}`}
-                    >
-                      {skillData.isMatched && <FiStar className="match-star" size={12} />}
-                      <span className="skill-name">{skillData.name}</span>
-                      {getSkillLevel(skillData.name) && (
-                        <span className="level-badge" title="Inferred proficiency level">
-                          {getSkillLevel(skillData.name)}
-                        </span>
-                      )}
-                      {isExtracted && !skillData.isMatched && <span className="source-label">auto</span>}
-                      <button
-                        type="button"
-                        className="remove-skill"
-                        onClick={() => removeSkill(originalIndex)}
-                        aria-label={`Remove ${skillData.name}`}
-                        title={`Remove ${skillData.name}`}
-                      >
-                        <FiX size={14} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+            {showOtherSkills && (
+              <div className="skill-config-list collapsed-skills">{otherSkills.map(renderSkillRow)}</div>
             )}
           </div>
         )}
 
-        {/* Extracted Skills Preview (if not used yet) */}
         {extractedSkills && extractedSkills.length > 0 && skills.length === 0 && (
           <div className="extracted-preview">
-            <p className="preview-label">📋 Suggestions from your documents:</p>
+            <p className="preview-label">Suggestions from your documents:</p>
             <div className="preview-skills">
               {extractedSkills.slice(0, 5).map((skill) => (
-                <span key={skill} className="preview-chip">
-                  {skill}
-                </span>
+                <span key={skill} className="preview-chip">{skill}</span>
               ))}
-              {extractedSkills.length > 5 && (
-                <span className="preview-chip more">+{extractedSkills.length - 5}</span>
-              )}
+              {extractedSkills.length > 5 && <span className="preview-chip more">+{extractedSkills.length - 5}</span>}
             </div>
           </div>
         )}
@@ -485,13 +549,6 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
           </div>
         )}
       </div>
-
-      {/* Info Box */}
-      {(extractedRole || extractedSkills?.length) && (
-        <div className="extraction-info">
-          <p>💡 <strong>Tip:</strong> You can customize the auto-extracted suggestions or keep them as-is. Click "Use suggestion" or "Add all" to accept.</p>
-        </div>
-      )}
     </div>
   );
 };

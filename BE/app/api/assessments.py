@@ -579,6 +579,8 @@ async def create_assessment(
     # ------------------------------------------------------
     jd_text = None
 
+    skill_configuration = request.skill_configuration or questionnaire_config.get("skill_intelligence") or {}
+
     if request.jd_id:
         jd_stmt = select(JobDescription).where(JobDescription.jd_id == request.jd_id)
         jd_result = await db.execute(jd_stmt)
@@ -706,12 +708,14 @@ async def create_assessment(
             **questionnaire_config,
             "job_description": jd_text,
             "role_type": questionnaire_config.get("role_type", resolved_role_type),
+            "skill_intelligence": skill_configuration,
         }
 
     else:
         questionnaire_config = {
             **questionnaire_config,
             "role_type": questionnaire_config.get("role_type", resolved_role_type),
+            "skill_intelligence": skill_configuration,
         }
 
     # ------------------------------------------------------
@@ -836,7 +840,8 @@ async def create_assessment(
         generation_policy=
         {
         **(request.generation_policy or {"mode": "rag", "rag_pct": 100, "llm_pct": 0}),
-        "role_type": resolved_role_type
+        "role_type": resolved_role_type,
+        "skill_intelligence": skill_configuration,
         },
     )
     

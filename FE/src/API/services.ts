@@ -134,6 +134,7 @@ export interface Assessment {
     experience?: string;
   };
   skill_priorities?: Record<string, "must-have" | "good-to-have" | "resume-based" | "soft">;
+  skill_configuration?: Record<string, any>;
   screening_questions?: string[];
   manual_questions?: AssessmentManualQuestion[];
   questionnaire_config?: AssessmentQuestionnaireConfig;
@@ -201,6 +202,7 @@ export interface AssessmentCreateRequest {
   is_interview_enabled?: boolean;
   expires_at?: string;
   skill_priorities?: Record<string, "must-have" | "good-to-have" | "resume-based" | "soft">;
+  skill_configuration?: Record<string, any>;
   is_draft?: boolean;
   is_published?: boolean;
   screening_questions?: string[];

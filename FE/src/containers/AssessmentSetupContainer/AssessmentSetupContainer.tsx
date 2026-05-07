@@ -5,6 +5,7 @@ import FileUpload from "./components/FileUpload";
 import CandidateInfoSection from "./components/CandidateInfoSection";
 import type { CandidateInfoData } from "./components/CandidateInfoSection";
 import RoleSkillPlaceholder from "./components/RoleSkillPlaceholder";
+import type { SkillConfiguration } from "./components/RoleSkillPlaceholder";
 import AssessmentMethodSelector from "./components/AssessmentMethodSelector";
 import AssessmentSetupSubmitButton from "./components/AssessmentSetupSubmitButton";
 import AssessmentLinkModal from "./components/AssessmentLinkModal";
@@ -70,6 +71,11 @@ const priorityFromExtractedSkill = (skill: ExtractedSkill): SkillPriority => {
   return "good-to-have";
 };
 
+const skillLevelsFromMeta = (
+  meta: Record<string, ExtractedSkillMeta>,
+  key: string
+) => meta[key]?.proficiencyLevel || "intermediate";
+
 const AssessmentSetupContainer: React.FC = () => {
   const navigate = useNavigate();
   const { id: assessmentId } = useParams<{ id: string }>();
@@ -132,6 +138,7 @@ const AssessmentSetupContainer: React.FC = () => {
   const [jdSkills, setJdSkills] = useState<string[]>([]);
   const [skillPriorities, setSkillPriorities] = useState<Record<string, SkillPriority>>({});
   const [extractedSkillMeta, setExtractedSkillMeta] = useState<Record<string, ExtractedSkillMeta>>({});
+  const [skillConfig, setSkillConfig] = useState<Record<string, SkillConfiguration>>({});
   const [isDraft, setIsDraft] = useState(false);
 
   const [assessmentMethod, setAssessmentMethod] = useState("questionnaire");
@@ -176,6 +183,32 @@ const AssessmentSetupContainer: React.FC = () => {
 
 
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+
+  const updateSkillConfig = (skill: string, patch: Partial<SkillConfiguration>) => {
+    const key = skill.toLowerCase();
+    setSkillConfig((prev) => {
+      const existing = prev[key] || {
+        skill_name: skill,
+        extracted_level: normalizeProficiencyLevel(skillLevelsFromMeta(extractedSkillMeta, key)),
+        effective_level: normalizeProficiencyLevel(skillLevelsFromMeta(extractedSkillMeta, key)),
+        level_source: "llm" as const,
+      };
+      const next = {
+        ...existing,
+        ...patch,
+        skill_name: patch.skill_name || existing.skill_name || skill,
+      };
+      return {
+        ...prev,
+        [key]: {
+          ...next,
+          extracted_level: normalizeProficiencyLevel(next.extracted_level),
+          effective_level: normalizeProficiencyLevel(next.effective_level),
+          override_level: next.override_level ? normalizeProficiencyLevel(next.override_level) : undefined,
+        },
+      };
+    });
+  };
 
   useEffect(() => {
     const checkRBAC = () => {
@@ -236,6 +269,23 @@ const AssessmentSetupContainer: React.FC = () => {
                 source: "assessment",
                 priority: "high",
                 matchedWithJd: true,
+              };
+              return acc;
+            }, {})
+          );
+          setSkillConfig(
+            existingSkills.reduce<Record<string, SkillConfiguration>>((acc, skill) => {
+              const level = normalizeProficiencyLevel(assessment.required_skills[skill]);
+              acc[skill.toLowerCase()] = {
+                skill_name: skill,
+                extracted_level: level,
+                effective_level: level,
+                level_source: "llm",
+                confidence: 1,
+                matched_with_jd: true,
+                priority: "high",
+                category: "unknown",
+                source: "assessment",
               };
               return acc;
             }, {})
@@ -419,6 +469,26 @@ const AssessmentSetupContainer: React.FC = () => {
         return acc;
       }, {});
       setExtractedSkillMeta(nextSkillMeta);
+      setSkillConfig(
+        extractedSkillsList.reduce<Record<string, SkillConfiguration>>((acc, skill) => {
+          const key = skill.skill_name.toLowerCase();
+          const level = normalizeProficiencyLevel(skill.proficiency_level);
+          acc[key] = {
+            skill_name: skill.skill_name,
+            extracted_level: level,
+            effective_level: level,
+            level_source: "llm",
+            confidence: skill.confidence,
+            matched_with_jd: Boolean(skill.matched_with_jd),
+            priority: skill.priority || "medium",
+            category: skill.category,
+            source: skill.source,
+            inferred: Boolean(skill.inferred),
+            evidence: skill.evidence,
+          };
+          return acc;
+        }, {})
+      );
 
       const nextSkillPriorities = extractedSkillsList.reduce<Record<string, SkillPriority>>((acc, skill) => {
         acc[skill.skill_name] = priorityFromExtractedSkill(skill);
@@ -454,10 +524,31 @@ const AssessmentSetupContainer: React.FC = () => {
         const meta = extractedSkillMeta[key];
 
         acc[skill] = normalizeProficiencyLevel(
-          meta?.proficiencyLevel || fallbackLevelFromPriority(skillPriorities[skill])
+          skillConfig[key]?.effective_level || meta?.proficiencyLevel || fallbackLevelFromPriority(skillPriorities[skill])
         );
         return acc;
       }, {} as Record<string, string>);
+
+      const skillConfigurationPayload = skills.reduce<Record<string, SkillConfiguration>>((acc, skill) => {
+        const key = skill.toLowerCase();
+        const level = normalizeProficiencyLevel(requiredSkills[skill]);
+        acc[skill] = {
+          skill_name: skill,
+          extracted_level: normalizeProficiencyLevel(skillConfig[key]?.extracted_level || extractedSkillMeta[key]?.proficiencyLevel || level),
+          effective_level: level,
+          level_source: skillConfig[key]?.level_source || "llm",
+          override_experience_years: skillConfig[key]?.override_experience_years,
+          override_level: skillConfig[key]?.override_level,
+          confidence: skillConfig[key]?.confidence ?? extractedSkillMeta[key]?.confidence,
+          matched_with_jd: skillConfig[key]?.matched_with_jd ?? extractedSkillMeta[key]?.matchedWithJd,
+          priority: skillConfig[key]?.priority || extractedSkillMeta[key]?.priority || skillPriorities[skill],
+          category: skillConfig[key]?.category || extractedSkillMeta[key]?.category,
+          source: skillConfig[key]?.source || extractedSkillMeta[key]?.source,
+          inferred: skillConfig[key]?.inferred,
+          evidence: skillConfig[key]?.evidence,
+        };
+        return acc;
+      }, {});
 
       const assessmentPayload: any = {
         title: `Assessment for ${role}`,
@@ -466,6 +557,7 @@ const AssessmentSetupContainer: React.FC = () => {
         jd_id: jdId || undefined,
 
         required_skills: requiredSkills,
+        skill_configuration: skillConfigurationPayload,
 
         skill_priorities: skillPriorities,  // ✅ NEW: Add skill priorities (must-have / good-to-have)
         is_draft: isDraft,  // ✅ NEW: Mark as draft
@@ -532,6 +624,7 @@ const AssessmentSetupContainer: React.FC = () => {
             architecture: questionDistribution.architecture,
             doc_id: ragUploadedDocId,
             role_type: "tech",
+            skill_intelligence: skillConfigurationPayload,
           };
         } else {
           assessmentPayload.questionnaire_config = {
@@ -539,6 +632,7 @@ const AssessmentSetupContainer: React.FC = () => {
             scenario: questionDistribution.scenario || 0,
             doc_id: ragUploadedDocId,
             role_type: "non-tech",
+            skill_intelligence: skillConfigurationPayload,
           };
         }
       }
@@ -832,8 +926,14 @@ const AssessmentSetupContainer: React.FC = () => {
           skillLevels={Object.fromEntries(
             Object.entries(extractedSkillMeta).map(([key, meta]) => [key, meta.proficiencyLevel])
           )}
+          skillConfig={skillConfig}
+          onSkillConfigChange={updateSkillConfig}
           onSkillPriorityChange={(skill, priority) => {
             setSkillPriorities({ ...skillPriorities, [skill]: priority });
+            updateSkillConfig(skill, {
+              priority,
+              category: priority === "soft" ? "soft" : skillConfig[skill.toLowerCase()]?.category,
+            });
           }}
         />
       </section>
