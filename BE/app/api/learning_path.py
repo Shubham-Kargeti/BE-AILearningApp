@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func, desc
-from typing import List, Optional
+from typing import Any, Iterable, Optional
 import logging
 from pydantic import BaseModel
 from app.core.dependencies import get_current_user, admin_required
@@ -12,8 +12,7 @@ from app.db.session import get_db
 from app.db.models import TestSession, Answer, Question, QuestionSet, User, Assessment, LearningPath
 
 
-from app.models.schemas import CourseRecommendation, RecommendedCoursesResponse
-from config import get_settings
+from app.models.schemas import RecommendedCoursesResponse
 
 class PushLearningPathRequest(BaseModel):
     session_id: str
@@ -60,13 +59,124 @@ def build_self_assessed_title(topic: str) -> str:
     skill_label = (topic or "General").strip()
     return f"Self assessed learning path - {date_label} - {skill_label}"
 
+
+GENERIC_TOPIC_LABELS = {
+    "",
+    "general",
+    "mixed",
+    "multiple-skills",
+    "multiple skills",
+    "unknown",
+}
+
+
+def _clean_topic(value: Any) -> str:
+    return " ".join(str(value or "").replace("_", " ").split()).strip()
+
+
+def _is_specific_topic(value: Any) -> bool:
+    topic = _clean_topic(value)
+    return bool(topic) and topic.casefold() not in GENERIC_TOPIC_LABELS
+
+
+def _append_topic(topics: list[str], seen: set[str], value: Any) -> None:
+    if isinstance(value, dict):
+        for nested in value.values():
+            _append_topic(topics, seen, nested)
+        return
+
+    if isinstance(value, (list, tuple, set)):
+        for nested in value:
+            _append_topic(topics, seen, nested)
+        return
+
+    topic = _clean_topic(value)
+    key = topic.casefold()
+    if _is_specific_topic(topic) and key not in seen:
+        seen.add(key)
+        topics.append(topic)
+
+
+def _topics_from_mapping(mapping: dict) -> list[str]:
+    topics: list[str] = []
+    seen: set[str] = set()
+    for key in (
+        "topic",
+        "topics",
+        "skill",
+        "skills",
+        "focus_area",
+        "focus_areas",
+        "competency",
+        "competencies",
+        "category",
+        "tags",
+        "language",
+    ):
+        if key in mapping:
+            _append_topic(topics, seen, mapping.get(key))
+    return topics
+
+
+def _assessment_skill_topics(assessment: Optional[Assessment]) -> list[str]:
+    topics: list[str] = []
+    seen: set[str] = set()
+
+    if not assessment:
+        return topics
+
+    required_skills = assessment.required_skills or {}
+    if isinstance(required_skills, dict):
+        for skill in required_skills.keys():
+            _append_topic(topics, seen, skill)
+    elif isinstance(required_skills, list):
+        _append_topic(topics, seen, required_skills)
+
+    skill_configuration = getattr(assessment, "skill_configuration", None) or {}
+    if isinstance(skill_configuration, dict):
+        for skill in skill_configuration.keys():
+            _append_topic(topics, seen, skill)
+
+    return topics
+
+
+def _assessment_topics(assessment: Optional[Assessment]) -> list[str]:
+    topics = _assessment_skill_topics(assessment)
+    seen = {topic.casefold() for topic in topics}
+
+    if not assessment:
+        return topics
+
+    _append_topic(topics, seen, getattr(assessment, "required_roles", None) or [])
+    _append_topic(topics, seen, getattr(assessment, "job_title", None))
+    return topics
+
+
+def _topic_terms(topic: str) -> set[str]:
+    return {
+        term
+        for term in _clean_topic(topic).casefold().replace("/", " ").replace("-", " ").split()
+        if len(term) > 3
+    }
+
+
+def _matching_assessment_topics(question_text: str, topics: Iterable[str]) -> list[str]:
+    normalized_text = _clean_topic(question_text).casefold()
+    matches = []
+    for topic in topics:
+        normalized_topic = _clean_topic(topic).casefold()
+        if normalized_topic and normalized_topic in normalized_text:
+            matches.append(topic)
+            continue
+        if any(term in normalized_text for term in _topic_terms(topic)):
+            matches.append(topic)
+    return matches
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 # Import course recommendation logic from recommended_courses
-from app.api.recommended_courses import vectorstore, get_allowed_levels, fallback_search, sanitize_for_json
-import math
+from app.api.recommended_courses import recommend_courses_for_topic, sanitize_for_json
 
 @router.get("/learning-path/employee")
 async def get_employee_learning_path(
@@ -150,8 +260,7 @@ async def generate_learning_path(
     
     # Get question set to determine topic
     topic = "General"
-    level = "Intermediate"
-    
+
     if session.question_set_id:
         qs_result = await db.execute(
             select(QuestionSet).where(QuestionSet.question_set_id == session.question_set_id)
@@ -159,7 +268,6 @@ async def generate_learning_path(
         question_set = qs_result.scalar_one_or_none()
         if question_set:
             topic = question_set.skill or "General"
-            level = question_set.level or "Intermediate"
     
     # Calculate performance level
     score_percentage = session.score_percentage or 0
@@ -172,6 +280,21 @@ async def generate_learning_path(
     else:
         learning_level = "Beginner"  # Low score → start with basics
     
+    assessment = await get_assessment_for_session(db, session)
+    assessment_skill_topics = _assessment_skill_topics(assessment)
+    assessment_topic_list = _assessment_topics(assessment)
+
+    question_topic_by_id: dict[int, str] = {}
+    if assessment_skill_topics and session.question_set_id:
+        questions_result = await db.execute(
+            select(Question)
+            .where(Question.question_set_id == session.question_set_id)
+            .order_by(Question.id)
+        )
+        ordered_questions = questions_result.scalars().all()
+        for index, question in enumerate(ordered_questions):
+            question_topic_by_id[question.id] = assessment_skill_topics[index % len(assessment_skill_topics)]
+
     # Get incorrect answers to identify weak areas
     answers_result = await db.execute(
         select(Answer, Question)
@@ -184,110 +307,52 @@ async def generate_learning_path(
         )
     )
     weak_questions = answers_result.all()
-    
-    # Extract topics from weak areas (can be enhanced with more sophisticated topic extraction)
-    # weak_topics = set()
-    # for answer, question in weak_questions:
-    #     # Use question tags or skill if available
-    #     if hasattr(question, 'skill') and question.skill:
-    #         weak_topics.add(question.skill)
-    #     elif hasattr(question, 'topic') and question.topic:
-    #         weak_topics.add(question.topic)
-    weak_topics = set()
 
-    for answer, question in weak_questions:
-        # 1. Existing fields (keep this)
-        if hasattr(question, 'skill') and question.skill:
-            weak_topics.add(question.skill)
-            continue
+    weak_topics: list[str] = []
+    seen_topics: set[str] = set()
 
-        if hasattr(question, 'topic') and question.topic:
-            weak_topics.add(question.topic)
-            continue
+    for _, question in weak_questions:
+        if _is_specific_topic(getattr(question, "topic", None)):
+            _append_topic(weak_topics, seen_topics, question.topic)
 
-        # 2. Extract from question.options (THIS IS YOUR MISSING PART)
         if isinstance(question.options, dict):
-            qtype = question.options.get("type")
+            _append_topic(weak_topics, seen_topics, _topics_from_mapping(question.options))
 
-            if qtype == "coding":
-                language = question.options.get("language")
-                if language:
-                    weak_topics.add(language)
+        if isinstance(question.source_meta, dict):
+            _append_topic(weak_topics, seen_topics, _topics_from_mapping(question.source_meta))
 
-            elif qtype == "architecture":
-                focus_areas = question.options.get("focus_areas", [])
-                for area in focus_areas:
-                    weak_topics.add(area)
+        _append_topic(
+            weak_topics,
+            seen_topics,
+            _matching_assessment_topics(question.question_text or "", assessment_topic_list),
+        )
 
-        # 3. Extract from question text (fallback)
-        text = (question.question_text or "").lower()
+        _append_topic(weak_topics, seen_topics, question_topic_by_id.get(question.id))
 
-        keywords = ["python", "java", "javascript", "docker", "kubernetes", "azure", "monitoring"]
+    if not weak_topics:
+        _append_topic(weak_topics, seen_topics, assessment_topic_list)
 
-        for kw in keywords:
-            if kw in text:
-                weak_topics.add(kw)
-        
-        # If no specific weak topics, use the main topic
-        if not weak_topics:
-            weak_topics.add(topic)
-        
-    # Combine weak topics for search query
-    search_topic = " ".join(weak_topics) if weak_topics else topic
-    print(f"[LP DEBUG] weak_topics: {weak_topics}")
-    print(f"[LP DEBUG] search_topic: {search_topic}")
-    print(f"[LP DEBUG] learning_level: {learning_level}")
-    
-    # Use vector search if available
-    recommended = []
-    allowed_levels = get_allowed_levels(learning_level)
-    
-    if vectorstore is not None:
-        try:
-            results = vectorstore.similarity_search_with_score(
-                search_topic, k=10, filter={"type": "resource"}
-            )
-            print(f"[LP DEBUG] raw_results_count: {len(results)}")
-            
-            for doc, score in results:
-                try:
-                    score_value = float(score)
-                except Exception:
-                    score_value = None
+    if not weak_topics:
+        _append_topic(weak_topics, seen_topics, topic)
 
-                if score_value is not None and not math.isfinite(score_value):
-                    score_value = None
+    search_topic = " ".join(weak_topics) if weak_topics else "General"
+    logger.debug(
+        "Learning path topic extraction session=%s weak_topics=%s learning_level=%s",
+        session_id,
+        weak_topics,
+        learning_level,
+    )
 
-                course_level = doc.metadata.get("course_level", "").strip()
-                if not course_level:
-                    continue
-                if course_level not in allowed_levels:
-                    continue
-
-                recommended.append({
-                    "name": doc.metadata.get("name", "") or "",
-                    "topic": doc.metadata.get("topic", "") or "",
-                    "collection": doc.metadata.get("collection", "") or "",
-                    "category": doc.metadata.get("category", "") or "",
-                    "description": doc.metadata.get("description", "") or "",
-                    "url": doc.metadata.get("url", "") or "",
-                    "score": score_value,
-                    "course_level": course_level
-                })
-        except Exception as e:
-            logger.exception("Vector search failed for learning path: %s", e)
-    
-    # Fallback to Excel-based search if needed
-    if len(recommended) < 3:
-        fallback_results = await fallback_search(search_topic, learning_level)
-        existing_names = {r["name"] for r in recommended}
-        for fr in fallback_results:
-            if fr["name"] not in existing_names:
-                recommended.append(fr)
-    
-    # Limit to top 10 recommendations
-    recommended = recommended[:10]
-    print(f"[LP DEBUG] final_recommendations_count: {len(recommended)}")
+    recommended = await recommend_courses_for_topic(
+        search_topic,
+        learning_level,
+        max_results=10,
+    )
+    logger.debug(
+        "Learning path recommendations session=%s count=%s",
+        session_id,
+        len(recommended),
+    )
     
     safe_response = sanitize_for_json({
         "topic": search_topic,

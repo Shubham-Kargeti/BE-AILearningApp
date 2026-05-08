@@ -1,16 +1,24 @@
 """Recommended Courses API - AI-powered course recommendations using vector search."""
 from fastapi import APIRouter, Query, HTTPException
-from typing import List, Optional
+from typing import Optional
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 import math
-import pandas as pd
 import os
 import json
 import logging
+from pathlib import Path
 
 # Import response schemas from schemas.py
-from app.models.schemas import CourseRecommendation, RecommendedCoursesResponse
+from app.models.schemas import RecommendedCoursesResponse
+from app.services.course_catalog import (
+    DATA_DIR,
+    catalog_signature,
+    get_allowed_levels,
+    normalize_course_level,
+    resolve_course_master_path,
+    search_course_catalog,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -18,7 +26,7 @@ logger = logging.getLogger(__name__)
 # Load embedding model & FAISS index (if available)
 embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 vectorstore = None
-INDEX_DIR = os.path.join("data", "course_faiss_index")
+INDEX_DIR = str(DATA_DIR / "course_faiss_index")
 INDEX_FILE = os.path.join(INDEX_DIR, "index.faiss")
 try:
     if os.path.exists(INDEX_FILE):
@@ -34,57 +42,29 @@ except Exception as e:
     vectorstore = None
     logger.exception("Failed to load FAISS index: %s", e)
 
-# Load Excel course data and clean
-EXCEL_PATH = os.path.join("data", "Courses Masterdata.xlsx")
-if os.path.exists(EXCEL_PATH):
+EXCEL_PATH = str(resolve_course_master_path())
+
+
+def is_course_index_stale() -> bool:
+    """Return True when the FAISS index cannot represent the latest Excel file."""
+    signature = catalog_signature(EXCEL_PATH)
+    if not signature:
+        return False
+    if not os.path.exists(INDEX_FILE):
+        return True
     try:
-        df_courses = pd.read_excel(EXCEL_PATH)
-        df_courses = df_courses.fillna("")
-    except Exception:
-        logger.exception("Failed to load course Excel data at %s", EXCEL_PATH)
-        df_courses = pd.DataFrame()
-else:
-    logger.warning("Course master Excel file not found at %s - fallback search will be limited.", EXCEL_PATH)
-    df_courses = pd.DataFrame()
+        return signature[1] > Path(INDEX_FILE).stat().st_mtime_ns
+    except OSError:
+        return True
 
-def get_allowed_levels(input_level: str):
-    """Returns list of allowed course levels for a given input level."""
-    level_map = {
-        "Beginner": ["Beginner", "Beginner/Intermediate", "Beginner/Advanced", "Beginner/Intermediate/Advanced"],
-        "Intermediate": ["Beginner/Intermediate", "Intermediate", "Intermediate/Advanced", "Beginner/Intermediate/Advanced"],
-        "Advanced": ["Advanced", "Beginner/Advanced", "Intermediate/Advanced", "Beginner/Intermediate/Advanced"]
-    }
-    return level_map.get(input_level, [])
 
-async def fallback_search(topic: str, level: Optional[str] = None):
-    """Simple Excel-based fallback if vector results are few. Optionally filter by level."""
-    topic_lower = topic.lower()
-    filtered = df_courses[
-        df_courses['Skill/Topic Pathways'].str.lower().str.contains(topic_lower, na=False)
-        | df_courses['Pathway Display Name'].str.lower().str.contains(topic_lower, na=False)
-        | df_courses['Collection Name'].str.lower().str.contains(topic_lower, na=False)
-    ]
-
-    # Exclude courses with empty Course Level
-    filtered = filtered[filtered['Course Level'].str.strip() != ""]
-
-    if level:
-        allowed_levels = get_allowed_levels(level)
-        filtered = filtered[filtered['Course Level'].isin(allowed_levels)]
-
-    results = []
-    for _, row in filtered.iterrows():
-        results.append({
-            "name": row.get('Pathway Display Name', "") or "",
-            "topic": row.get('Skill/Topic Pathways', "") or "",
-            "collection": row.get('Collection Name', "") or "",
-            "category": row.get('Category', "") or "",
-            "description": row.get('Description', "") or "",
-            "url": row.get('Pathway URL', "") or "",
-            "score": None,
-            "course_level": row.get('Course Level', "") or ""
-        })
-    return results
+async def fallback_search(
+    topic: str,
+    level: Optional[str] = None,
+    limit: Optional[int] = None,
+):
+    """Excel-based course search. This stays current even when FAISS is stale."""
+    return search_course_catalog(topic, level=level, limit=limit)
 
 def sanitize_for_json(data):
     """Recursively sanitize dict/list to remove NaN/inf floats."""
@@ -98,6 +78,98 @@ def sanitize_for_json(data):
         return float(data)
     else:
         return data
+
+
+def _course_key(course: dict) -> str:
+    name = str(course.get("name") or "").strip().casefold()
+    url = str(course.get("url") or "").strip().casefold()
+    topic = str(course.get("topic") or "").strip().casefold()
+    return url or f"{name}|{topic}"
+
+
+def _merge_recommendations(
+    primary: list[dict],
+    secondary: list[dict],
+    max_results: Optional[int] = 10,
+) -> list[dict]:
+    merged = []
+    seen = set()
+
+    for course in [*primary, *secondary]:
+        key = _course_key(course)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        merged.append(course)
+        if max_results is not None and len(merged) >= max_results:
+            break
+
+    return merged
+
+
+def _vector_search_courses(topic: str, level: Optional[str], k: int = 10) -> list[dict]:
+    if vectorstore is None:
+        return []
+
+    try:
+        results = vectorstore.similarity_search_with_score(
+            topic, k=k, filter={"type": "resource"}
+        )
+    except Exception as e:
+        logger.exception("Vector search failed, falling back to Excel search: %s", e)
+        return []
+
+    recommended = []
+    allowed_levels = set(get_allowed_levels(level)) if level else None
+
+    for doc, score in results:
+        try:
+            score_value = float(score)
+        except Exception:
+            score_value = None
+
+        if score_value is not None and not math.isfinite(score_value):
+            score_value = None
+
+        course_level = normalize_course_level(doc.metadata.get("course_level", ""))
+        if not course_level:
+            continue
+        if allowed_levels and course_level not in allowed_levels:
+            continue
+
+        recommended.append({
+            "name": doc.metadata.get("name", "") or "",
+            "topic": doc.metadata.get("topic", "") or "",
+            "collection": doc.metadata.get("collection", "") or "",
+            "category": doc.metadata.get("category", "") or "",
+            "description": doc.metadata.get("description", "") or "",
+            "url": doc.metadata.get("url", "") or "",
+            "score": score_value,
+            "course_level": course_level
+        })
+
+    return recommended
+
+
+async def recommend_courses_for_topic(
+    topic: str,
+    level: Optional[str],
+    max_results: Optional[int] = 10,
+) -> list[dict]:
+    """
+    Return recommendations from the latest Excel data plus FAISS when available.
+
+    When the Excel has changed after the FAISS index was built, Excel matches are
+    prioritized so newly added courses are immediately usable.
+    """
+    vector_results = _vector_search_courses(topic, level, k=max_results or 10)
+    catalog_limit = None if max_results is None else max(max_results * 3, 20)
+    catalog_results = await fallback_search(topic, level, limit=catalog_limit)
+
+    if is_course_index_stale() and catalog_results:
+        return _merge_recommendations(catalog_results, vector_results, max_results=max_results)
+
+    return _merge_recommendations(vector_results, catalog_results, max_results=max_results)
 
 @router.get("/recommended-courses/", response_model=RecommendedCoursesResponse)
 async def recommended_courses(
@@ -114,7 +186,7 @@ async def recommended_courses(
     # )
     marks: int = Query(
         ...,
-        description="Obtained marks out of 10",
+        description="Obtained marks as a percentage from 0 to 100",
         ge=0,
         le=100,
         example=70
@@ -127,9 +199,9 @@ async def recommended_courses(
     vector similarity search powered by FAISS and HuggingFace embeddings.
 
     Details:
-    - Uses semantic search via FAISS vector DB (top 10 results)
+    - Uses semantic search via FAISS vector DB when available.
+    - Always searches the latest Excel masterdata so new courses work before an index rebuild.
     - All fields of each course (name, topic, collection, category, description, url, score, course_level) are included in the output.
-    - If fewer than 3 vector matches, does a keyword-based fallback from the Excel masterdata.
     - Only courses with a non-empty Course Level are recommended.
     - If level is specified, only courses matching the allowed levels for that input level are returned (case-insensitive).
     """
@@ -137,65 +209,23 @@ async def recommended_courses(
     def marks_to_level(marks: int) -> str:
         if 0 <= marks <= 50:
             return "Beginner"
-        elif 60 <= marks <= 80:
+        elif marks <= 80:
             return "Intermediate"
-        elif 90 <= marks <= 100:
+        elif marks <= 100:
             return "Advanced"
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="Marks must be between 0 and 100."
-            )
+        raise HTTPException(
+            status_code=400,
+            detail="Marks must be between 0 and 100."
+        )
 
     try:
         normalized_level = marks_to_level(marks)
 
-        # Try vector search if index available, otherwise skip to fallback
-        results = []
-        if vectorstore is not None:
-            try:
-                results = vectorstore.similarity_search_with_score(
-                    topic, k=10, filter={"type": "resource"}
-                )
-            except Exception as e:
-                logger.exception("Vector search failed, falling back to keyword search: %s", e)
-                results = []
-
-        recommended = []
-        allowed_levels = get_allowed_levels(normalized_level) if normalized_level else None
-
-        for doc, score in results:
-            try:
-                score_value = float(score)
-            except Exception:
-                score_value = None
-
-            if score_value is not None and not math.isfinite(score_value):
-                score_value = None
-
-            course_level = doc.metadata.get("course_level", "").strip()
-            if not course_level:
-                continue
-            if normalized_level and course_level not in allowed_levels:
-                continue
-
-            recommended.append({
-                "name": doc.metadata.get("name", "") or "",
-                "topic": doc.metadata.get("topic", "") or "",
-                "collection": doc.metadata.get("collection", "") or "",
-                "category": doc.metadata.get("category", "") or "",
-                "description": doc.metadata.get("description", "") or "",
-                "url": doc.metadata.get("url", "") or "",
-                "score": score_value,
-                "course_level": course_level
-            })
-
-        if len(recommended) < 3:
-            fallback_results = await fallback_search(topic, normalized_level)
-            existing_names = {r["name"] for r in recommended}
-            for fr in fallback_results:
-                if fr["name"] not in existing_names:
-                    recommended.append(fr)
+        recommended = await recommend_courses_for_topic(
+            topic,
+            normalized_level,
+            max_results=10,
+        )
 
         safe_response = sanitize_for_json({
             "topic": topic,
@@ -204,5 +234,7 @@ async def recommended_courses(
         json.dumps(safe_response)
         return safe_response
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {e}")

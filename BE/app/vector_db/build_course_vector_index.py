@@ -2,11 +2,16 @@ import argparse
 import logging
 import os
 import shutil
+import sys
+from pathlib import Path
 
-import pandas as pd
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
+
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
+from app.services.course_catalog import load_course_catalog, resolve_course_master_path
 
 logger = logging.getLogger(__name__)
 
@@ -16,33 +21,27 @@ def build_index(excel_path: str, output_dir: str, model_name: str = "sentence-tr
 
     Returns the path to the saved index directory.
     """
-    if not os.path.exists(excel_path):
-        raise FileNotFoundError(f"Excel file not found at {excel_path}")
-
-    df = pd.read_excel(excel_path)
-    df = df.fillna("")
-    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+    resolved_excel_path = resolve_course_master_path(excel_path)
+    if not resolved_excel_path.exists():
+        raise FileNotFoundError(f"Excel file not found at {resolved_excel_path}")
 
     documents = []
-    for _, row in df.iterrows():
-        text_blob = "; ".join([
-            str(row.get("Pathway Display Name", "")),
-            str(row.get("Skill/Topic Pathways", "")),
-            str(row.get("Collection Name", "")),
-            str(row.get("Category", "")),
-            str(row.get("Description", "")),
-            str(row.get("Course Level", "")),
-        ])
+    for row in load_course_catalog(resolved_excel_path):
+        text_blob = "; ".join(
+            value
+            for key, value in row.items()
+            if isinstance(value, str) and value and not key.startswith("_")
+        )
 
         metadata = {
             "type": "resource",
-            "name": str(row.get("Pathway Display Name", "")),
-            "topic": str(row.get("Skill/Topic Pathways", "")),
-            "collection": str(row.get("Collection Name", "")),
-            "category": str(row.get("Category", "")),
-            "description": str(row.get("Description", "")),
-            "url": str(row.get("Pathway URL", "")),
-            "course_level": str(row.get("Course Level", "")),
+            "name": row.get("name", ""),
+            "topic": row.get("topic", ""),
+            "collection": row.get("collection", ""),
+            "category": row.get("category", ""),
+            "description": row.get("description", ""),
+            "url": row.get("url", ""),
+            "course_level": row.get("course_level", ""),
         }
 
         documents.append(Document(page_content=text_blob, metadata=metadata))
