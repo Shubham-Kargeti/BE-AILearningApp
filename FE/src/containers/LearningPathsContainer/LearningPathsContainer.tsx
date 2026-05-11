@@ -200,7 +200,7 @@ const LearningPathsContainer = () => {
                               border: `1px solid ${scoreColor}40`,
                             }}
                           >
-                            <Box sx={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                            {/* <Box sx={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
                               <EmojiEvents sx={{ fontSize: 20, color: scoreColor }} />
                               <Typography sx={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
                                 Score
@@ -208,7 +208,7 @@ const LearningPathsContainer = () => {
                             </Box>
                             <Typography variant="h5" sx={{ fontWeight: 800, color: scoreColor }}>
                               {score.toFixed(1)}%
-                            </Typography>
+                            </Typography> */}
                             <Typography sx={{ fontSize: "0.75rem", color: scoreColor, fontWeight: 600 }}>
                               {performanceLabel}
                             </Typography>

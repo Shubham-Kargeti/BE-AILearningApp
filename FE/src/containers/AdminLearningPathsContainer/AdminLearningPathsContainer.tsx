@@ -285,9 +285,9 @@ const AdminLearningPathsContainer: React.FC = () => {
             <div className="admin-lp-course" key={`${selectedPath.learning_path_id}-${index}`}>
               <div className="admin-lp-course-head">
                 <span>{course.course_level || "General"}</span>
-                {course.score !== null && course.score !== undefined && (
+                {/* {course.score !== null && course.score !== undefined && (
                   <span>Score {course.score.toFixed(2)}</span>
-                )}
+                )} */}
               </div>
               <h3>{course.name}</h3>
               {course.description && <p>{course.description}</p>}

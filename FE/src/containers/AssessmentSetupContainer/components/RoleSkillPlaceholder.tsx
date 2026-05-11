@@ -287,9 +287,9 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
           <div className="skill-meta-line">
             <span className="meta-item">{cfg.category || "skill"}</span>
             <span className="meta-item">{cfg.source || "llm"}</span>
-            {typeof cfg.confidence === "number" && (
+            {/* {typeof cfg.confidence === "number" && (
               <span className="meta-item">{Math.round(cfg.confidence * 100)}% confidence</span>
-            )}
+            )} */}
           </div>
 
           {cfg.evidence && <p className="skill-evidence">{cfg.evidence}</p>}

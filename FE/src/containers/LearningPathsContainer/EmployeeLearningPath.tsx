@@ -80,9 +80,9 @@ const EmployeeLearningPath = () => {
                 {course.course_level || "General"}
               </span>
 
-              {course.score !== null && course.score !== undefined && (
+              {/* {course.score !== null && course.score !== undefined && (
                 <span className="course-score">Score: {course.score.toFixed(2)}</span>
-              )}
+              )} */}
             </div>
 
             <div className="course-name">{course.name}</div>

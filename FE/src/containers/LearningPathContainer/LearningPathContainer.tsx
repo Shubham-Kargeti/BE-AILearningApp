@@ -124,11 +124,11 @@ const LearningPathContainer: React.FC = () => {
                     <div className="course-level-badge" data-level={course.course_level?.toLowerCase()}>
                       {course.course_level || "General"}
                     </div>
-                    {course.score !== null && course.score !== undefined && (
-                      <div className="course-score">
-                        Match: {(100 - course.score * 100).toFixed(0)}%
-                      </div>
-                    )}
+                    {/* {course.score !== null && course.score !== undefined && (
+                      // <div className="course-score">
+                      //   Match: {(100 - course.score * 100).toFixed(0)}%
+                      // </div>
+                    )} */}
                   </div>
 
                   <h3 className="course-name">{course.name}</h3>
