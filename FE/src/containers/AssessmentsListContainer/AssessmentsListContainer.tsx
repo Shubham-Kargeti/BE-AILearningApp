@@ -515,7 +515,11 @@ const AssessmentsListContainer = () => {
                           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mb: 1 }}>
                             {result.skill && (
                               <Chip
-                                label={`Skill: ${result.skill}`}
+                                 label={`Skill: ${
+                                  result.skill.length > 100
+                                    ? `${result.skill.slice(0, 100)}...`
+                                    : result.skill
+                                }`}
                                 size="small"
                                 sx={{ backgroundColor: "#dbeafe", color: "#1d4ed8" }}
                               />
