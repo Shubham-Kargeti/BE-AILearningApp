@@ -153,13 +153,6 @@ class Settings(BaseSettings):
     # Admin Users (email-based for MVP)
     ADMIN_EMAILS: list[str] = [
         "admin@nagarro.com",
-        "shubham.kargeti@nagarro.com",
-        "monesh.sanvaliya@nagarro.com",
-        "arjun.singha@nagarro.com",
-        "pintoo.kumar@nagarro.com",
-        "puneet.banga@nagarro.com",
-        "shailja.tyagi@nagarro.com",
-        "devinder.kumar@nagarro.com",
     ]
     
     # Logging

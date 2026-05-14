@@ -423,9 +423,12 @@ class Candidate(Base, TimestampMixin):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    password: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     
     # Professional information
     current_role: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Current job title
+    team: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # City, Country
     education: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # Highest education
     

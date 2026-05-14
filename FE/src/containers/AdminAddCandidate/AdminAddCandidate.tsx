@@ -6,6 +6,7 @@ const AdminAddCandidate = () => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    password: "",
     role: "",
     experience: "",
     skills: "",
@@ -35,21 +36,22 @@ const AdminAddCandidate = () => {
         skillsRecord[skill] = "intermediate";
       });
       
-      // include team in payload. cast to any to avoid strict TS typing issues if your types don't include `team` yet
       await candidateService.createCandidate({
         full_name: formData.name,
         email: formData.email,
+        password: formData.password,
         phone: "",
+        current_role: formData.role,
         experience_level: formData.experience || "junior",
         skills: skillsRecord,
         team: formData.team || undefined,
-      } as any);
+      });
       
       setSuccess(true);
-      setFormData({ name: "", email: "", role: "", experience: "", skills: "", team: "" });
+      setFormData({ name: "", email: "", password: "", role: "", experience: "", skills: "", team: "" });
     } catch (err: any) {
 
-      setError(err?.response?.data?.detail || "Failed to add candidate. Please try again.");
+      setError(err?.response?.data?.detail || err?.response?.data?.error || "Failed to add candidate. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -84,6 +86,19 @@ const AdminAddCandidate = () => {
               value={formData.email}
               onChange={handleChange}
               placeholder="john@example.com"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="password">Password *</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="Set candidate login password"
               required
             />
           </div>

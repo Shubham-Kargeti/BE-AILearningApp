@@ -14,7 +14,7 @@ import {
   Paper
 } from "@mui/material";
 import "./DashboardContainer.scss";
-import { coursesService, quizService, candidateService } from "../../API/services";
+import { coursesService, quizService } from "../../API/services";
 import type { RecommendedCourse as ServiceRecommendedCourse } from "../../API/services";
 import { isValidUrl } from "./helper";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
@@ -72,7 +72,7 @@ const DashboardContainer = () => {
     duration_seconds: number | null;
   }>>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
-  const [myAssessments, setMyAssessments] = useState<Array<{
+  const [myAssessments] = useState<Array<{
     assessment_id: string;
     title: string;
     description?: string;
@@ -89,7 +89,7 @@ const DashboardContainer = () => {
     completed_at?: string;
     attempts_count: number;
   }>>([]);
-  const [loadingAssessments, setLoadingAssessments] = useState(false);
+  const [loadingAssessments] = useState(false);
 
   const navigate = useNavigate();
   

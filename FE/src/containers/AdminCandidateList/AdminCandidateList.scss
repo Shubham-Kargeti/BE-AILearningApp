@@ -1,0 +1,296 @@
+.admin-candidate-list {
+  min-height: 100%;
+  color: #0f172a;
+}
+
+.candidate-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+
+  h1 {
+    margin: 0 0 6px;
+    font-size: 28px;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+    font-size: 14px;
+  }
+}
+
+.refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: #1e40af;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background: #1d4ed8;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+}
+
+.candidate-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  border-radius: 6px;
+  color: #991b1b;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  font-size: 14px;
+}
+
+.candidate-loading,
+.candidate-empty {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-radius: 8px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  text-align: center;
+
+  h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 20px;
+  }
+
+  p {
+    margin: 0;
+    font-size: 14px;
+  }
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #dbeafe;
+  border-top-color: #1e40af;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.candidate-list-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 340px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.candidate-name-panel,
+.candidate-details-panel {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+}
+
+.candidate-name-panel {
+  overflow: hidden;
+}
+
+.candidate-name-row {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: white;
+  color: #334155;
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  &:hover,
+  &.active {
+    background: #eff6ff;
+    color: #1d4ed8;
+  }
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.candidate-details-panel {
+  padding: 24px;
+}
+
+.details-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e2e8f0;
+
+  h2 {
+    margin: 0 0 4px;
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+    font-size: 14px;
+  }
+}
+
+.candidate-avatar {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: 8px;
+  background: #1e40af;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  min-width: 0;
+
+  svg {
+    flex: 0 0 auto;
+    color: #1e40af;
+    margin-top: 2px;
+  }
+
+  div {
+    min-width: 0;
+  }
+
+  span {
+    display: block;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  strong {
+    display: block;
+    color: #0f172a;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+
+  &.credential {
+    background: #fff7ed;
+    border-color: #fed7aa;
+
+    svg {
+      color: #c2410c;
+    }
+  }
+}
+
+.skills-block {
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+
+  span {
+    display: block;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  p {
+    margin: 0;
+    color: #334155;
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 900px) {
+  .candidate-list-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .details-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .candidate-list-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .refresh-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

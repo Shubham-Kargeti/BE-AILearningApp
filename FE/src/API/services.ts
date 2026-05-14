@@ -81,7 +81,8 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
-    if (error.response?.status === 401) {
+    const requestUrl = error.config?.url || "";
+    if (error.response?.status === 401 && !requestUrl.includes("/auth/login")) {
       localStorage.clear();
       window.location.href = "/login";
     }
@@ -91,12 +92,15 @@ apiClient.interceptors.response.use(
 
 export interface LoginRequest {
   email: string;
+  password: string;
 }
 
 export interface TokenResponse {
   access_token: string;
   refresh_token: string;
   token_type: string;
+  role?: "admin" | "candidate";
+  candidate_id?: string;
   login_streak?: {
     current_streak: number;
     longest_streak: number;
@@ -233,17 +237,37 @@ export interface Candidate {
   candidate_id: string;
   full_name: string;
   email: string;
+  password?: string;
   phone?: string;
+  current_role?: string;
+  team?: string;
+  location?: string;
+  education?: string;
+  linkedin_url?: string;
+  github_url?: string;
+  portfolio_url?: string;
+  experience_years?: string;
   experience_level: string;
   skills: Record<string, string>;
   availability_percentage: number;
+  is_active?: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface CandidateCreateRequest {
   full_name: string;
   email: string;
+  password: string;
   phone?: string;
+  current_role?: string;
+  team?: string;
+  location?: string;
+  education?: string;
+  linkedin_url?: string;
+  github_url?: string;
+  portfolio_url?: string;
+  experience_years?: string;
   experience_level: string;
   skills: Record<string, string>;
   availability_percentage?: number;
@@ -414,8 +438,11 @@ export interface LearningPathEmployeeSummary {
 }
 
 export const authService = {
-  login: async (email: string): Promise<TokenResponse> => {
-    const response = await apiClient.post<TokenResponse>("/auth/login", { email });
+  login: async (email: string, password: string): Promise<TokenResponse> => {
+    const response = await apiClient.post<TokenResponse>("/auth/login", {
+      email,
+      password,
+    });
     return response.data;
   },
 

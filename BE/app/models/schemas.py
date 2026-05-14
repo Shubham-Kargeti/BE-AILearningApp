@@ -180,8 +180,10 @@ class CandidateCreate(BaseModel):
     """Request to create a new candidate."""
     full_name: str
     email: str
+    password: str
     phone: Optional[str] = None
     current_role: Optional[str] = None
+    team: Optional[str] = None
     location: Optional[str] = None
     education: Optional[str] = None
     linkedin_url: Optional[str] = None
@@ -195,8 +197,10 @@ class CandidateCreate(BaseModel):
 class CandidateUpdate(BaseModel):
     """Request to update candidate profile."""
     full_name: Optional[str] = None
+    password: Optional[str] = None
     phone: Optional[str] = None
     current_role: Optional[str] = None
+    team: Optional[str] = None
     location: Optional[str] = None
     education: Optional[str] = None
     linkedin_url: Optional[str] = None
@@ -213,9 +217,11 @@ class CandidateResponse(BaseModel):
     candidate_id: str
     full_name: str
     email: str
+    password: Optional[str]=None
     phone: Optional[str]=None
 
     current_role: Optional[str]=None
+    team: Optional[str]=None
     location: Optional[str]=None
     education: Optional[str]=None
     linkedin_url: Optional[str]=None

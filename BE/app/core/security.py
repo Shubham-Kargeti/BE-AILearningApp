@@ -1,25 +1,48 @@
 """JWT authentication utilities."""
 from datetime import datetime, timedelta
 from typing import Optional, Dict
+import hashlib
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import HTTPException, status
 from config import get_settings
 
 settings = get_settings()
 
 # Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+PASSWORD_HASH_PREFIX = "bcrypt_sha256_v1$"
+
+
+def _bcrypt_secret(password: str) -> bytes:
+    """Return a fixed-size bcrypt input so long passwords do not hit 72 bytes."""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest().encode("ascii")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    if hashed_password.startswith(PASSWORD_HASH_PREFIX):
+        bcrypt_hash = hashed_password[len(PASSWORD_HASH_PREFIX):].encode("utf-8")
+        try:
+            return bcrypt.checkpw(_bcrypt_secret(plain_password), bcrypt_hash)
+        except ValueError:
+            return False
+
+    # Legacy hashes were raw bcrypt. Keep them verifiable for existing candidates.
+    raw_password = plain_password.encode("utf-8")
+    bcrypt_hash = hashed_password.encode("utf-8")
+    try:
+        return bcrypt.checkpw(raw_password, bcrypt_hash)
+    except ValueError:
+        try:
+            return bcrypt.checkpw(raw_password[:72], bcrypt_hash)
+        except ValueError:
+            return False
 
 
 def get_password_hash(password: str) -> str:
     """Hash a password."""
-    return pwd_context.hash(password)
+    bcrypt_hash = bcrypt.hashpw(_bcrypt_secret(password), bcrypt.gensalt())
+    return f"{PASSWORD_HASH_PREFIX}{bcrypt_hash.decode('utf-8')}"
 
 
 def create_access_token(

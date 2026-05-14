@@ -1,65 +1,80 @@
 import React, { useEffect, useState } from "react";
-import { Box, TextField, Button, Typography } from "@mui/material";
+import { Box, TextField, Button, Typography, Alert } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import "./LoginContainer.scss";
-import { apiCall } from "../../API";
-import { HTTP_POST, LOGIN } from "../../API/constants";
 import Loader from "../../components/Loader";
-import {isAdmin} from "../../utils/adminUsers"
+import { authService } from "../../API/services";
+import { isAdmin } from "../../utils/adminUsers";
 
 const LoginContainer = () => {
   const navigate = useNavigate();
   const [values, setValues] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setValues((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    setError("");
   };
 
   useEffect(() => {
     const token = localStorage.getItem("authToken");
-    if (token) {
-      navigate("/app/dashboard");
-    }
-  }, []);
+    const userEmail = localStorage.getItem("loggedInUser") || "";
+    const profileCompleted = localStorage.getItem("profileCompleted") === "true";
 
-  useEffect(() => {
-    localStorage.clear();
-  }, []);
+    if (token) {
+      navigate(isAdmin(userEmail) ? "/admin/dashboard" : profileCompleted ? "/app/dashboard" : "/app/profile-setup");
+    }
+  }, [navigate]);
 
   const generateAuthToken = async () => {
     try {
       setLoading(true);
-      const response = await apiCall(LOGIN, HTTP_POST, {
-        email: values.email,
-      });
-      console.log("BASE URL:", import.meta.env.VITE_API_BASE_URL);
-      const { access_token } = response;
+      setError("");
+      const response = await authService.login(values.email.trim(), values.password);
+      const { access_token, refresh_token, role, candidate_id } = response;
 
       if (access_token) {
         localStorage.setItem("authToken", access_token);
       }
 
-      setLoading(false);
-      return access_token;
-    } catch (error) {
+      if (refresh_token) {
+        localStorage.setItem("refreshToken", refresh_token);
+      }
 
+      if (role) {
+        localStorage.setItem("userRole", role);
+      }
+
+      if (candidate_id) {
+        localStorage.setItem("candidateId", candidate_id);
+      }
+
+      setLoading(false);
+      return response;
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error ||
+        "Invalid email or password.";
+      setError(message);
       setLoading(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (!values.email) return;
-
-    /*if (!allowedUsers.includes(values.email)) {
-      alert("Unauthorized user. Please use a valid email.");
+    if (!values.email || !values.password) {
+      setError("Please enter both email and password.");
       return;
-    }*/
+    }
 
-    await generateAuthToken();
-    localStorage.setItem("loggedInUser", values.email);
+    const response = await generateAuthToken();
+    if (!response?.access_token) return;
 
-    if (isAdmin(values.email)) {
+    const email = values.email.trim().toLowerCase();
+    localStorage.setItem("loggedInUser", email);
+
+    if (response.role === "admin" || isAdmin(email)) {
       navigate("/admin/dashboard");
     } else {
       navigate("/app/profile-setup");
@@ -85,6 +100,19 @@ const LoginContainer = () => {
           onChange={handleChange}
           className="input"
         />
+
+        <TextField
+          label="Password"
+          name="password"
+          type="password"
+          variant="outlined"
+          fullWidth
+          value={values.password}
+          onChange={handleChange}
+          className="input"
+        />
+
+        {error && <Alert severity="error">{error}</Alert>}
 
         <Button
           variant="contained"
