@@ -335,7 +335,7 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
               placeholder={`${sliderValue}`}
               onChange={(event) => applyExperienceOverride(skillData.name, Number(event.target.value || 0))}
             />
-            <span>{isOverridden ? `${cfg.override_experience_years} yrs` : "LLM"}</span>
+            <span>{isOverridden ? `${cfg.override_experience_years} yrs` : ""}</span>
           </div>
         </div>
 
