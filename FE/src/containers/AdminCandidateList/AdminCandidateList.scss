@@ -60,6 +60,38 @@
   font-size: 14px;
 }
 
+.candidate-search {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 520px;
+  padding: 0 14px;
+  margin-bottom: 18px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: white;
+
+  svg {
+    flex: 0 0 auto;
+    color: #64748b;
+  }
+
+  input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    color: #0f172a;
+    font-size: 14px;
+    background: transparent;
+
+    &::placeholder {
+      color: #94a3b8;
+    }
+  }
+}
+
 .candidate-loading,
 .candidate-empty {
   min-height: 280px;
@@ -245,6 +277,102 @@
     svg {
       color: #c2410c;
     }
+  }
+}
+
+.password-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: #ea580c;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 10px;
+  cursor: pointer;
+
+  &:hover {
+    background: #c2410c;
+  }
+}
+
+.password-editor {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+
+  input {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid #fdba74;
+    border-radius: 6px;
+    color: #0f172a;
+    font-size: 14px;
+    padding: 9px 10px;
+    outline: 0;
+    background: white;
+
+    &:focus {
+      border-color: #ea580c;
+      box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.14);
+    }
+  }
+}
+
+.password-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 0;
+    border-radius: 6px;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 7px 10px;
+    cursor: pointer;
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.65;
+    }
+  }
+
+  .save-password-btn {
+    background: #15803d;
+
+    &:hover:not(:disabled) {
+      background: #166534;
+    }
+  }
+
+  .cancel-password-btn {
+    background: #475569;
+
+    &:hover:not(:disabled) {
+      background: #334155;
+    }
+  }
+}
+
+.detail-item small {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+
+  &.success {
+    color: #15803d;
+  }
+
+  &.error {
+    color: #b91c1c;
   }
 }
 

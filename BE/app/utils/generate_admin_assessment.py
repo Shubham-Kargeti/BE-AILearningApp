@@ -1,4 +1,3 @@
-from langchain_openai import ChatOpenAI
 import re
 from config import settings
 from langchain_core.prompts import (
@@ -7,6 +6,7 @@ from langchain_core.prompts import (
     SystemMessagePromptTemplate
 )
 from app.db.models import QuestionSet, Question
+from app.core.llm import create_chat_llm, get_llm_model_name
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import uuid4
 import json
@@ -1124,11 +1124,7 @@ def _get_llm():
     if not settings.OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY is not configured")
 
-    return ChatOpenAI(
-        model="gpt-4o",
-        temperature=0,
-        api_key=settings.OPENAI_API_KEY
-    )
+    return create_chat_llm()
 
 
 def _parse_json_array_response(raw_content, label: str) -> list:
@@ -1539,7 +1535,7 @@ async def generate_assessment_question_set(
         skill="multiple-skills",
         level="mixed",
         total_questions=total_questions,
-        generation_model="gpt-4o"
+        generation_model=get_llm_model_name()
     )
 
     db.add(qs)
@@ -1571,7 +1567,7 @@ async def generate_assessment_question_set(
             options=options_dict,
             correct_answer=q["correct_answer"],
             difficulty=intended_difficulty,
-            generation_model="gpt-4o",
+            generation_model=get_llm_model_name(),
             generation_time=time.time() - start_time
         )
 
@@ -1591,7 +1587,7 @@ async def generate_assessment_question_set(
             },
             correct_answer=_extract_suggested_answer(cq, "CODING LLM"),
             difficulty="coding",
-            generation_model="gpt-4o",
+            generation_model=get_llm_model_name(),
             generation_time=time.time() - start_time
         )
         db.add(db_question)
@@ -1609,7 +1605,7 @@ async def generate_assessment_question_set(
             },
             correct_answer=_extract_suggested_answer(aq, "ARCHITECTURE LLM"),
             difficulty="architecture",
-            generation_model="gpt-4o",
+            generation_model=get_llm_model_name(),
             generation_time=time.time() - start_time
         )
         db.add(db_question)
@@ -1627,7 +1623,7 @@ async def generate_assessment_question_set(
             },
             correct_answer=_extract_suggested_answer(rq, "REASONING LLM"),
             difficulty="scenario",
-            generation_model="gpt-4o",
+            generation_model=get_llm_model_name(),
             generation_time=time.time() - start_time
         )
         db.add(db_question)

@@ -7,6 +7,7 @@ from app.db.models import QuestionSet, Question
 from app.models.schemas import QuestionSetResponse, MCQOption, MCQQuestion
 from datetime import datetime
 from typing import List
+from app.core.llm import get_llm_model_name
 import uuid
 
 router = APIRouter()
@@ -72,7 +73,7 @@ async def generate_mcqs(
             skill=topic,
             level=level.title(),
             total_questions=len(mcqs),
-            generation_model="llama-3.3-70b-versatile",
+            generation_model=get_llm_model_name(),
         )
         db.add(question_set)
         await db.flush()
@@ -88,7 +89,7 @@ async def generate_mcqs(
                 correct_answer=mcq.correct_answer,
                 difficulty=level.title(),
                 topic=topic,
-                generation_model="llama-3.3-70b-versatile"
+                generation_model=get_llm_model_name()
             )
             db.add(db_question)
 

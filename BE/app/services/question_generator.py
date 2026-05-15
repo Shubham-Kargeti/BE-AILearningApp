@@ -21,6 +21,7 @@ from app.db.models import Question
 from app.db.session import get_db_sync_engine
 from sqlalchemy.orm import sessionmaker
 from config import get_settings
+from app.core.llm import build_chat_completion_payload, get_llm_config
 
 settings = get_settings()
 
@@ -30,8 +31,8 @@ def _call_llm(prompt: str, timeout: int = 30) -> str:
 
     Falls back to a safe stub when OPENAI_API_KEY not present (useful for local dev/testing).
     """
-    api_key = getattr(settings, "OPENAI_API_KEY", None)
-    model = getattr(settings, "OPENAI_MODEL", "gpt-3.5-turbo")
+    llm_config = get_llm_config()
+    api_key = llm_config.api_key
 
     if not api_key:
         # Stubbed response for local testing (very simple predictable output)
@@ -45,17 +46,10 @@ def _call_llm(prompt: str, timeout: int = 30) -> str:
         return json.dumps(stub)
 
     headers = {"Authorization": f"Bearer {api_key}"}
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": getattr(settings, "LLM_TEMPERATURE", 0.2),
-        "max_tokens": 512,
-    }
-
-    url = getattr(settings, "OPENAI_API_URL", "https://api.openai.com/v1/chat/completions")
+    payload = build_chat_completion_payload([{"role": "user", "content": prompt}])
 
     with httpx.Client(timeout=timeout) as client:
-        r = client.post(url, headers=headers, json=payload)
+        r = client.post(llm_config.api_url, headers=headers, json=payload)
         r.raise_for_status()
         data = r.json()
         # Extract content in the standard OpenAI Chat format

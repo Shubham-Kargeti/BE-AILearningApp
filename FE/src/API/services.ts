@@ -669,9 +669,16 @@ export const candidateService = {
     return response.data;
   },
 
-  listCandidates: async (skip = 0, limit = 50): Promise<Candidate[]> => {
+  listCandidates: async (skip = 0, limit = 50, search = ""): Promise<Candidate[]> => {
+    const params = new URLSearchParams({
+      skip: String(skip),
+      limit: String(limit),
+    });
+    if (search.trim()) {
+      params.set("search", search.trim());
+    }
     const response = await apiClient.get<Candidate[]>(
-      `/candidates?skip=${skip}&limit=${limit}`
+      `/candidates?${params.toString()}`
     );
     return response.data;
   },

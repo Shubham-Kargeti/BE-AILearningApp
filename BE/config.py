@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from typing import Optional
 import os
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -127,6 +128,19 @@ class Settings(BaseSettings):
     # AI/ML
     # GROQ_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    OPENAI_API_URL: str = "https://api.openai.com/v1/chat/completions"
+    LLM_PROVIDER: str = "openai"
+    LLM_MODEL: str = "gpt-4o"
+    LLM_TEMPERATURE: float = 0.0
+    LLM_MAX_TOKENS: Optional[int] = None
+    
+    @field_validator("LLM_MAX_TOKENS", mode="before")
+    @classmethod
+    def validate_llm_max_tokens(cls, value):
+        if value in ("", None):
+            return None
+        return int(value)
+    
     MAX_QUESTIONS_PER_TEST: int = 20
     QUESTION_GENERATION_TIMEOUT: int = 300  # 5 minutes
 
