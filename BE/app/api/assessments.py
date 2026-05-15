@@ -856,6 +856,20 @@ async def create_assessment(
     await db.commit()
     await db.refresh(assessment)
 
+    if candidate_db:
+        application = AssessmentApplication(
+            candidate_id=candidate_db.id,
+            assessment_id=assessment.id,
+            status="pending",
+            applied_at=datetime.utcnow(),
+            candidate_availability=100,  # or from request
+            submitted_skills=request.required_skills or {},
+            role_applied_for=request.job_title,
+        )
+
+    db.add(application)
+    await db.commit()
+
     await _clear_assessment_cache()
 
     return build_assessment_response(assessment)

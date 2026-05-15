@@ -531,7 +531,7 @@ const DashboardContainer = () => {
                             />
                              </Box>
 
-                          {assessment.description && (
+                          {/* {assessment.description && (
                             <Typography sx={{
                               fontSize: '0.875rem',
                               color: '#64748b',
@@ -543,7 +543,7 @@ const DashboardContainer = () => {
                             }}>
                               {assessment.description}
                             </Typography>
-                          )}
+                          )} */}
                           <Box sx={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                               <AccessTimeIcon sx={{ fontSize: 16, color: '#64748b' }} />
@@ -564,7 +564,7 @@ const DashboardContainer = () => {
                               </Typography>
                             </Box>
                           </Box>
-                          
+
                           {skills.length > 0 && (
                             <Box sx={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
                               {skills.map(([skill, level]) => (
