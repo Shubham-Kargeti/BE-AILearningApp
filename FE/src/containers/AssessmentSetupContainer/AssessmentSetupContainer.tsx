@@ -6,7 +6,7 @@ import CandidateInfoSection from "./components/CandidateInfoSection";
 import type { CandidateInfoData } from "./components/CandidateInfoSection";
 import RoleSkillPlaceholder from "./components/RoleSkillPlaceholder";
 import type { SkillConfiguration } from "./components/RoleSkillPlaceholder";
-import AssessmentMethodSelector from "./components/AssessmentMethodSelector";
+// import AssessmentMethodSelector from "./components/AssessmentMethodSelector";
 import AssessmentSetupSubmitButton from "./components/AssessmentSetupSubmitButton";
 import AssessmentLinkModal from "./components/AssessmentLinkModal";
 import Toast from "../../components/Toast/Toast";
@@ -18,7 +18,7 @@ import type { QuestionDistribution } from "./components/QuestionnaireConfig";
 import AssessmentConfigurationBlock from "./components/AssessmentConfigurationBlock";
 import type { GenerationPolicy } from "./components/GenerationPolicySelector";
 import GenerationPolicySelector from "./components/GenerationPolicySelector";
-import AssessmentQuestionEditor, { type Question } from "./components/AssessmentQuestionEditor";
+// import AssessmentQuestionEditor, { type Question } from "./components/AssessmentQuestionEditor";
 import { FiFileText, FiBriefcase, FiCpu } from "react-icons/fi";
 
 
@@ -154,7 +154,7 @@ const AssessmentSetupContainer: React.FC = () => {
   const [screeningQuestions] =
     useState<string[]>([""]);
 
-  const [manualQuestions, setManualQuestions] = useState<Question[]>([]);
+  // const [manualQuestions, setManualQuestions] = useState<Question[]>([]);
 
   const [cutoffMarks, setCutoffMarks] = useState<number>(70);
 
@@ -575,18 +575,18 @@ const AssessmentSetupContainer: React.FC = () => {
           .filter(Boolean),
 
         // ✅ NEW: Include manual questions in the payload
-        manual_questions: manualQuestions.map(q => ({
-          question_text: q.question_text,
-          type: q.type,
-          difficulty: q.difficulty,
-          skill: q.skill || '',
-          options: q.options || [],
-          correct_answer: q.correct_answer || '',
-          code_template: q.code_template,
-          constraints: q.constraints,
-          test_cases: q.test_cases,
-          time_limit: q.time_limit,
-        })),
+        // manual_questions: manualQuestions.map(q => ({
+        //   question_text: q.question_text,
+        //   type: q.type,
+        //   difficulty: q.difficulty,
+        //   skill: q.skill || '',
+        //   options: q.options || [],
+        //   correct_answer: q.correct_answer || '',
+        //   code_template: q.code_template,
+        //   constraints: q.constraints,
+        //   test_cases: q.test_cases,
+        //   time_limit: q.time_limit,
+        // })),
 
         // Skill proficiency levels in required_skills drive question difficulty.
         total_questions: totalQuestions,
