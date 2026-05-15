@@ -46,6 +46,13 @@ type SkillPriority = "must-have" | "good-to-have" | "resume-based" | "soft";
 
 type RoleCategory = "tech" | "non-tech";
 
+const ASSESSMENT_GENERATION_MESSAGES = [
+  "Creating assessment...",
+  "Generating AI questions...",
+  "Preparing evaluation criteria...",
+  "Finalizing assessment structure...",
+];
+
 const normalizeProficiencyLevel = (value?: string) => {
   const normalized = String(value || "").trim().toLowerCase();
   if (["beginner", "intermediate", "advanced"].includes(normalized)) {
@@ -176,6 +183,7 @@ const AssessmentSetupContainer: React.FC = () => {
 
   const [processLoading, setProcessLoading] = useState(false);
   const processLoadingRef = useRef(false);
+  const submitLoadingRef = useRef(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formValid, setFormValid] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
@@ -517,13 +525,21 @@ const AssessmentSetupContainer: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (skipValidation = false) => {
+  const handleSubmit = async (skipValidation = false, draftOverride = isDraft) => {
+    if (submitLoadingRef.current) {
+      return;
+    }
+
+    const shouldSaveAsDraft = draftOverride;
+
     // Skip validation when called from Question Bank buttons with minimal info
     if (!skipValidation && !formValid) {
       setToast({ type: "error", message: "Please complete all required fields" });
       return;
     }
 
+    submitLoadingRef.current = true;
+    setIsDraft(shouldSaveAsDraft);
     setSubmitLoading(true);
 
     try {
@@ -568,8 +584,8 @@ const AssessmentSetupContainer: React.FC = () => {
         skill_configuration: skillConfigurationPayload,
 
         skill_priorities: skillPriorities,  // ✅ NEW: Add skill priorities (must-have / good-to-have)
-        is_draft: isDraft,  // ✅ NEW: Mark as draft
-        is_published: !isDraft,  // Don't publish drafts
+        is_draft: shouldSaveAsDraft,  // ✅ NEW: Mark as draft
+        is_published: !shouldSaveAsDraft,  // Don't publish drafts
 
         required_roles: [role.trim()],
         duration_minutes: 30,
@@ -690,6 +706,7 @@ const AssessmentSetupContainer: React.FC = () => {
         "Failed to create assessment. Please try again.";
       setToast({ type: "error", message: errorMessage });
     } finally {
+      submitLoadingRef.current = false;
       setSubmitLoading(false);
     }
   };
@@ -710,6 +727,12 @@ const AssessmentSetupContainer: React.FC = () => {
         open={processLoading}
         title="Extracting role and skills"
         subtitle="We are reading the resume and job description, then matching them into assessment-ready signals."
+      />
+      <AIProcessingOverlay
+        open={submitLoading && !isDraft}
+        title={isEditMode ? "Updating assessment" : "Creating assessment"}
+        subtitle="We are generating the assessment structure, question mix, and evaluation signals with AI."
+        messages={ASSESSMENT_GENERATION_MESSAGES}
       />
 
       {toast && (
@@ -1058,8 +1081,7 @@ const AssessmentSetupContainer: React.FC = () => {
         <button
           className="btn btn-secondary"
           onClick={() => {
-            setIsDraft(true);
-            handleSubmit(true);
+            handleSubmit(true, true);
           }}
           disabled={submitLoading}
           style={{ marginRight: '1rem' }}
@@ -1071,8 +1093,7 @@ const AssessmentSetupContainer: React.FC = () => {
           disabled={!formValid || submitLoading}
           loading={submitLoading && !isDraft}
           onClick={() => {
-            setIsDraft(false);
-            handleSubmit();
+            handleSubmit(false, false);
           }}
           validationCount={validationErrors.length}
           label={isEditMode ? "Update Assessment" : "Create Assessment"}

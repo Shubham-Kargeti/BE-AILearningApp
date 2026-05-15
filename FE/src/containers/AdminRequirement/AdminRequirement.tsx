@@ -50,6 +50,13 @@ const NON_TECH_DEFAULT_DISTRIBUTION: RequirementQuestionDistribution = {
   scenario: 4,
 };
 
+const ASSESSMENT_GENERATION_MESSAGES = [
+  "Creating assessment...",
+  "Generating AI questions...",
+  "Preparing evaluation criteria...",
+  "Finalizing assessment structure...",
+];
+
 const TECH_ROLE_KEYWORDS = [
   "developer",
   "engineer",
@@ -273,6 +280,7 @@ const AdminRequirement: React.FC = () => {
   const [skillLevels, setSkillLevels] = useState<Record<string, string>>({});
   const [processLoading, setProcessLoading] = useState(false);
   const processLoadingRef = useRef(false);
+  const submitLoadingRef = useRef(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formValid, setFormValid] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
@@ -514,6 +522,10 @@ const AdminRequirement: React.FC = () => {
   };
 
   const handleSubmit = async () => {
+    if (submitLoadingRef.current) {
+      return;
+    }
+
     if (!formValid) {
       setToast({
         type: "error",
@@ -527,6 +539,7 @@ const AdminRequirement: React.FC = () => {
       return;
     }
 
+    submitLoadingRef.current = true;
     setSubmitLoading(true);
 
     try {
@@ -637,6 +650,7 @@ const AdminRequirement: React.FC = () => {
         "Failed to create assessment. Please try again.";
       setToast({ type: "error", message: errorMessage });
     } finally {
+      submitLoadingRef.current = false;
       setSubmitLoading(false);
     }
   };
@@ -647,6 +661,12 @@ const AdminRequirement: React.FC = () => {
         open={processLoading}
         title="Extracting role and skills"
         subtitle="We are scanning the job description, classifying the role, and extracting the most relevant skills."
+      />
+      <AIProcessingOverlay
+        open={submitLoading}
+        title="Creating assessment"
+        subtitle="We are generating the role-based assessment structure, question mix, and evaluation criteria with AI."
+        messages={ASSESSMENT_GENERATION_MESSAGES}
       />
 
       {toast && (
