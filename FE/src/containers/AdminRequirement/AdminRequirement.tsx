@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FiBriefcase,
@@ -13,6 +13,7 @@ import {
   type ExtractedSkill,
 } from "../../API/services";
 import Toast from "../../components/Toast/Toast";
+import AIProcessingOverlay from "../../components/AIProcessingOverlay";
 import FileUpload from "../AssessmentSetupContainer/components/FileUpload";
 import RoleSkillPlaceholder from "../AssessmentSetupContainer/components/RoleSkillPlaceholder";
 import type { SkillConfiguration } from "../AssessmentSetupContainer/components/RoleSkillPlaceholder";
@@ -271,6 +272,7 @@ const AdminRequirement: React.FC = () => {
   const [expiresAt, setExpiresAt] = useState("");
   const [skillLevels, setSkillLevels] = useState<Record<string, string>>({});
   const [processLoading, setProcessLoading] = useState(false);
+  const processLoadingRef = useRef(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formValid, setFormValid] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
@@ -385,11 +387,16 @@ const AdminRequirement: React.FC = () => {
   };
 
   const handleExtractRoleAndSkills = async () => {
+    if (processLoadingRef.current) {
+      return;
+    }
+
     if (!jdFile) {
       setToast({ type: "error", message: "Please upload a JD first" });
       return;
     }
 
+    processLoadingRef.current = true;
     setProcessLoading(true);
     setRoleError("");
     setSkillsError("");
@@ -501,6 +508,7 @@ const AdminRequirement: React.FC = () => {
         "Failed to extract role and skills from the JD.";
       setToast({ type: "error", message: errorMessage });
     } finally {
+      processLoadingRef.current = false;
       setProcessLoading(false);
     }
   };
@@ -635,6 +643,12 @@ const AdminRequirement: React.FC = () => {
 
   return (
     <div className="admin-requirement-page">
+      <AIProcessingOverlay
+        open={processLoading}
+        title="Extracting role and skills"
+        subtitle="We are scanning the job description, classifying the role, and extracting the most relevant skills."
+      />
+
       {toast && (
         <Toast
           type={toast.type}

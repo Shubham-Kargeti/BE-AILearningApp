@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./AssessmentSetupContainer.scss";
 import FileUpload from "./components/FileUpload";
@@ -10,6 +10,7 @@ import type { SkillConfiguration } from "./components/RoleSkillPlaceholder";
 import AssessmentSetupSubmitButton from "./components/AssessmentSetupSubmitButton";
 import AssessmentLinkModal from "./components/AssessmentLinkModal";
 import Toast from "../../components/Toast/Toast";
+import AIProcessingOverlay from "../../components/AIProcessingOverlay";
 import { isAdmin } from "../../utils/adminUsers";
 import { uploadService, assessmentService } from "../../API/services";
 import type { ExtractedSkill } from "../../API/services";
@@ -174,6 +175,7 @@ const AssessmentSetupContainer: React.FC = () => {
   }, [ragUploadedDocId]);
 
   const [processLoading, setProcessLoading] = useState(false);
+  const processLoadingRef = useRef(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formValid, setFormValid] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
@@ -391,6 +393,10 @@ const AssessmentSetupContainer: React.FC = () => {
   };
 
   const handleProcessFile = async () => {
+    if (processLoadingRef.current) {
+      return;
+    }
+
     if (!cvFile) {
       setToast({ type: "error", message: "Please select a CV first" });
       return;
@@ -401,6 +407,7 @@ const AssessmentSetupContainer: React.FC = () => {
       return;
     }
 
+    processLoadingRef.current = true;
     setProcessLoading(true);
 
     try {
@@ -505,6 +512,7 @@ const AssessmentSetupContainer: React.FC = () => {
       const errorMessage = err.response?.data?.detail || "Failed to process resume. Please try again.";
       setToast({ type: "error", message: errorMessage });
     } finally {
+      processLoadingRef.current = false;
       setProcessLoading(false);
     }
   };
@@ -698,6 +706,12 @@ const AssessmentSetupContainer: React.FC = () => {
 
   return (
     <div className="assessment-page">
+      <AIProcessingOverlay
+        open={processLoading}
+        title="Extracting role and skills"
+        subtitle="We are reading the resume and job description, then matching them into assessment-ready signals."
+      />
+
       {toast && (
         <Toast
           type={toast.type}
