@@ -9,6 +9,9 @@ import {
   FiKey,
   FiMail,
   FiRefreshCw,
+  FiSave,
+  FiSearch,
+  FiX,
   FiUsers,
 } from "react-icons/fi";
 import { candidateService } from "../../API/services";
@@ -39,6 +42,11 @@ const formatSkills = (skills: Record<string, string>) => {
 const AdminCandidateList: React.FC = () => {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [passwordDraft, setPasswordDraft] = useState("");
+  const [editingPassword, setEditingPassword] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -47,11 +55,11 @@ const AdminCandidateList: React.FC = () => {
     [candidates, selectedCandidateId]
   );
 
-  const fetchCandidates = async () => {
+  const fetchCandidates = async (search = searchQuery) => {
     try {
       setLoading(true);
       setError("");
-      const data = await candidateService.listCandidates(0, 100);
+      const data = await candidateService.listCandidates(0, 200, search);
       setCandidates(data);
       setSelectedCandidateId((current) =>
         current && data.some((candidate) => candidate.candidate_id === current) ? current : null
@@ -68,8 +76,65 @@ const AdminCandidateList: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchCandidates();
-  }, []);
+    const timer = window.setTimeout(() => {
+      fetchCandidates(searchQuery);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setEditingPassword(false);
+    setPasswordDraft("");
+    setPasswordMessage("");
+  }, [selectedCandidateId]);
+
+  const handlePasswordSave = async () => {
+    if (!selectedCandidate) return;
+
+    const nextPassword = passwordDraft.trim();
+    if (!nextPassword) {
+      setPasswordMessage("Password cannot be empty.");
+      return;
+    }
+
+    try {
+      setSavingPassword(true);
+      setPasswordMessage("");
+      const updated = await candidateService.updateCandidate(selectedCandidate.candidate_id, {
+        password: nextPassword,
+      });
+      setCandidates((current) =>
+        current.map((candidate) =>
+          candidate.candidate_id === updated.candidate_id ? updated : candidate
+        )
+      );
+      setEditingPassword(false);
+      setPasswordDraft("");
+      setPasswordMessage("Password updated.");
+    } catch (err: any) {
+      setPasswordMessage(
+        err?.response?.data?.detail ||
+        err?.response?.data?.error ||
+        "Failed to update password."
+      );
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
+  const beginPasswordEdit = () => {
+    if (!selectedCandidate) return;
+    setPasswordDraft(selectedCandidate.password || "");
+    setPasswordMessage("");
+    setEditingPassword(true);
+  };
+
+  const cancelPasswordEdit = () => {
+    setEditingPassword(false);
+    setPasswordDraft("");
+    setPasswordMessage("");
+  };
 
   return (
     <div className="admin-candidate-list">
@@ -78,10 +143,21 @@ const AdminCandidateList: React.FC = () => {
           <h1>Candidate List</h1>
           <p>View candidate credentials and profile details added by admin</p>
         </div>
-        <button className="refresh-btn" type="button" onClick={fetchCandidates} disabled={loading}>
+        <button className="refresh-btn" type="button" onClick={() => fetchCandidates()} disabled={loading}>
           <FiRefreshCw className={loading ? "spinning" : ""} size={16} />
           <span>Refresh</span>
         </button>
+      </div>
+
+      <div className="candidate-search">
+        <FiSearch size={18} />
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Search candidates by name or email"
+          aria-label="Search candidates by name or email"
+        />
       </div>
 
       {error && (
@@ -101,8 +177,12 @@ const AdminCandidateList: React.FC = () => {
       {!loading && candidates.length === 0 && !error && (
         <div className="candidate-empty">
           <FiUsers size={42} />
-          <h2>No candidates yet</h2>
-          <p>Candidates added from the Add Candidate section will appear here.</p>
+          <h2>{searchQuery.trim() ? "No matching candidates" : "No candidates yet"}</h2>
+          <p>
+            {searchQuery.trim()
+              ? "Try a different name or email."
+              : "Candidates added from the Add Candidate section will appear here."}
+          </p>
         </div>
       )}
 
@@ -151,7 +231,54 @@ const AdminCandidateList: React.FC = () => {
                   <FiKey size={18} />
                   <div>
                     <span>Password</span>
-                    <strong>{selectedCandidate.password || "Not set"}</strong>
+                    {!editingPassword && (
+                      <>
+                        <strong>{selectedCandidate.password || "Not set"}</strong>
+                        <button
+                          className="password-edit-btn"
+                          type="button"
+                          onClick={beginPasswordEdit}
+                        >
+                          {selectedCandidate.password ? "Edit password" : "Create password"}
+                        </button>
+                      </>
+                    )}
+                    {editingPassword && (
+                      <div className="password-editor">
+                        <input
+                          type="text"
+                          value={passwordDraft}
+                          onChange={(event) => setPasswordDraft(event.target.value)}
+                          placeholder="Enter candidate password"
+                          autoFocus
+                        />
+                        <div className="password-actions">
+                          <button
+                            type="button"
+                            className="save-password-btn"
+                            onClick={handlePasswordSave}
+                            disabled={savingPassword}
+                          >
+                            <FiSave size={14} />
+                            <span>{savingPassword ? "Saving" : "Save"}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="cancel-password-btn"
+                            onClick={cancelPasswordEdit}
+                            disabled={savingPassword}
+                          >
+                            <FiX size={14} />
+                            <span>Cancel</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {passwordMessage && (
+                      <small className={passwordMessage === "Password updated." ? "success" : "error"}>
+                        {passwordMessage}
+                      </small>
+                    )}
                   </div>
                 </div>
 

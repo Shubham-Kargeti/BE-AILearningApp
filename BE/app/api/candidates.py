@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, validator
@@ -175,16 +175,24 @@ async def get_current_candidate(
 async def list_candidates(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
+    search: Optional[str] = Query(None, description="Search candidates by name or email"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(admin_required),
 ) -> List[CandidateResponse]:
     """List candidates provisioned by admin."""
-    stmt = (
-        select(Candidate)
-        .order_by(Candidate.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-    )
+    stmt = select(Candidate)
+
+    normalized_search = search.strip().lower() if search else ""
+    if normalized_search:
+        search_term = f"%{normalized_search}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(Candidate.full_name).like(search_term),
+                func.lower(Candidate.email).like(search_term),
+            )
+        )
+
+    stmt = stmt.order_by(Candidate.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
     candidates = result.scalars().all()
 
