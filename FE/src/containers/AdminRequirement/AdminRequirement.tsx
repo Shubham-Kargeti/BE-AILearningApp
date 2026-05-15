@@ -647,8 +647,8 @@ const AdminRequirement: React.FC = () => {
         <div>
           <h1>Admin Requirement Setup</h1>
           <p>
-            Upload a JD, extract the role and skills, and create a role-aware
-            assessment payload for the backend.
+            Upload a job description to generate a tailored, 
+            role-based assessment powered by AI skill extraction.
           </p>
         </div>
       </header>

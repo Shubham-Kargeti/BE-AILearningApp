@@ -255,6 +255,28 @@ export interface Candidate {
   updated_at?: string;
 }
 
+export interface CandidatePendingAssessment {
+  application_id: string;
+  assessment_id: string;
+  title: string;
+  description?: string;
+  job_title?: string;
+  duration_minutes: number;
+  total_questions: number;
+  required_skills: Record<string, string>;
+  question_set_id?: string | null;
+  assessment_method?: string | null;
+  is_questionnaire_enabled: boolean;
+  is_interview_enabled: boolean;
+  expires_at?: string | null;
+  is_expired: boolean;
+  status: string;
+  applied_at?: string | null;
+  started_at?: string | null;
+  session_id?: string | null;
+  role_applied_for?: string | null;
+}
+
 export interface CandidateCreateRequest {
   full_name: string;
   email: string;
@@ -672,6 +694,13 @@ export const candidateService = {
     attempts_count: number;
   }>> => {
     const response = await apiClient.get("/candidates/my-assessments");
+    return response.data;
+  },
+  getMyPendingAssessments: async (): Promise<CandidatePendingAssessment[]> => {
+    const response = await apiClient.get<CandidatePendingAssessment[]>(
+      "/candidates/my-pending-assessments",
+      { headers: { "x-cache-skip": "true" } }
+    );
     return response.data;
   },
   getEmployeeLearningPath: async () => {

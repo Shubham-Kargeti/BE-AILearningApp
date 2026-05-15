@@ -3,7 +3,8 @@ from fastapi import APIRouter, HTTPException, Depends, status, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func
+from sqlalchemy import func, or_
+from sqlalchemy.orm import joinedload
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, validator
@@ -11,7 +12,7 @@ import re
 
 from app.core.dependencies import get_db, get_current_user, admin_required
 from app.core.security import get_password_hash
-from app.db.models import Candidate, User, UploadedDocument, Assessment, TestSession
+from app.db.models import Candidate, User, UploadedDocument, Assessment, TestSession, AssessmentApplication
 from app.models.schemas import CandidateCreate, CandidateUpdate, CandidateResponse, FieldError, ValidationErrorResponse
 
 # Response schemas for new endpoints
@@ -23,6 +24,27 @@ class EmailValidationResponse(BaseModel):
 
 class SkillsOverrideRequest(BaseModel):
     submitted_skills: dict  # {skill_name: proficiency_level}
+
+class CandidatePendingAssessmentResponse(BaseModel):
+    application_id: str
+    assessment_id: str
+    title: str
+    description: Optional[str] = None
+    job_title: str
+    duration_minutes: int
+    total_questions: int
+    required_skills: dict
+    question_set_id: Optional[str] = None
+    assessment_method: str
+    is_questionnaire_enabled: bool
+    is_interview_enabled: bool
+    expires_at: Optional[datetime] = None
+    is_expired: bool
+    status: str
+    applied_at: datetime
+    started_at: Optional[datetime] = None
+    session_id: Optional[str] = None
+    role_applied_for: Optional[str] = None
 
 router = APIRouter(prefix="/api/v1/candidates", tags=["candidates"])
 
@@ -54,6 +76,40 @@ def to_candidate_response(candidate: Candidate, include_password: bool = False) 
         created_at=candidate.created_at,
         updated_at=candidate.updated_at,
     )
+
+
+async def get_candidate_for_current_user(
+    current_user: User,
+    db: AsyncSession,
+) -> Candidate:
+    """Resolve the authenticated user to an active candidate profile."""
+    normalized_email = current_user.email.lower().strip()
+    result = await db.execute(
+        select(Candidate).where(
+            or_(
+                Candidate.user_id == current_user.id,
+                func.lower(Candidate.email) == normalized_email,
+            ),
+            Candidate.is_active == True,
+        )
+    )
+    candidate = result.scalars().first()
+
+    if not candidate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate profile not found",
+        )
+
+    return candidate
+
+
+def is_assessment_available_for_candidate(assessment: Assessment) -> bool:
+    """Return whether a candidate should still see this assigned assessment."""
+    if not assessment.is_active or not assessment.is_published:
+        return False
+
+    return not assessment.is_expired
 
 
 @router.get("/check-email", response_model=EmailValidationResponse)
@@ -169,6 +225,108 @@ async def get_current_candidate(
         )
     
     return to_candidate_response(result)
+
+
+@router.get(
+    "/my-pending-assessments",
+    response_model=List[CandidatePendingAssessmentResponse],
+)
+async def get_my_pending_assessments(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> List[CandidatePendingAssessmentResponse]:
+    """
+    Get assessments assigned to the current candidate that are not completed yet.
+    """
+    candidate = await get_candidate_for_current_user(current_user, db)
+    candidate_email = candidate.email.lower().strip()
+
+
+    applications_result = await db.execute(
+        select(AssessmentApplication)
+        .options(joinedload(AssessmentApplication.assessment))
+        .where(
+            AssessmentApplication.candidate_id == candidate.id,
+            AssessmentApplication.status.in_(["pending", "in_progress"]),
+            AssessmentApplication.completed_at.is_(None),
+        )
+        .order_by(AssessmentApplication.applied_at.desc())
+    )
+    applications = applications_result.scalars().all()
+
+    print(f"[Debug] Found {applications} {len(applications)} pending assessments for candidate ({candidate_email})")
+
+    pending_assessments: List[CandidatePendingAssessmentResponse] = []
+    for application in applications:
+        assessment = application.assessment
+        if not assessment or not is_assessment_available_for_candidate(assessment):
+            continue
+
+        session = None
+        if application.test_session_id:
+            session_result = await db.execute(
+                select(TestSession).where(
+                    TestSession.session_id == application.test_session_id
+                )
+            )
+            session = session_result.scalars().first()
+            if session and session.is_completed:
+                continue
+
+        if assessment.question_set_id:
+            completed_session_result = await db.execute(
+                select(TestSession).where(
+                    TestSession.question_set_id == assessment.question_set_id,
+                    TestSession.is_completed == True,
+                    or_(
+                        TestSession.user_id == current_user.id,
+                        func.lower(TestSession.candidate_email) == candidate_email,
+                    ),
+                )
+            )
+            if completed_session_result.scalars().first():
+                continue
+
+            if session is None:
+                in_progress_session_result = await db.execute(
+                    select(TestSession)
+                    .where(
+                        TestSession.question_set_id == assessment.question_set_id,
+                        TestSession.is_completed == False,
+                        or_(
+                            TestSession.user_id == current_user.id,
+                            func.lower(TestSession.candidate_email) == candidate_email,
+                        ),
+                    )
+                    .order_by(TestSession.created_at.desc())
+                )
+                session = in_progress_session_result.scalars().first()
+
+        pending_assessments.append(
+            CandidatePendingAssessmentResponse(
+                application_id=application.application_id,
+                assessment_id=assessment.assessment_id,
+                title=assessment.title,
+                description=assessment.description,
+                job_title=assessment.job_title,
+                duration_minutes=assessment.duration_minutes,
+                total_questions=assessment.total_questions,
+                required_skills=assessment.required_skills or {},
+                question_set_id=assessment.question_set_id,
+                assessment_method=assessment.assessment_method,
+                is_questionnaire_enabled=assessment.is_questionnaire_enabled,
+                is_interview_enabled=assessment.is_interview_enabled,
+                expires_at=assessment.expires_at,
+                is_expired=assessment.is_expired,
+                status=application.status,
+                applied_at=application.applied_at,
+                started_at=application.started_at,
+                session_id=session.session_id if session else application.test_session_id,
+                role_applied_for=application.role_applied_for,
+            )
+        )
+
+    return pending_assessments
 
 
 @router.get("", response_model=List[CandidateResponse])

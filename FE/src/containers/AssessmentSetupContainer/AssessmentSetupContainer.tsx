@@ -969,7 +969,7 @@ const AssessmentSetupContainer: React.FC = () => {
         />
       )}
 
-      <section className="card questions-card">
+      {/* <section className="card questions-card">
         <div className="card-header">
           <h2>{isEditMode ? "Add Questions" : "Manual Question Management"}</h2>
           <p className="hint">Add, edit, or reorder questions manually for this assessment</p>
@@ -980,9 +980,9 @@ const AssessmentSetupContainer: React.FC = () => {
           onQuestionsChange={setManualQuestions}
           roleCategory={roleCategory}
         />
-      </section>
+      </section> */}
 
-      <section className="card method-card">
+      {/* <section className="card method-card">
         <div className="card-header">
           <h2>Assessment Method</h2>
           <p className="hint">Select how candidates will be assessed</p>
@@ -992,7 +992,7 @@ const AssessmentSetupContainer: React.FC = () => {
           method={assessmentMethod}
           setMethod={setAssessmentMethod}
         />
-      </section>
+      </section> */}
 
 
 
