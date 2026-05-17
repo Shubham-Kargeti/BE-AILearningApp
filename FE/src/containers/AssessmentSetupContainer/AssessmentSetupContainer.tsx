@@ -176,10 +176,24 @@ const AssessmentSetupContainer: React.FC = () => {
   });
 
   useEffect(() => {
-    if (!ragUploadedDocId) {
+    if (!ragUploadedDocId && !ragFile) {
       setGenerationPolicy({ mode: "llm", rag_pct: 0, llm_pct: 100 });
     }
-  }, [ragUploadedDocId]);
+  }, [ragUploadedDocId, ragFile]);
+
+  const handleRagFileSelect = (file: File | null) => {
+    setRagFile(file);
+    setRagUploadedDocId(null);
+    if (file) {
+      setGenerationPolicy((prev) => (
+        prev.rag_pct > 0
+          ? prev
+          : { mode: "mix", rag_pct: 50, llm_pct: 50 }
+      ));
+    } else {
+      setGenerationPolicy({ mode: "llm", rag_pct: 0, llm_pct: 100 });
+    }
+  };
 
   const [processLoading, setProcessLoading] = useState(false);
   const processLoadingRef = useRef(false);
@@ -543,6 +557,44 @@ const AssessmentSetupContainer: React.FC = () => {
     setSubmitLoading(true);
 
     try {
+      let ragDocIdForSubmit = ragUploadedDocId;
+      let generationPolicyForSubmit: GenerationPolicy = generationPolicy;
+
+      if (ragFile && !ragDocIdForSubmit && generationPolicy.rag_pct > 0) {
+        try {
+          setToast({ type: "info", message: "Preparing document context for this assessment..." });
+          setRagUploadProgress(0);
+          const uploadResult = await uploadService.uploadQuestionDoc(
+            ragFile,
+            undefined,
+            (p) => setRagUploadProgress(p)
+          );
+          ragDocIdForSubmit = uploadResult.doc_id;
+          setRagUploadedDocId(uploadResult.doc_id);
+          if (uploadResult.warning) {
+            setToast({
+              type: "info",
+              message: "Document uploaded. If document retrieval is weak, generation will continue with normal AI questions.",
+            });
+          }
+        } catch (uploadErr: any) {
+          console.error("RAG upload failed, falling back to LLM-only generation:", uploadErr);
+          ragDocIdForSubmit = null;
+          generationPolicyForSubmit = { mode: "llm", rag_pct: 0, llm_pct: 100 };
+          setToast({
+            type: "info",
+            message: "Document context could not be prepared. Continuing with normal AI generation.",
+          });
+        } finally {
+          setRagUploadProgress(null);
+        }
+      }
+
+      if (!ragDocIdForSubmit || generationPolicyForSubmit.rag_pct <= 0) {
+        generationPolicyForSubmit = { mode: "llm", rag_pct: 0, llm_pct: 100 };
+        ragDocIdForSubmit = null;
+      }
+
       const requiredSkills = skills.reduce((acc, skill) => {
         const key = skill.toLowerCase();
         const meta = extractedSkillMeta[key];
@@ -627,7 +679,7 @@ const AssessmentSetupContainer: React.FC = () => {
             },
         passing_score_threshold: cutoffMarks,
         auto_adjust_by_experience: false,
-        generation_policy: generationPolicy,
+        generation_policy: generationPolicyForSubmit,
       };
 
       // Only add candidate_info if we have email (required by backend)
@@ -646,7 +698,7 @@ const AssessmentSetupContainer: React.FC = () => {
             mcq: questionDistribution.mcq,
             coding: questionDistribution.coding,
             architecture: questionDistribution.architecture,
-            doc_id: ragUploadedDocId,
+            doc_id: ragDocIdForSubmit,
             role_type: "tech",
             skill_intelligence: skillConfigurationPayload,
           };
@@ -654,7 +706,7 @@ const AssessmentSetupContainer: React.FC = () => {
           assessmentPayload.questionnaire_config = {
             mcq: questionDistribution.mcq,
             scenario: questionDistribution.scenario || 0,
-            doc_id: ragUploadedDocId,
+            doc_id: ragDocIdForSubmit,
             role_type: "non-tech",
             skill_intelligence: skillConfigurationPayload,
           };
@@ -684,21 +736,6 @@ const AssessmentSetupContainer: React.FC = () => {
           : "Assessment created successfully!",
       });
 
-      // If a Question Bank file was selected during create, upload it automatically (but do NOT auto-generate)
-      if (ragFile && resultAssessmentId) {
-        try {
-          setToast({ type: "info", message: "Uploading Question Bank document..." });
-          setRagUploadProgress(0);
-          const res = await uploadService.uploadQuestionDoc(ragFile, resultAssessmentId, (p) => setRagUploadProgress(p));
-          setRagUploadedDocId(res.doc_id);
-          setToast({ type: "success", message: `Question Bank document uploaded (doc id: ${res.doc_id})` });
-        } catch (err: any) {
-          const errorMessage = err.response?.data?.detail || "Failed to upload Question Bank document";
-          setToast({ type: "error", message: errorMessage });
-        } finally {
-          setRagUploadProgress(null);
-        }
-      }
     } catch (err: any) {
       console.error("Error submitting assessment:", err);
       const errorMessage =
@@ -819,7 +856,9 @@ const AssessmentSetupContainer: React.FC = () => {
       {!isEditMode && (<section className="card question-source-card">
         <div className="card-header">
           <h2>Question Source Document (Optional)</h2>
-          <p className="hint">Upload a document to generate assessment questions based on its content</p>
+          <p className="hint">
+            Optional. The uploaded document is used only for this assessment generation and is cleared after creation.
+          </p>
         </div>
 
         <div className="rag-upload-shell">
@@ -829,10 +868,10 @@ const AssessmentSetupContainer: React.FC = () => {
             </div>
             <div className="source-document-copy">
               <h3>Question Source Document</h3>
-              <p>Use AI + document context to generate targeted questions</p>
+              <p>Enable document-grounded questions for this assessment only</p>
             </div>
 
-            <FileUpload label="Question Source Document" onFileSelect={setRagFile} />
+            <FileUpload label="Question Source Document" onFileSelect={handleRagFileSelect} />
           </div>
         </div>
 
@@ -847,11 +886,16 @@ const AssessmentSetupContainer: React.FC = () => {
               const targetAssessmentId = isEditMode ? assessmentId : createdAssessmentId;
 
               try {
-                setToast({ type: "info", message: "Uploading Question Bank document..." });
+                setToast({ type: "info", message: "Preparing document context..." });
                 setRagUploadProgress(0);
                 const res = await uploadService.uploadQuestionDoc(ragFile, targetAssessmentId ?? undefined, (p) => setRagUploadProgress(p));
                 setRagUploadedDocId(res.doc_id);
-                setToast({ type: 'success', message: `Question Bank uploaded (doc: ${res.doc_id})` });
+                setToast({
+                  type: res.warning ? "info" : "success",
+                  message: res.warning
+                    ? "Document uploaded. Retrieval will fall back safely if context is weak."
+                    : `Document ready with ${res.chunks ?? 0} chunks`,
+                });
               } catch (err: any) {
                 const msg = err.response?.data?.detail || 'Failed to upload Question Bank document';
                 setToast({ type: 'error', message: msg });
@@ -913,10 +957,12 @@ const AssessmentSetupContainer: React.FC = () => {
       </section>
       )}
 
-      {ragUploadedDocId && (
+      {(ragUploadedDocId || ragFile) && (
         <GenerationPolicySelector
           value={generationPolicy}
           onChange={setGenerationPolicy}
+          questionCount={totalQuestions}
+          disabled={!ragUploadedDocId && !ragFile}
         />
       )}
 

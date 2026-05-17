@@ -10,6 +10,7 @@ import json
 from config import get_settings
 from app.core.redis import get_redis, RedisService
 from app.utils.generate_admin_assessment import generate_assessment_question_set
+from app.services.doc_ingest import cleanup_document
 from app.core.dependencies import get_db, get_current_user, optional_auth
 from app.core.security import check_admin, is_admin_user
 from app.db.models import Assessment, AssessmentApplication, Candidate, User, JobDescription, Question
@@ -125,6 +126,24 @@ def _derive_difficulty_distribution_from_skills(required_skills: Optional[dict])
     }
     print("[DEBUG] Skill-level-derived difficulty distribution:", distribution)
     return distribution
+
+
+def _clamp_percent(value: object, default: int = 0) -> int:
+    try:
+        pct = int(round(float(value)))
+    except (TypeError, ValueError):
+        pct = default
+    return max(0, min(100, pct))
+
+
+def _normalize_generation_policy(policy: Optional[dict], doc_id: Optional[str]) -> dict:
+    policy = policy or {}
+    rag_pct = _clamp_percent(policy.get("rag_pct"), default=100 if doc_id else 0)
+    if not doc_id:
+        rag_pct = 0
+    llm_pct = 100 - rag_pct
+    mode = "llm" if rag_pct == 0 else "rag" if rag_pct == 100 else "mix"
+    return {"mode": mode, "rag_pct": rag_pct, "llm_pct": llm_pct}
 
 
 def serialize_question(question: Question) -> dict:
@@ -542,7 +561,10 @@ async def create_assessment(
     # --------------------------------------------
     # Prepare questionnaire_config FIRST
     # --------------------------------------------
-    questionnaire_config = request.questionnaire_config or {}
+    questionnaire_config = dict(request.questionnaire_config or {})
+    rag_doc_id = questionnaire_config.get("doc_id")
+    generation_policy = _normalize_generation_policy(request.generation_policy, rag_doc_id)
+    questionnaire_config["generation_policy"] = generation_policy
 
     parent_id = request.parent_assessment_id
     parent = None
@@ -728,12 +750,15 @@ async def create_assessment(
     # ------------------------------------------------------
     # GENERATE QUESTION SET (LLM CALL)
     # ------------------------------------------------------
-    question_set_id = await generate_assessment_question_set(
-        request.required_skills,
-        db,
-        questionnaire_config=questionnaire_config,
-        existing_questions=existing_questions
-    )
+    try:
+        question_set_id = await generate_assessment_question_set(
+            request.required_skills,
+            db,
+            questionnaire_config=questionnaire_config,
+            existing_questions=existing_questions
+        )
+    finally:
+        cleanup_document(rag_doc_id)
 
     # ------------------------------------------------------
     # DURATION CALCULATION
@@ -844,11 +869,11 @@ async def create_assessment(
         is_published=True,
         expires_at=request.expires_at,
         created_by=current_user.id,
-        generation_policy=
-        {
-        **(request.generation_policy or {"mode": "rag", "rag_pct": 100, "llm_pct": 0}),
-        "role_type": resolved_role_type,
-        "skill_intelligence": skill_configuration,
+        generation_policy={
+            **generation_policy,
+            "role_type": resolved_role_type,
+            "skill_intelligence": skill_configuration,
+            "rag_doc_id": rag_doc_id,
         },
     )
     
@@ -867,8 +892,8 @@ async def create_assessment(
             role_applied_for=request.job_title,
         )
 
-    db.add(application)
-    await db.commit()
+        db.add(application)
+        await db.commit()
 
     await _clear_assessment_cache()
 

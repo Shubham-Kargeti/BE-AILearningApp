@@ -909,7 +909,15 @@ export const uploadService = {
     file: File,
     assessmentId?: string,
     onProgress?: (percent: number) => void
-  ): Promise<{ message: string; doc_id: string; s3_key: string; task_id?: string }> => {
+  ): Promise<{
+    message: string;
+    doc_id: string;
+    s3_key: string;
+    task_id?: string;
+    indexed?: boolean;
+    chunks?: number;
+    warning?: string;
+  }> => {
     const formData = new FormData();
     formData.append("file", file);
 

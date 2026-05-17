@@ -12,7 +12,7 @@ from uuid import uuid4
 import json
 import asyncio
 import time
-from app.services.doc_ingest import query_text
+from app.services.doc_ingest import get_document_stats, query_text
 
 # ------------------------------------------------------------
 # Difficulty normalization (ADMIN → DB)
@@ -1171,10 +1171,186 @@ def _extract_suggested_answer(item: dict, label: str) -> str:
     question_id = item.get("question_id", "?")
     raise ValueError(f"{label} item {question_id} is missing a suggested_answer")
 
+
+def _clamp_pct(value) -> int:
+    try:
+        pct = int(round(float(value)))
+    except (TypeError, ValueError):
+        pct = 0
+    return max(0, min(100, pct))
+
+
+def _normalize_generation_policy(policy: dict | None, doc_id: str | None) -> dict:
+    policy = policy or {}
+    rag_pct = _clamp_pct(policy.get("rag_pct", 0 if not doc_id else 100))
+    if not doc_id:
+        rag_pct = 0
+    llm_pct = 100 - rag_pct
+    mode = "llm" if rag_pct == 0 else "rag" if rag_pct == 100 else "mix"
+    return {"mode": mode, "rag_pct": rag_pct, "llm_pct": llm_pct}
+
+
+def _allocate_rag_counts(type_counts: dict[str, int], rag_pct: int) -> dict[str, int]:
+    total = sum(max(0, int(count or 0)) for count in type_counts.values())
+    target = round(total * (_clamp_pct(rag_pct) / 100))
+    target = max(0, min(total, target))
+
+    allocations = {key: 0 for key in type_counts}
+    if target == 0 or total == 0:
+        return allocations
+
+    raw = []
+    for order, (key, count) in enumerate(type_counts.items()):
+        safe_count = max(0, int(count or 0))
+        exact = safe_count * target / total
+        floor_value = min(safe_count, int(exact))
+        allocations[key] = floor_value
+        raw.append((exact - floor_value, order, key, safe_count))
+
+    remaining = target - sum(allocations.values())
+    for _, _, key, safe_count in sorted(raw, key=lambda item: (-item[0], item[1])):
+        if remaining <= 0:
+            break
+        if allocations[key] < safe_count:
+            allocations[key] += 1
+            remaining -= 1
+
+    return allocations
+
+
+def _existing_questions_text(existing_questions: list[str] | None) -> str:
+    if not existing_questions:
+        return ""
+    if isinstance(existing_questions, list):
+        return "\n".join(str(item) for item in existing_questions if item)
+    return str(existing_questions)
+
+
+def _question_text_for_dedup(item: dict) -> str:
+    parts = [
+        item.get("question_text"),
+        item.get("title"),
+        item.get("description"),
+    ]
+    return " ".join(str(part).strip() for part in parts if part).strip()
+
+
+def _mark_source(items: list[dict], source_type: str, source_meta: dict | None = None) -> list[dict]:
+    for item in items:
+        if isinstance(item, dict):
+            item["_source_type"] = source_type
+            item["_source_meta"] = source_meta or {}
+    return items
+
+
+def _normalize_mcq_options(raw_options) -> dict:
+    if isinstance(raw_options, dict):
+        return {str(key): str(value) for key, value in raw_options.items()}
+
+    if isinstance(raw_options, list):
+        options = {}
+        for idx, opt in enumerate(raw_options):
+            if isinstance(opt, dict):
+                option_id = opt.get("option_id") or opt.get("id") or chr(65 + idx)
+                option_text = opt.get("text") or opt.get("label") or opt.get("value") or ""
+            else:
+                option_id = chr(65 + idx)
+                option_text = str(opt)
+            options[str(option_id)] = str(option_text)
+        return options
+
+    return {}
+
+
+def _collect_rag_context(
+    required_skills: dict,
+    questionnaire_config: dict,
+    doc_id: str | None,
+    rag_question_count: int,
+) -> dict:
+    if not doc_id or rag_question_count <= 0:
+        return {"available": False, "context": "", "hits": [], "stats": get_document_stats(doc_id)}
+
+    stats = get_document_stats(doc_id)
+    total_chunks = int(stats.get("chunks") or 0)
+    if total_chunks <= 0:
+        return {"available": False, "context": "", "hits": [], "stats": stats}
+
+    skills = list((required_skills or {}).keys())
+    role = str(questionnaire_config.get("role_type") or questionnaire_config.get("job_title") or "").strip()
+    query_base = ", ".join(skills[:12]) or role or "assessment"
+    dynamic_top_k = min(
+        total_chunks,
+        max(8, rag_question_count * 3, len(skills) * 2),
+    )
+    per_query_k = max(3, min(dynamic_top_k, dynamic_top_k // 2 or dynamic_top_k))
+
+    queries = [
+        f"assessment questions for {query_base}",
+        f"role responsibilities scenarios tools concepts for {query_base}",
+    ]
+    queries.extend(f"interview questions about {skill}" for skill in skills[:6])
+
+    hits_by_id: dict[str, tuple[dict, float | None]] = {}
+    for query in queries:
+        try:
+            for hit, score in query_text(query, top_k=per_query_k, doc_id=doc_id):
+                hit_id = hit.get("id")
+                if not hit_id:
+                    continue
+                existing = hits_by_id.get(hit_id)
+                existing_score = existing[1] if existing else None
+                if existing is None or (score is not None and (existing_score is None or score > existing_score)):
+                    hits_by_id[hit_id] = (hit, score)
+        except Exception as exc:
+            print(f"[RAG] Retrieval query failed: {exc}")
+
+    if len(hits_by_id) < min(dynamic_top_k, 4):
+        try:
+            for hit, score in query_text(f"questions about {query_base}", top_k=dynamic_top_k, doc_id=doc_id):
+                hit_id = hit.get("id")
+                if hit_id and hit_id not in hits_by_id:
+                    hits_by_id[hit_id] = (hit, score)
+        except Exception as exc:
+            print(f"[RAG] Fallback retrieval failed: {exc}")
+
+    ranked_hits = sorted(
+        hits_by_id.values(),
+        key=lambda item: (
+            -1 if item[1] is None else -float(item[1]),
+            int((item[0].get("meta") or {}).get("chunk_index") or 0),
+        ),
+    )[:dynamic_top_k]
+
+    if not ranked_hits:
+        return {"available": False, "context": "", "hits": [], "stats": stats}
+
+    context_parts = []
+    max_context_chars = 22000
+    used_chars = 0
+    for index, (hit, _score) in enumerate(ranked_hits, 1):
+        text = re.sub(r"\s+", " ", str(hit.get("text") or "")).strip()
+        if not text:
+            continue
+        meta = hit.get("meta") or {}
+        label = f"[Source {index}: chunk {meta.get('chunk_index')}]"
+        addition = f"{label}\n{text}"
+        if used_chars + len(addition) > max_context_chars and context_parts:
+            break
+        context_parts.append(addition)
+        used_chars += len(addition)
+
+    return {
+        "available": bool(context_parts),
+        "context": "\n\n".join(context_parts),
+        "hits": [hit for hit, _score in ranked_hits],
+        "stats": stats,
+    }
+
 # ------------------------------------------------------------
 # MAIN FUNCTION 
 # ------------------------------------------------------------
-async def generate_assessment_question_set(
+async def _generate_assessment_question_set_legacy(
     required_skills: dict,
     db: AsyncSession,
     questionnaire_config: dict | None = None,
@@ -1633,6 +1809,425 @@ async def generate_assessment_question_set(
 )
 
 
+
+    await db.commit()
+    return question_set_id
+
+
+async def generate_assessment_question_set(
+    required_skills: dict,
+    db: AsyncSession,
+    questionnaire_config: dict | None = None,
+    existing_questions: list[str] | None = None,
+):
+    """Generate and persist an assessment question set.
+
+    RAG is request-scoped: only the supplied doc_id is queried, the selected RAG
+    percentage is allocated deterministically across question types, and any RAG
+    failure falls back to regular LLM generation for the affected batch.
+    """
+    start_time = time.time()
+    questionnaire_config = questionnaire_config or {}
+    existing_questions = existing_questions or []
+
+    job_description = questionnaire_config.get("job_description")
+    role_type = str(questionnaire_config.get("role_type", "tech")).strip().lower()
+    skill_intelligence = questionnaire_config.get("skill_intelligence") or {}
+    is_non_technical = role_type in {"non-tech", "nontechnical", "non-technical", "non tech"}
+    doc_id = questionnaire_config.get("doc_id")
+    generation_policy = _normalize_generation_policy(
+        questionnaire_config.get("generation_policy"),
+        doc_id,
+    )
+
+    mcq_count = int(questionnaire_config.get("mcq", 6))
+    coding_count = int(questionnaire_config.get("coding", 2))
+    architecture_count = int(questionnaire_config.get("architecture", 2))
+    reasoning_count = int(
+        questionnaire_config.get(
+            "reasoning",
+            questionnaire_config.get("scenario", questionnaire_config.get("ba", 0)),
+        )
+    )
+    type_counts = (
+        {"mcq": mcq_count, "reasoning": reasoning_count}
+        if is_non_technical
+        else {"mcq": mcq_count, "coding": coding_count, "architecture": architecture_count}
+    )
+    total_questions = sum(type_counts.values())
+
+    requested_rag_counts = _allocate_rag_counts(type_counts, generation_policy["rag_pct"])
+    rag_info = await asyncio.to_thread(
+        _collect_rag_context,
+        required_skills,
+        questionnaire_config,
+        doc_id,
+        sum(requested_rag_counts.values()),
+    )
+    rag_context = rag_info.get("context") if rag_info.get("available") else ""
+    rag_counts = requested_rag_counts if rag_context else {key: 0 for key in type_counts}
+    llm_counts = {
+        key: max(0, int(type_counts.get(key, 0)) - int(rag_counts.get(key, 0)))
+        for key in type_counts
+    }
+
+    print(
+        "[RAG] policy=",
+        generation_policy,
+        "doc_id=",
+        doc_id,
+        "stats=",
+        rag_info.get("stats"),
+        "distribution=",
+        {"rag": rag_counts, "llm": llm_counts},
+    )
+
+    skills_with_levels = []
+    for skill, level in required_skills.items():
+        metadata = _skill_metadata_for(skill, skill_intelligence)
+        effective_level = _normalize_skill_level(metadata.get("effective_level") or level)
+        skills_with_levels.append(
+            {
+                "skill": skill,
+                "level": effective_level,
+                "difficulty": LEVEL_MAP.get(effective_level, "medium"),
+                "level_source": metadata.get("level_source", "llm"),
+                "extracted_level": _normalize_skill_level(metadata.get("extracted_level") or level),
+                "override_experience_years": metadata.get("override_experience_years"),
+                "override_level": metadata.get("override_level"),
+                "priority": metadata.get("priority"),
+                "category": metadata.get("category"),
+                "matched_with_jd": metadata.get("matched_with_jd"),
+                "confidence": metadata.get("confidence"),
+                "source": metadata.get("source"),
+                "inferred": metadata.get("inferred"),
+            }
+        )
+    print("[DEBUG] Skill-level-driven assessment plan:", skills_with_levels)
+
+    formatted = json.dumps(skills_with_levels, indent=2)
+    selected_mcq_prompt = non_tech_mcq_prompt if is_non_technical else mcq_prompt
+    llm = _get_llm()
+
+    rag_source_meta = {
+        "doc_id": doc_id,
+        "requested_rag_pct": generation_policy["rag_pct"],
+        "chunks_used": [hit.get("id") for hit in rag_info.get("hits", [])],
+        "chunk_count": len(rag_info.get("hits", [])),
+        "retrieval": "isolated_document",
+    }
+
+    def append_common_context(messages, count: int, source_type: str, context: str, avoid_questions: list[str] | None) -> None:
+        if job_description:
+            messages[-1].content += f"""
+
+JOB DESCRIPTION:
+{job_description}
+
+INSTRUCTION:
+- Use this job description to tailor questions.
+- Focus on real-world responsibilities, tools, and scenarios.
+- Avoid generic questions.
+"""
+
+        avoid_text = _existing_questions_text(avoid_questions)
+        if avoid_text:
+            messages[-1].content += f"""
+
+AVOID DUPLICATION:
+Do NOT repeat, rephrase, or create similar variants of the following questions:
+{avoid_text}
+
+STRICT RULES:
+- Questions must be different in scenario, context, and intent.
+- Avoid reusing the same problem shape or business situation.
+- Keep the generated batch diverse.
+"""
+
+        if source_type == "rag" and context:
+            messages[-1].content += f"""
+
+DOCUMENT CONTEXT FOR THIS BATCH:
+{context}
+
+STRICT DOCUMENT-GROUNDED RULES:
+- Generate exactly {count} questions in this batch from the uploaded document context.
+- Anchor each question to facts, tools, responsibilities, scenarios, or concepts present in the document.
+- Do not mention "the document", "the context", "source", or chunk numbers in the question text.
+- If the document context is narrow, create practical scenario questions that test applying the document's content.
+"""
+        else:
+            messages[-1].content += """
+
+SOURCE FOR THIS BATCH:
+- Generate these questions from the job description, role, skills, and general expert knowledge.
+- Do not use the uploaded RAG document for this batch.
+"""
+
+    async def invoke_json(messages, label: str, expected_count: int) -> list[dict]:
+        response = await asyncio.to_thread(llm.invoke, messages)
+        print(f"\n[Admin {label} LLM Output]\n", response.content)
+        data = _parse_json_array_response(response.content, label)
+        if len(data) > expected_count:
+            data = data[:expected_count]
+        if len(data) != expected_count:
+            raise ValueError(f"Expected exactly {expected_count} questions, got {len(data)}")
+        return data
+
+    def build_mcq_messages(count: int, source_type: str, context: str, avoid_questions: list[str] | None):
+        messages = selected_mcq_prompt.format_messages(
+            skills_json=formatted,
+            total_questions=count,
+        )
+        append_common_context(messages, count, source_type, context, avoid_questions)
+        return messages
+
+    def build_reasoning_messages(count: int, source_type: str, context: str, avoid_questions: list[str] | None):
+        messages = reasoning_prompt.format_messages(
+            skills_json=formatted,
+            reasoning_count=count,
+        )
+        append_common_context(messages, count, source_type, context, avoid_questions)
+        if source_type == "rag" and context:
+            messages[-1].content += "\nFocus on role-specific judgment, communication, and trade-offs grounded in the document."
+        return messages
+
+    def build_coding_messages(count: int, source_type: str, context: str, avoid_questions: list[str] | None):
+        messages = coding_prompt.format_messages(
+            skills_json=formatted,
+            coding_count=count,
+        )
+        append_common_context(messages, count, source_type, context, avoid_questions)
+        if source_type == "rag" and context:
+            messages[-1].content += "\nUse the document's technologies, constraints, data shapes, or workflows to frame coding problems when possible."
+        return messages
+
+    def build_architecture_messages(count: int, source_type: str, context: str, avoid_questions: list[str] | None):
+        messages = ChatPromptTemplate.from_messages(
+            [
+                architecture_system_message,
+                HumanMessagePromptTemplate.from_template(
+                    """
+                    Skills and difficulty levels:
+                    {skills_json}
+                    """
+                ),
+            ]
+        ).format_messages(
+            skills_json=formatted,
+            architecture_count=count,
+        )
+        append_common_context(messages, count, source_type, context, avoid_questions)
+        if source_type == "rag" and context:
+            messages[-1].content += "\nUse the document's systems, responsibilities, integrations, or constraints as the design scenario basis."
+        return messages
+
+    async def generate_batch(
+        label: str,
+        count: int,
+        source_type: str,
+        message_builder,
+        avoid_questions: list[str] | None,
+    ) -> list[dict]:
+        if count <= 0:
+            return []
+
+        try:
+            messages = message_builder(
+                count,
+                source_type,
+                rag_context if source_type == "rag" else "",
+                avoid_questions,
+            )
+            data = await invoke_json(messages, label, count)
+            source_meta = rag_source_meta if source_type == "rag" else {}
+            return _mark_source(data, source_type, source_meta)
+        except Exception as exc:
+            if source_type != "rag":
+                raise ValueError(f"Invalid {label} LLM output: {exc}")
+
+            print(f"[RAG] Falling back to LLM-only for {label} batch: {exc}")
+            fallback_messages = message_builder(count, "llm", "", avoid_questions)
+            data = await invoke_json(fallback_messages, f"{label} FALLBACK", count)
+            return _mark_source(
+                data,
+                "llm",
+                {"fallback_from": "rag", "reason": str(exc), "doc_id": doc_id},
+            )
+
+    generated_texts = list(existing_questions)
+
+    mcq_data = []
+    mcq_rag = await generate_batch("MCQ RAG", rag_counts.get("mcq", 0), "rag", build_mcq_messages, generated_texts)
+    mcq_data.extend(mcq_rag)
+    generated_texts.extend(_question_text_for_dedup(item) for item in mcq_rag)
+
+    mcq_llm = await generate_batch("MCQ", llm_counts.get("mcq", 0), "llm", build_mcq_messages, generated_texts)
+    mcq_data.extend(mcq_llm)
+    generated_texts.extend(_question_text_for_dedup(item) for item in mcq_llm)
+
+    coding_data = []
+    architecture_data = []
+    reasoning_data = []
+
+    if is_non_technical:
+        reasoning_rag = await generate_batch(
+            "REASONING RAG",
+            rag_counts.get("reasoning", 0),
+            "rag",
+            build_reasoning_messages,
+            generated_texts,
+        )
+        reasoning_data.extend(reasoning_rag)
+        generated_texts.extend(_question_text_for_dedup(item) for item in reasoning_rag)
+
+        reasoning_llm = await generate_batch(
+            "REASONING",
+            llm_counts.get("reasoning", 0),
+            "llm",
+            build_reasoning_messages,
+            generated_texts,
+        )
+        reasoning_data.extend(reasoning_llm)
+        generated_texts.extend(_question_text_for_dedup(item) for item in reasoning_llm)
+    else:
+        coding_rag = await generate_batch(
+            "CODING RAG",
+            rag_counts.get("coding", 0),
+            "rag",
+            build_coding_messages,
+            generated_texts,
+        )
+        coding_data.extend(coding_rag)
+        generated_texts.extend(_question_text_for_dedup(item) for item in coding_rag)
+
+        coding_llm = await generate_batch(
+            "CODING",
+            llm_counts.get("coding", 0),
+            "llm",
+            build_coding_messages,
+            generated_texts,
+        )
+        coding_data.extend(coding_llm)
+        generated_texts.extend(_question_text_for_dedup(item) for item in coding_llm)
+
+        architecture_rag = await generate_batch(
+            "ARCHITECTURE RAG",
+            rag_counts.get("architecture", 0),
+            "rag",
+            build_architecture_messages,
+            generated_texts,
+        )
+        architecture_data.extend(architecture_rag)
+        generated_texts.extend(_question_text_for_dedup(item) for item in architecture_rag)
+
+        architecture_llm = await generate_batch(
+            "ARCHITECTURE",
+            llm_counts.get("architecture", 0),
+            "llm",
+            build_architecture_messages,
+            generated_texts,
+        )
+        architecture_data.extend(architecture_llm)
+        generated_texts.extend(_question_text_for_dedup(item) for item in architecture_llm)
+
+    question_set_id = f"qs_{uuid4().hex}"
+    qs = QuestionSet(
+        question_set_id=question_set_id,
+        skill="multiple-skills",
+        level="mixed",
+        total_questions=total_questions,
+        generation_model=get_llm_model_name(),
+    )
+
+    db.add(qs)
+    await db.flush()
+
+    for idx, q in enumerate(mcq_data):
+        options_dict = _normalize_mcq_options(q.get("options"))
+        skill_meta = skills_with_levels[idx % len(skills_with_levels)]
+        intended_difficulty = skill_meta["difficulty"]
+        question_text = q["question_text"]
+
+        if intended_difficulty in ("medium", "hard") and is_clearly_beginner_question(question_text):
+            print(
+                f"[WARN] Downward difficulty violation "
+                f"(expected {intended_difficulty}): {question_text}"
+            )
+
+        db.add(
+            Question(
+                question_set_id=question_set_id,
+                question_text=question_text,
+                options=options_dict,
+                correct_answer=q.get("correct_answer") or "",
+                difficulty=intended_difficulty,
+                generation_model=get_llm_model_name(),
+                generation_time=time.time() - start_time,
+                source_type=q.get("_source_type", "llm"),
+                source_meta=q.get("_source_meta") or {},
+            )
+        )
+
+    for cq in coding_data:
+        db.add(
+            Question(
+                question_set_id=question_set_id,
+                question_text=f"{cq['title']}\n\n{cq['description']}",
+                options={
+                    "type": "coding",
+                    "language": cq.get("language"),
+                    "constraints": cq.get("constraints", []),
+                },
+                correct_answer=_extract_suggested_answer(cq, "CODING LLM"),
+                difficulty="coding",
+                generation_model=get_llm_model_name(),
+                generation_time=time.time() - start_time,
+                source_type=cq.get("_source_type", "llm"),
+                source_meta=cq.get("_source_meta") or {},
+            )
+        )
+
+    for aq in architecture_data:
+        db.add(
+            Question(
+                question_set_id=question_set_id,
+                question_text=f"{aq['title']}\n\n{aq['description']}",
+                options={
+                    "type": "architecture",
+                    "focus_areas": aq.get("focus_areas", []),
+                },
+                correct_answer=_extract_suggested_answer(aq, "ARCHITECTURE LLM"),
+                difficulty="architecture",
+                generation_model=get_llm_model_name(),
+                generation_time=time.time() - start_time,
+                source_type=aq.get("_source_type", "llm"),
+                source_meta=aq.get("_source_meta") or {},
+            )
+        )
+
+    for rq in reasoning_data:
+        db.add(
+            Question(
+                question_set_id=question_set_id,
+                question_text=f"{rq['title']}\n\n{rq['description']}",
+                options={
+                    "type": "scenario",
+                    "focus_areas": rq.get("focus_areas", []),
+                },
+                correct_answer=_extract_suggested_answer(rq, "REASONING LLM"),
+                difficulty="scenario",
+                generation_model=get_llm_model_name(),
+                generation_time=time.time() - start_time,
+                source_type=rq.get("_source_type", "llm"),
+                source_meta=rq.get("_source_meta") or {},
+            )
+        )
+
+    print(
+        "[DEBUG] Total questions to be saved:",
+        len(mcq_data) + len(coding_data) + len(architecture_data) + len(reasoning_data),
+    )
 
     await db.commit()
     return question_set_id

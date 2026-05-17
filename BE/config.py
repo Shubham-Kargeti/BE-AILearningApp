@@ -140,6 +140,13 @@ class Settings(BaseSettings):
         if value in ("", None):
             return None
         return int(value)
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def validate_debug(cls, value):
+        if isinstance(value, str) and value.strip().lower() in {"release", "prod", "production"}:
+            return False
+        return value
     
     MAX_QUESTIONS_PER_TEST: int = 20
     QUESTION_GENERATION_TIMEOUT: int = 300  # 5 minutes

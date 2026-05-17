@@ -11,6 +11,7 @@ interface Props {
   value: GenerationPolicy;
   onChange: (value: GenerationPolicy) => void;
   disabled?: boolean;
+  questionCount?: number;
 }
 
 const clampPct = (val: number) => Math.max(0, Math.min(100, val));
@@ -21,7 +22,12 @@ const resolveMode = (rag: number, llm: number): GenerationPolicy["mode"] => {
   return "mix";
 };
 
-const GenerationPolicySelector: React.FC<Props> = ({ value, onChange, disabled = false }) => {
+const GenerationPolicySelector: React.FC<Props> = ({
+  value,
+  onChange,
+  disabled = false,
+  questionCount = 0,
+}) => {
   const updateRag = (val: number) => {
     const rag = clampPct(val);
     const llm = 100 - rag;
@@ -34,18 +40,35 @@ const GenerationPolicySelector: React.FC<Props> = ({ value, onChange, disabled =
     onChange({ rag_pct: rag, llm_pct: llm, mode: resolveMode(rag, llm) });
   };
 
+  const ragQuestions = questionCount > 0 ? Math.round(questionCount * (value.rag_pct / 100)) : 0;
+  const llmQuestions = Math.max(0, questionCount - ragQuestions);
+
   return (
     <section className="card generation-policy-card">
       <div className="card-header">
-        <h2>Question Generation Source</h2>
+        <h2>Document Context</h2>
         <p className="hint">
-          Choose how many questions should come from the uploaded document versus AI generation. Total always equals 100%.
+          Select how much of this assessment should be grounded in the uploaded document. The document applies only to this creation.
         </p>
+      </div>
+
+      <div className="generation-slider">
+        <label htmlFor="rag-percent">Document-grounded percentage</label>
+        <input
+          id="rag-percent"
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={value.rag_pct}
+          disabled={disabled}
+          onChange={(e) => updateRag(Number(e.target.value))}
+        />
       </div>
 
       <div className="generation-grid">
         <div className="generation-field">
-          <label>Document-Based Questions (%)</label>
+          <label>Document (%)</label>
           <input
             type="number"
             min={0}
@@ -59,7 +82,7 @@ const GenerationPolicySelector: React.FC<Props> = ({ value, onChange, disabled =
         </div>
 
         <div className="generation-field">
-          <label>AI-Generated Questions (%)</label>
+          <label>General AI (%)</label>
           <input
             type="number"
             min={0}
@@ -75,8 +98,13 @@ const GenerationPolicySelector: React.FC<Props> = ({ value, onChange, disabled =
 
       <div className="generation-note">
         Mode: <strong>{value.mode.toUpperCase()}</strong>
+        {questionCount > 0 && (
+          <span>
+            {" "}- About {ragQuestions} document-based and {llmQuestions} general questions
+          </span>
+        )}
         {disabled && (
-          <span className="disabled-note"> · Upload Question Bank to enable RAG mix</span>
+          <span className="disabled-note"> - Select a document to enable this mix</span>
         )}
       </div>
     </section>
