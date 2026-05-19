@@ -228,6 +228,9 @@ class TestSession(Base, TimestampMixin):
     answers: Mapped[list["Answer"]] = relationship(
         "Answer", back_populates="test_session", cascade="all, delete-orphan"
     )
+    session_feedback: Mapped[Optional["SessionFeedback"]] = relationship(
+        "SessionFeedback", back_populates="test_session", cascade="all, delete-orphan"
+    )
     
     __table_args__ = (
         Index("ix_test_sessions_jd_id_created_at", "jd_id", "created_at"),
@@ -278,6 +281,36 @@ class QuestionFeedback(Base, TimestampMixin):
     test_session: Mapped["TestSession"] = relationship("TestSession")
     answer: Mapped["Answer"] = relationship("Answer")
     question: Mapped["Question"] = relationship("Question")    
+
+
+class SessionFeedback(Base, TimestampMixin):
+    """Overall feedback for a candidate's complete assessment session."""
+
+    __tablename__ = "session_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    test_session_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("test_sessions.id"),
+        nullable=False,
+        unique=True,
+        index=True
+    )
+    created_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    updated_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+
+    llm_feedback_text: Mapped[str] = mapped_column(Text, nullable=False)
+    feedback_text: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False, index=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    test_session: Mapped["TestSession"] = relationship("TestSession", back_populates="session_feedback")
+    created_by_user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[created_by])
+    updated_by_user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[updated_by])
+
+    __table_args__ = (
+        Index("ix_session_feedback_session_status", "test_session_id", "status"),
+    )
 
 
 class LearningPath(Base, TimestampMixin):

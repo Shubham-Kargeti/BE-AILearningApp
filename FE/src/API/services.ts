@@ -358,6 +358,17 @@ export interface QuestionFeedbackItem {
 
 export type QuestionFeedbackMap = Record<string, QuestionFeedbackItem[]>;
 
+export interface SessionFeedbackResponse {
+  feedback_id: number;
+  session_id: string;
+  llm_feedback_text: string;
+  feedback_text: string;
+  status: string;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SkillExtractionResponse {
   role?: string;
   skills?: Array<string | { skill_name?: string }>;
@@ -539,6 +550,7 @@ export const quizService = {
     total_questions: number;
     completed_at: string;
     score_released_at: string;
+    overall_feedback?: string | null;
     detailed_results: Array<{
       question_id: number;
       question_text: string;
@@ -617,6 +629,7 @@ export const quizService = {
     total_questions: number;
     completed_at: string;
     time_taken_seconds: number;
+    overall_feedback?: string | null;
     detailed_results: Array<{
       question_id: number;
       question_text: string;
@@ -1202,6 +1215,8 @@ export const assessmentResultsService = {
     score_percentage: number | null;
     is_completed: boolean;
     is_scored: boolean;
+    session_feedback: string | null;
+    session_feedback_status: string | null;
     questions: Array<{
       question_id: number;
       question_text: string;
@@ -1217,6 +1232,32 @@ export const assessmentResultsService = {
     application_status: string | null;
   }> => {
     const response = await apiClient.get(`/admin/assessment-results/session/${sessionId}`);
+    return response.data;
+  },
+
+  getSessionFeedback: async (sessionId: string): Promise<SessionFeedbackResponse> => {
+    const response = await apiClient.get<SessionFeedbackResponse>(
+      `/admin/assessment-results/session/${sessionId}/feedback`,
+      { headers: { "x-cache-skip": "true" } }
+    );
+    return response.data;
+  },
+
+  generateSessionFeedback: async (sessionId: string): Promise<SessionFeedbackResponse> => {
+    const response = await apiClient.post<SessionFeedbackResponse>(
+      `/admin/assessment-results/session/${sessionId}/feedback/generate`
+    );
+    return response.data;
+  },
+
+  submitSessionFeedback: async (
+    sessionId: string,
+    feedbackText: string
+  ): Promise<SessionFeedbackResponse> => {
+    const response = await apiClient.put<SessionFeedbackResponse>(
+      `/admin/assessment-results/session/${sessionId}/feedback`,
+      { feedback_text: feedbackText }
+    );
     return response.data;
   },
 

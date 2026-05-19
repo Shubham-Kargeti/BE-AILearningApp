@@ -114,6 +114,7 @@ class TestResultResponse(BaseModel):
     completed_at: Optional[datetime] = None
     time_taken_seconds: Optional[int] = None
     detailed_results: List[QuestionResultDetailed]
+    overall_feedback: Optional[str] = None
     is_partial: bool = False  # Flag for incomplete sessions
 
 class AnswerSubmission(BaseModel):
