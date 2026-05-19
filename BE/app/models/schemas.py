@@ -198,6 +198,7 @@ class CandidateCreate(BaseModel):
 class CandidateUpdate(BaseModel):
     """Request to update candidate profile."""
     full_name: Optional[str] = None
+    email: Optional[str] = None
     password: Optional[str] = None
     phone: Optional[str] = None
     current_role: Optional[str] = None
@@ -211,6 +212,7 @@ class CandidateUpdate(BaseModel):
     experience_level: Optional[str] = None
     skills: Optional[dict] = None
     availability_percentage: Optional[int] = None
+    created_at: Optional[datetime] = None
 
 class CandidateResponse(BaseModel):
     """Response with candidate details."""

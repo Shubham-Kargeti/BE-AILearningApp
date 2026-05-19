@@ -255,7 +255,7 @@
     min-width: 0;
   }
 
-  span {
+  > div > span {
     display: block;
     color: #64748b;
     font-size: 12px;
@@ -263,7 +263,7 @@
     margin-bottom: 4px;
   }
 
-  strong {
+  > div > strong {
     display: block;
     color: #0f172a;
     font-size: 14px;
@@ -280,6 +280,7 @@
   }
 }
 
+.editable-edit-btn,
 .password-edit-btn {
   display: inline-flex;
   align-items: center;
@@ -298,12 +299,14 @@
   }
 }
 
+.editable-editor,
 .password-editor {
   display: grid;
   gap: 10px;
   margin-top: 6px;
 
-  input {
+  input,
+  select {
     width: 100%;
     min-width: 0;
     border: 1px solid #fdba74;
@@ -319,8 +322,13 @@
       box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.14);
     }
   }
+
+  select {
+    cursor: pointer;
+  }
 }
 
+.editable-actions,
 .password-actions {
   display: flex;
   flex-wrap: wrap;
@@ -344,6 +352,7 @@
     }
   }
 
+  .save-editable-btn,
   .save-password-btn {
     background: #15803d;
 
@@ -352,12 +361,59 @@
     }
   }
 
+  .cancel-editable-btn,
   .cancel-password-btn {
     background: #475569;
 
     &:hover:not(:disabled) {
       background: #334155;
     }
+  }
+}
+
+.skills-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.skill-editor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(110px, 0.8fr) 34px;
+  gap: 8px;
+  align-items: center;
+}
+
+.remove-skill-btn,
+.add-skill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 6px;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.remove-skill-btn {
+  width: 34px;
+  height: 34px;
+  background: #b91c1c;
+
+  &:hover {
+    background: #991b1b;
+  }
+}
+
+.add-skill-btn {
+  justify-self: start;
+  background: #ea580c;
+  padding: 7px 10px;
+
+  &:hover {
+    background: #c2410c;
   }
 }
 
@@ -375,6 +431,7 @@
     color: #b91c1c;
   }
 }
+
 
 .skills-block {
   margin-top: 14px;
@@ -408,6 +465,18 @@
 
   .details-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .skill-editor-row {
+    grid-template-columns: 1fr;
+  }
+
+  .remove-skill-btn {
+    width: auto;
+    justify-self: start;
+    padding: 8px 10px;
   }
 }
 

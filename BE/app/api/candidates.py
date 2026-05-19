@@ -49,6 +49,9 @@ class CandidatePendingAssessmentResponse(BaseModel):
 router = APIRouter(prefix="/api/v1/candidates", tags=["candidates"])
 
 
+EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+
 def to_candidate_response(candidate: Candidate, include_password: bool = False) -> CandidateResponse:
     """Map a Candidate ORM object to the public API schema."""
     return CandidateResponse(
@@ -402,6 +405,27 @@ async def update_candidate(
     # Update fields if provided
     if request.full_name is not None:
         candidate.full_name = request.full_name
+    if request.email is not None:
+        normalized_email = request.email.lower().strip()
+        if not EMAIL_PATTERN.match(normalized_email):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Enter a valid candidate email"
+            )
+
+        existing_result = await db.execute(
+            select(Candidate).where(
+                func.lower(Candidate.email) == normalized_email,
+                Candidate.id != candidate.id,
+            )
+        )
+        if existing_result.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Candidate with email {normalized_email} already exists"
+            )
+
+        candidate.email = normalized_email
     if request.password is not None:
         if not request.password:
             raise HTTPException(
@@ -434,6 +458,8 @@ async def update_candidate(
         candidate.skills = request.skills
     if request.availability_percentage is not None:
         candidate.availability_percentage = min(100, max(0, request.availability_percentage))
+    if request.created_at is not None:
+        candidate.created_at = request.created_at
     
     candidate.updated_at = datetime.utcnow()
     await db.commit()

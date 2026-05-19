@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   FiAlertCircle,
   FiBriefcase,
@@ -8,15 +9,31 @@ import {
   FiCode,
   FiKey,
   FiMail,
+  FiPlus,
   FiRefreshCw,
   FiSave,
   FiSearch,
+  FiTrash2,
   FiX,
   FiUsers,
 } from "react-icons/fi";
+import Toast from "../../components/Toast/Toast";
 import { candidateService } from "../../API/services";
-import type { Candidate } from "../../API/services";
+import type { Candidate, CandidateUpdateRequest } from "../../API/services";
 import "./AdminCandidateList.scss";
+
+type ToastMessage = {
+  type: "success" | "error" | "info";
+  message: string;
+};
+
+type SkillDraft = {
+  id: string;
+  name: string;
+  level: string;
+};
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const formatDate = (date?: string) => {
   if (!date) return "N/A";
@@ -32,6 +49,13 @@ const formatDate = (date?: string) => {
   }
 };
 
+const toDateInputValue = (date?: string) => {
+  if (!date) return "";
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+};
+
 const formatSkills = (skills: Record<string, string>) => {
   const entries = Object.entries(skills || {});
   if (entries.length === 0) return "No skills added";
@@ -39,20 +63,271 @@ const formatSkills = (skills: Record<string, string>) => {
   return entries.map(([skill, level]) => `${skill} (${level})`).join(", ");
 };
 
+const skillsToDraft = (skills: Record<string, string>): SkillDraft[] =>
+  Object.entries(skills || {}).map(([name, level], index) => ({
+    id: `${name}-${index}`,
+    name,
+    level,
+  }));
+
+const draftToSkills = (draft: SkillDraft[]) =>
+  draft.reduce<Record<string, string>>((acc, item) => {
+    const name = item.name.trim();
+    const level = item.level.trim();
+    if (name) {
+      acc[name] = level || "Not specified";
+    }
+    return acc;
+  }, {});
+
+const getApiErrorMessage = (err: any, fallback: string) =>
+  err?.response?.data?.detail ||
+  err?.response?.data?.error ||
+  err?.response?.data?.message ||
+  fallback;
+
+interface EditableDetailCardProps<TDraft> {
+  label: string;
+  icon: ReactNode;
+  value: TDraft;
+  displayValue: ReactNode;
+  className?: string;
+  editLabel?: string;
+  createLabel?: string;
+  isEmpty?: boolean;
+  credential?: boolean;
+  savingText?: string;
+  successMessage: string;
+  onSave: (value: TDraft) => Promise<void>;
+  validate?: (value: TDraft) => string | null;
+  renderEditor: (value: TDraft, onChange: (value: TDraft) => void) => ReactNode;
+}
+
+function EditableDetailCard<TDraft>({
+  label,
+  icon,
+  value,
+  displayValue,
+  className,
+  editLabel,
+  createLabel,
+  isEmpty,
+  credential,
+  savingText = "Saving",
+  successMessage,
+  onSave,
+  validate,
+  renderEditor,
+}: EditableDetailCardProps<TDraft>) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState<TDraft>(value);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
+
+  useEffect(() => {
+    setIsEditing(false);
+    setDraft(value);
+    setMessage("");
+  }, [value]);
+
+  const beginEdit = () => {
+    setDraft(value);
+    setMessage("");
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setDraft(value);
+    setMessage("");
+    setIsEditing(false);
+  };
+
+  const saveEdit = async () => {
+    const validationMessage = validate?.(draft);
+    if (validationMessage) {
+      setMessageType("error");
+      setMessage(validationMessage);
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setMessage("");
+      await onSave(draft);
+      setIsEditing(false);
+      setMessageType("success");
+      setMessage(successMessage);
+    } catch (err: any) {
+      setMessageType("error");
+      setMessage(getApiErrorMessage(err, `Failed to update ${label.toLowerCase()}.`));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={`detail-item ${credential ? "credential" : ""} ${className || ""}`}>
+      {icon}
+      <div>
+        <span>{label}</span>
+        {!isEditing && (
+          <>
+            <strong>{displayValue}</strong>
+            <button className="editable-edit-btn" type="button" onClick={beginEdit}>
+              {isEmpty ? createLabel || `Create ${label.toLowerCase()}` : editLabel || `Edit ${label.toLowerCase()}`}
+            </button>
+          </>
+        )}
+        {isEditing && (
+          <div className="editable-editor">
+            {renderEditor(draft, setDraft)}
+            <div className="editable-actions">
+              <button
+                type="button"
+                className="save-editable-btn"
+                onClick={saveEdit}
+                disabled={saving}
+              >
+                <FiSave size={14} />
+                <span>{saving ? savingText : "Save"}</span>
+              </button>
+              <button
+                type="button"
+                className="cancel-editable-btn"
+                onClick={cancelEdit}
+                disabled={saving}
+              >
+                <FiX size={14} />
+                <span>Cancel</span>
+              </button>
+            </div>
+          </div>
+        )}
+        {message && <small className={messageType}>{message}</small>}
+      </div>
+    </div>
+  );
+}
+
+interface EditableSkillsCardProps {
+  value: Record<string, string>;
+  onSave: (value: Record<string, string>) => Promise<void>;
+}
+
+const EditableSkillsCard: React.FC<EditableSkillsCardProps> = ({ value, onSave }) => {
+  const skillDraft = useMemo(() => skillsToDraft(value), [value]);
+
+  return (
+    <EditableDetailCard<SkillDraft[]>
+      label="Skills"
+      icon={<FiCode size={18} />}
+      value={skillDraft}
+      displayValue={formatSkills(value)}
+      className="skills-full-width"
+      editLabel="Edit skills"
+      createLabel="Add skills"
+      isEmpty={Object.keys(value || {}).length === 0}
+      successMessage="Skills updated."
+      validate={(draft) => {
+        const hasNamedSkill = draft.some((item) => item.name.trim());
+        return hasNamedSkill ? null : "Add at least one skill.";
+      }}
+      onSave={async (draft) => onSave(draftToSkills(draft))}
+      renderEditor={(draft, setDraft) => {
+        const rows = draft.length ? draft : [{ id: "new-skill", name: "", level: "" }];
+
+        return (
+          <div className="skills-editor">
+            {rows.map((item, index) => (
+              <div className="skill-editor-row" key={item.id}>
+                <input
+                  type="text"
+                  value={item.name}
+                  onChange={(event) => {
+                    const next = [...rows];
+                    next[index] = { ...item, name: event.target.value };
+                    setDraft(next);
+                  }}
+                  placeholder="Skill"
+                  autoFocus={index === 0}
+                />
+                <input
+                  type="text"
+                  value={item.level}
+                  onChange={(event) => {
+                    const next = [...rows];
+                    next[index] = { ...item, level: event.target.value };
+                    setDraft(next);
+                  }}
+                  placeholder="Proficiency"
+                />
+                <button
+                  type="button"
+                  className="remove-skill-btn"
+                  onClick={() => setDraft(rows.filter((row) => row.id !== item.id))}
+                  aria-label={`Remove ${item.name || "skill"}`}
+                >
+                  <FiTrash2 size={14} />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="add-skill-btn"
+              onClick={() =>
+                setDraft([
+                  ...rows,
+                  { id: `skill-${Date.now()}`, name: "", level: "" },
+                ])
+              }
+            >
+              <FiPlus size={14} />
+              <span>Add skill</span>
+            </button>
+          </div>
+        );
+      }}
+    />
+  );
+};
+
 const AdminCandidateList: React.FC = () => {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [passwordDraft, setPasswordDraft] = useState("");
-  const [editingPassword, setEditingPassword] = useState(false);
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState<ToastMessage | null>(null);
 
   const selectedCandidate = useMemo(
     () => candidates.find((candidate) => candidate.candidate_id === selectedCandidateId) || null,
     [candidates, selectedCandidateId]
+  );
+
+  const roleOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(candidates.map((candidate) => candidate.current_role).filter(Boolean) as string[])
+      ),
+    [candidates]
+  );
+
+  const experienceOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [
+            ...candidates.map((candidate) => candidate.experience_level).filter(Boolean),
+            "junior",
+            "mid",
+            "senior",
+            "lead",
+            "executive",
+          ] as string[]
+        )
+      ),
+    [candidates]
   );
 
   const fetchCandidates = async (search = searchQuery) => {
@@ -65,11 +340,7 @@ const AdminCandidateList: React.FC = () => {
         current && data.some((candidate) => candidate.candidate_id === current) ? current : null
       );
     } catch (err: any) {
-      setError(
-        err?.response?.data?.detail ||
-        err?.response?.data?.error ||
-        "Failed to load candidates."
-      );
+      setError(getApiErrorMessage(err, "Failed to load candidates."));
     } finally {
       setLoading(false);
     }
@@ -83,61 +354,39 @@ const AdminCandidateList: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
 
-  useEffect(() => {
-    setEditingPassword(false);
-    setPasswordDraft("");
-    setPasswordMessage("");
-  }, [selectedCandidateId]);
-
-  const handlePasswordSave = async () => {
+  const updateSelectedCandidate = async (
+    payload: CandidateUpdateRequest,
+    successMessage: string
+  ) => {
     if (!selectedCandidate) return;
 
-    const nextPassword = passwordDraft.trim();
-    if (!nextPassword) {
-      setPasswordMessage("Password cannot be empty.");
-      return;
-    }
-
     try {
-      setSavingPassword(true);
-      setPasswordMessage("");
-      const updated = await candidateService.updateCandidate(selectedCandidate.candidate_id, {
-        password: nextPassword,
-      });
+      const updated = await candidateService.updateCandidate(selectedCandidate.candidate_id, payload);
       setCandidates((current) =>
         current.map((candidate) =>
           candidate.candidate_id === updated.candidate_id ? updated : candidate
         )
       );
-      setEditingPassword(false);
-      setPasswordDraft("");
-      setPasswordMessage("Password updated.");
-    } catch (err: any) {
-      setPasswordMessage(
-        err?.response?.data?.detail ||
-        err?.response?.data?.error ||
-        "Failed to update password."
-      );
-    } finally {
-      setSavingPassword(false);
+      setToast({ type: "success", message: successMessage });
+    } catch (err) {
+      setToast({
+        type: "error",
+        message: getApiErrorMessage(err, "Failed to update candidate."),
+      });
+      throw err;
     }
-  };
-
-  const beginPasswordEdit = () => {
-    if (!selectedCandidate) return;
-    setPasswordDraft(selectedCandidate.password || "");
-    setPasswordMessage("");
-    setEditingPassword(true);
-  };
-
-  const cancelPasswordEdit = () => {
-    setEditingPassword(false);
-    setPasswordDraft("");
-    setPasswordMessage("");
   };
 
   return (
     <div className="admin-candidate-list">
+      {toast && (
+        <Toast
+          type={toast.type}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
+      )}
+
       <div className="candidate-list-header">
         <div>
           <h1>Candidate List</h1>
@@ -219,105 +468,178 @@ const AdminCandidateList: React.FC = () => {
               </div>
 
               <div className="details-grid">
-                <div className="detail-item">
-                  <FiMail size={18} />
-                  <div>
-                    <span>Email</span>
-                    <strong>{selectedCandidate.email}</strong>
-                  </div>
-                </div>
+                <EditableDetailCard<string>
+                  label="Email"
+                  icon={<FiMail size={18} />}
+                  value={selectedCandidate.email || ""}
+                  displayValue={selectedCandidate.email || "N/A"}
+                  editLabel="Edit email"
+                  successMessage="Email updated."
+                  validate={(value) => {
+                    const nextEmail = value.trim();
+                    if (!nextEmail) return "Email cannot be empty.";
+                    return emailPattern.test(nextEmail) ? null : "Enter a valid email address.";
+                  }}
+                  onSave={(value) =>
+                    updateSelectedCandidate(
+                      { email: value.trim().toLowerCase() },
+                      "Email updated."
+                    )
+                  }
+                  renderEditor={(value, setValue) => (
+                    <input
+                      type="email"
+                      value={value}
+                      onChange={(event) => setValue(event.target.value)}
+                      placeholder="Enter candidate email"
+                      autoFocus
+                    />
+                  )}
+                />
 
-                <div className="detail-item credential">
-                  <FiKey size={18} />
-                  <div>
-                    <span>Password</span>
-                    {!editingPassword && (
-                      <>
-                        <strong>{selectedCandidate.password || "Not set"}</strong>
-                        <button
-                          className="password-edit-btn"
-                          type="button"
-                          onClick={beginPasswordEdit}
-                        >
-                          {selectedCandidate.password ? "Edit password" : "Create password"}
-                        </button>
-                      </>
-                    )}
-                    {editingPassword && (
-                      <div className="password-editor">
-                        <input
-                          type="text"
-                          value={passwordDraft}
-                          onChange={(event) => setPasswordDraft(event.target.value)}
-                          placeholder="Enter candidate password"
-                          autoFocus
-                        />
-                        <div className="password-actions">
-                          <button
-                            type="button"
-                            className="save-password-btn"
-                            onClick={handlePasswordSave}
-                            disabled={savingPassword}
-                          >
-                            <FiSave size={14} />
-                            <span>{savingPassword ? "Saving" : "Save"}</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="cancel-password-btn"
-                            onClick={cancelPasswordEdit}
-                            disabled={savingPassword}
-                          >
-                            <FiX size={14} />
-                            <span>Cancel</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {passwordMessage && (
-                      <small className={passwordMessage === "Password updated." ? "success" : "error"}>
-                        {passwordMessage}
-                      </small>
-                    )}
-                  </div>
-                </div>
+                <EditableDetailCard<string>
+                  label="Password"
+                  icon={<FiKey size={18} />}
+                  value={selectedCandidate.password || ""}
+                  displayValue={selectedCandidate.password || "Not set"}
+                  editLabel="Edit password"
+                  createLabel="Create password"
+                  isEmpty={!selectedCandidate.password}
+                  credential
+                  successMessage="Password updated."
+                  validate={(value) => (value.trim() ? null : "Password cannot be empty.")}
+                  onSave={(value) =>
+                    updateSelectedCandidate({ password: value.trim() }, "Password updated.")
+                  }
+                  renderEditor={(value, setValue) => (
+                    <input
+                      type="text"
+                      value={value}
+                      onChange={(event) => setValue(event.target.value)}
+                      placeholder="Enter candidate password"
+                      autoFocus
+                    />
+                  )}
+                />
 
-                <div className="detail-item">
-                  <FiBriefcase size={18} />
-                  <div>
-                    <span>Role</span>
-                    <strong>{selectedCandidate.current_role || "N/A"}</strong>
-                  </div>
-                </div>
+                <EditableDetailCard<string>
+                  label="Role"
+                  icon={<FiBriefcase size={18} />}
+                  value={selectedCandidate.current_role || ""}
+                  displayValue={selectedCandidate.current_role || "N/A"}
+                  editLabel="Edit role"
+                  createLabel="Add role"
+                  isEmpty={!selectedCandidate.current_role}
+                  successMessage="Role updated."
+                  validate={(value) => (value.trim() ? null : "Role cannot be empty.")}
+                  onSave={(value) =>
+                    updateSelectedCandidate({ current_role: value.trim() }, "Role updated.")
+                  }
+                  renderEditor={(value, setValue) => (
+                    <>
+                      <select
+                        value={roleOptions.includes(value) ? value : ""}
+                        onChange={(event) => setValue(event.target.value)}
+                        autoFocus
+                      >
+                        <option value="">Custom role</option>
+                        {roleOptions.map((role) => (
+                          <option key={role} value={role}>
+                            {role}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={value}
+                        onChange={(event) => setValue(event.target.value)}
+                        placeholder="Enter candidate role"
+                      />
+                    </>
+                  )}
+                />
 
-                <div className="detail-item">
-                  <FiUsers size={18} />
-                  <div>
-                    <span>Team</span>
-                    <strong>{selectedCandidate.team || "N/A"}</strong>
-                  </div>
-                </div>
+                <EditableDetailCard<string>
+                  label="Team"
+                  icon={<FiUsers size={18} />}
+                  value={selectedCandidate.team || ""}
+                  displayValue={selectedCandidate.team || "N/A"}
+                  editLabel="Edit team"
+                  createLabel="Add team"
+                  isEmpty={!selectedCandidate.team}
+                  successMessage="Team updated."
+                  validate={(value) => (value.trim() ? null : "Team cannot be empty.")}
+                  onSave={(value) =>
+                    updateSelectedCandidate({ team: value.trim() }, "Team updated.")
+                  }
+                  renderEditor={(value, setValue) => (
+                    <input
+                      type="text"
+                      value={value}
+                      onChange={(event) => setValue(event.target.value)}
+                      placeholder="Enter candidate team"
+                      autoFocus
+                    />
+                  )}
+                />
 
-                <div className="detail-item">
-                  <FiCode size={18} />
-                  <div>
-                    <span>Experience</span>
-                    <strong>{selectedCandidate.experience_level || "N/A"}</strong>
-                  </div>
-                </div>
+                <EditableDetailCard<string>
+                  label="Experience"
+                  icon={<FiCode size={18} />}
+                  value={selectedCandidate.experience_level || ""}
+                  displayValue={selectedCandidate.experience_level || "N/A"}
+                  editLabel="Edit experience"
+                  createLabel="Add experience"
+                  isEmpty={!selectedCandidate.experience_level}
+                  successMessage="Experience updated."
+                  validate={(value) => (value.trim() ? null : "Experience cannot be empty.")}
+                  onSave={(value) =>
+                    updateSelectedCandidate({ experience_level: value.trim() }, "Experience updated.")
+                  }
+                  renderEditor={(value, setValue) => (
+                    <select
+                      value={value}
+                      onChange={(event) => setValue(event.target.value)}
+                      autoFocus
+                    >
+                      <option value="">Select experience</option>
+                      {experienceOptions.map((experience) => (
+                        <option key={experience} value={experience}>
+                          {experience}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                />
 
-                <div className="detail-item">
-                  <FiCalendar size={18} />
-                  <div>
-                    <span>Added On</span>
-                    <strong>{formatDate(selectedCandidate.created_at)}</strong>
-                  </div>
-                </div>
-              </div>
+                <EditableDetailCard<string>
+                  label="Added On"
+                  icon={<FiCalendar size={18} />}
+                  value={toDateInputValue(selectedCandidate.created_at)}
+                  displayValue={formatDate(selectedCandidate.created_at)}
+                  editLabel="Edit date"
+                  successMessage="Added date updated."
+                  validate={(value) => (value ? null : "Select a date.")}
+                  onSave={(value) =>
+                    updateSelectedCandidate(
+                      { created_at: new Date(`${value}T00:00:00`).toISOString() },
+                      "Added date updated."
+                    )
+                  }
+                  renderEditor={(value, setValue) => (
+                    <input
+                      type="date"
+                      value={value}
+                      onChange={(event) => setValue(event.target.value)}
+                      autoFocus
+                    />
+                  )}
+                />
 
-              <div className="skills-block">
-                <span>Skills</span>
-                <p>{formatSkills(selectedCandidate.skills)}</p>
+                <EditableSkillsCard
+                  value={selectedCandidate.skills || {}}
+                  onSave={(value) => updateSelectedCandidate({ skills: value }, "Skills updated.")}
+                />
               </div>
             </div>
           )}

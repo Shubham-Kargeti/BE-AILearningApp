@@ -295,6 +295,10 @@ export interface CandidateCreateRequest {
   availability_percentage?: number;
 }
 
+export type CandidateUpdateRequest = Partial<CandidateCreateRequest> & {
+  created_at?: string;
+};
+
 export interface EmailValidationResponse {
   email: string;
   is_available: boolean;
@@ -676,7 +680,7 @@ export const candidateService = {
 
   updateCandidate: async (
     candidateId: string,
-    data: Partial<CandidateCreateRequest>
+    data: CandidateUpdateRequest
   ): Promise<Candidate> => {
     const response = await apiClient.patch<Candidate>(`/candidates/${candidateId}`, data);
     return response.data;
