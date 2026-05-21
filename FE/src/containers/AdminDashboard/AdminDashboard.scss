@@ -176,8 +176,7 @@
     }
   }
 
-  .btn-new-assessment,
-  .btn-view-learning-paths {
+  .btn-new-assessment {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -213,13 +212,6 @@
     }
   }
 
-  .btn-view-learning-paths {
-    color: #047857;
-
-    &:hover svg {
-      transform: scale(1.08);
-    }
-  }
 }
 
 /* ===============================
@@ -1233,8 +1225,7 @@
       font-size: 24px;
     }
 
-    .btn-new-assessment,
-    .btn-view-learning-paths {
+    .btn-new-assessment {
       width: 100%;
       justify-content: center;
     }
@@ -1330,8 +1321,7 @@
     }
   }
 
-  .btn-new-assessment,
-  .btn-view-learning-paths {
+  .btn-new-assessment {
     padding: 10px 16px;
     font-size: 13px;
   }

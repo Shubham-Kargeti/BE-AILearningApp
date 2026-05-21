@@ -23,6 +23,14 @@ const AdminSidebar = () => {
           Candidate List
         </NavLink>
 
+        <NavLink to="/admin/set-learning-path" className="admin-link">
+          Set Learning Path
+        </NavLink>
+
+        <NavLink to="/admin/learning-paths/assigned" className="admin-link">
+          Assigned Learning Paths
+        </NavLink>
+
         {/* <NavLink to="/admin/requirement" className="admin-link">
           Requirement Creation
         </NavLink> */}

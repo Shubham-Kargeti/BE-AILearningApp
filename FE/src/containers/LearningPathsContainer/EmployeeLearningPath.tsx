@@ -16,6 +16,9 @@ const formatDate = (value?: string | null) => {
   });
 };
 
+const getPathTitle = (path: AssignedLearningPath) =>
+  path.assessment_title || "Assigned Learning Path";
+
 const EmployeeLearningPath = () => {
   const { learningPathId } = useParams<{ learningPathId: string }>();
   const navigate = useNavigate();
@@ -53,7 +56,7 @@ const EmployeeLearningPath = () => {
   const renderEmptyState = () => (
     <div className="no-courses">
       <h2>No Learning Paths Found</h2>
-      <p>Please contact your admin or complete an assessment.</p>
+      <p>Please contact your admin.</p>
     </div>
   );
 
@@ -61,7 +64,7 @@ const EmployeeLearningPath = () => {
     <>
       <div className="courses-intro">
         <div>
-          <h2>{path.assessment_title || "Assessment Learning Path"}</h2>
+          <h2>{getPathTitle(path)}</h2>
           <p>
             Topic: <strong>{path.topic}</strong>
           </p>
@@ -136,7 +139,7 @@ const EmployeeLearningPath = () => {
         <div className="header-content">
           <h1>{learningPathId ? "Learning Path Details" : "My Learning Paths"}</h1>
           <p className="header-subtitle">
-            Personalized courses assigned from your assessment attempts
+            Courses assigned to your email from assessments or your admin
           </p>
         </div>
       </div>
@@ -168,7 +171,7 @@ const EmployeeLearningPath = () => {
                   onClick={() => navigate(`/app/learning-paths/${path.learning_path_id}`)}
                 >
                   <div>
-                    <strong>{path.assessment_title || "Assessment"}</strong>
+                    <strong>{getPathTitle(path)}</strong>
                     <p>{path.topic}</p>
                   </div>
                   <div className="summary-meta">

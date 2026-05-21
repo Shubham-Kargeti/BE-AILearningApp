@@ -455,12 +455,32 @@ export interface RecommendedCourse {
 export interface AssignedLearningPath {
   id: number;
   learning_path_id: string;
-  session_id: string;
+  session_id: string | null;
   assessment_id?: string | null;
   assessment_title?: string | null;
   employee_email: string;
   employee_name?: string | null;
   topic: string;
+  recommended_courses: RecommendedCourse[];
+  course_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminLearningPathAssignment extends AssignedLearningPath {
+  progress_percent: number;
+  completion_status: "not_started" | "in_progress" | "completed";
+  courses_completed: number;
+}
+
+export interface AdminLearningPathTemplate {
+  id: number;
+  template_id: string;
+  name: string;
+  source_type?: string | null;
+  source_filename?: string | null;
+  topic: string;
+  extracted_skills: ExtractedSkill[];
   recommended_courses: RecommendedCourse[];
   course_count: number;
   created_at: string;
@@ -849,11 +869,11 @@ export const uploadService = {
     _jdFile?: File,
     _requirementFile?: File,
     _clientDocFile?: File
-  ): Promise<SkillExtractionResponse> => {
+  ): Promise<AdminBulkSkillExtractionResponse> => {
     const formData = new FormData();
     formData.append("file", resumeFile);
 
-    const response = await apiClient.post<SkillExtractionResponse>(
+    const response = await apiClient.post<AdminBulkSkillExtractionResponse>(
       "/admin/extract-skills?doc_type=cv",
       formData,
       { headers: { "Content-Type": "multipart/form-data" } }
@@ -1076,6 +1096,13 @@ export const coursesService = {
     const response = await apiClient.get("/learning-path/admin/employees");
     return response.data as { employees: LearningPathEmployeeSummary[] };
   },
+  listAdminLearningPathAssignments: async () => {
+    const response = await apiClient.get("/learning-path/admin/assignments");
+    return response.data as {
+      assignment_count: number;
+      assignments: AdminLearningPathAssignment[];
+    };
+  },
   listEmployeeLearningPathsForAdmin: async (employeeEmail: string) => {
     const response = await apiClient.get(
       `/learning-path/admin/employee/${encodeURIComponent(employeeEmail)}`
@@ -1083,6 +1110,81 @@ export const coursesService = {
     return response.data as {
       employee_email: string;
       learning_path_count: number;
+      learning_paths: AssignedLearningPath[];
+    };
+  },
+  recommendAdminLearningPathCourses: async (data: {
+    skills: ExtractedSkill[];
+    topic?: string;
+    max_results?: number;
+  }) => {
+    const response = await apiClient.post("/learning-path/admin/recommendations", data);
+    return response.data as {
+      topic: string;
+      recommended_courses: RecommendedCourse[];
+    };
+  },
+  searchAdminLearningPathCourses: async (
+    query: string,
+    level?: string,
+    limit = 10
+  ) => {
+    const params = new URLSearchParams({ query, limit: String(limit) });
+    if (level) params.set("level", level);
+    const response = await apiClient.get(`/learning-path/admin/courses?${params}`);
+    return response.data as {
+      topic: string;
+      recommended_courses: RecommendedCourse[];
+    };
+  },
+  listAdminLearningPathTemplates: async () => {
+    const response = await apiClient.get("/learning-path/admin/templates");
+    return response.data as { learning_paths: AdminLearningPathTemplate[] };
+  },
+  createAdminLearningPathTemplate: async (data: {
+    name: string;
+    source_type?: string;
+    source_filename?: string;
+    topic?: string;
+    extracted_skills: ExtractedSkill[];
+    recommended_courses: RecommendedCourse[];
+  }) => {
+    const response = await apiClient.post("/learning-path/admin/templates", data);
+    return response.data as {
+      message: string;
+      learning_path: AdminLearningPathTemplate;
+    };
+  },
+  updateAdminLearningPathTemplate: async (
+    templateId: string,
+    data: {
+      name: string;
+      source_type?: string;
+      source_filename?: string;
+      topic?: string;
+      extracted_skills: ExtractedSkill[];
+      recommended_courses: RecommendedCourse[];
+    }
+  ) => {
+    const response = await apiClient.patch(
+      `/learning-path/admin/templates/${encodeURIComponent(templateId)}`,
+      data
+    );
+    return response.data as {
+      message: string;
+      learning_path: AdminLearningPathTemplate;
+      updated_assignments: number;
+    };
+  },
+  assignAdminLearningPathTemplate: async (templateId: string, emails: string[]) => {
+    const response = await apiClient.post(
+      `/learning-path/admin/templates/${encodeURIComponent(templateId)}/assign`,
+      { emails }
+    );
+    return response.data as {
+      message: string;
+      assigned_count: number;
+      employee_emails: string[];
       learning_paths: AssignedLearningPath[];
     };
   },

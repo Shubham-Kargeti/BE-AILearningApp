@@ -313,8 +313,44 @@ class SessionFeedback(Base, TimestampMixin):
     )
 
 
+class AdminLearningPathTemplate(Base, TimestampMixin):
+    """Reusable admin-authored learning path before employee assignment."""
+
+    __tablename__ = "admin_learning_path_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    template_id: Mapped[str] = mapped_column(
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: f"admin_lp_{uuid.uuid4().hex[:12]}"
+    )
+    name: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
+    source_type: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    source_filename: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    topic: Mapped[str] = mapped_column(String(500), nullable=False)
+    extracted_skills: Mapped[list] = mapped_column(JSON, nullable=False, default=[])
+    recommended_courses: Mapped[list] = mapped_column(JSON, nullable=False, default=[])
+    created_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    created_by_user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[created_by])
+    assignments: Mapped[list["LearningPath"]] = relationship(
+        "LearningPath",
+        back_populates="admin_template",
+    )
+
+    __table_args__ = (
+        Index("ix_admin_learning_path_templates_created", "created_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<AdminLearningPathTemplate(id={self.id}, template_id='{self.template_id}')>"
+
+
 class LearningPath(Base, TimestampMixin):
-    """Assigned learning path snapshot for an employee assessment attempt."""
+    """Assigned learning path snapshot for an employee."""
 
     __tablename__ = "learning_paths"
 
@@ -331,11 +367,17 @@ class LearningPath(Base, TimestampMixin):
     employee_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     employee_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
-    session_id: Mapped[str] = mapped_column(
+    session_id: Mapped[Optional[str]] = mapped_column(
         String(100),
         ForeignKey("test_sessions.session_id"),
-        nullable=False,
+        nullable=True,
         index=True
+    )
+    admin_template_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("admin_learning_path_templates.id"),
+        nullable=True,
+        index=True,
     )
     assessment_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("assessments.id"), nullable=True, index=True)
     assessment_public_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
@@ -348,13 +390,18 @@ class LearningPath(Base, TimestampMixin):
 
     user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[user_id])
     pushed_by_user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[pushed_by])
-    test_session: Mapped["TestSession"] = relationship("TestSession")
+    test_session: Mapped[Optional["TestSession"]] = relationship("TestSession")
     assessment: Mapped[Optional["Assessment"]] = relationship("Assessment")
+    admin_template: Mapped[Optional["AdminLearningPathTemplate"]] = relationship(
+        "AdminLearningPathTemplate",
+        back_populates="assignments",
+    )
 
     __table_args__ = (
         UniqueConstraint("employee_email", "session_id", name="uq_learning_path_employee_session"),
         Index("ix_learning_paths_employee_created", "employee_email", "created_at"),
         Index("ix_learning_paths_assessment_created", "assessment_id", "created_at"),
+        Index("ix_learning_paths_admin_template_created", "admin_template_id", "created_at"),
     )
 
     def __repr__(self) -> str:

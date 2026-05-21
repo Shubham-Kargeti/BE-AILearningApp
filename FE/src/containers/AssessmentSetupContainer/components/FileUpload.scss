@@ -398,6 +398,15 @@
         }
       }
 
+      &.replace-btn {
+        background: #dbeafe;
+        color: #2563eb;
+
+        &:hover {
+          background: #bfdbfe;
+        }
+      }
+
       &.remove-btn {
         background: #fee2e2;
         color: #dc2626;

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { 
   FiX, FiUpload, FiCloud, FiAlertCircle, FiFileText, 
-  FiCheckCircle, FiEye, FiTrash2, FiDownload, FiZoomIn, FiZoomOut 
+  FiCheckCircle, FiEye, FiTrash2, FiDownload, FiZoomIn, FiZoomOut, FiRefreshCw
 } from "react-icons/fi";
 import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
@@ -14,6 +14,9 @@ interface Props {
   onFileSelect: (file: File | null) => void;
   onTextExtracted?: (text: string) => void;
   isRequired?: boolean;
+  accept?: string;
+  allowedMimeTypes?: string[];
+  allowedTypeMessage?: string;
 }
 
 interface FilePreview {
@@ -34,7 +37,15 @@ const allowedTypes = [
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ];
 
-const FileUpload: React.FC<Props> = ({ label, onFileSelect, onTextExtracted, isRequired = false }) => {
+const FileUpload: React.FC<Props> = ({
+  label,
+  onFileSelect,
+  onTextExtracted,
+  isRequired = false,
+  accept = ".pdf,.docx,.txt,.ppt,.pptx",
+  allowedMimeTypes = allowedTypes,
+  allowedTypeMessage = "Only PDF, DOCX, TXT, PPT, and PPTX files are allowed.",
+}) => {
   const [dragActive, setDragActive] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -76,8 +87,8 @@ const FileUpload: React.FC<Props> = ({ label, onFileSelect, onTextExtracted, isR
   };
 
   const validateFile = (file: File): boolean => {
-    if (!allowedTypes.includes(file.type)) {
-      setError("Only PDF, DOCX, TXT, PPT, and PPTX files are allowed.");
+    if (!allowedMimeTypes.includes(file.type)) {
+      setError(allowedTypeMessage);
       return false;
     }
 
@@ -130,7 +141,7 @@ const FileUpload: React.FC<Props> = ({ label, onFileSelect, onTextExtracted, isR
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
           const pageText = textContent.items
-            .map((item: any) => item.str)
+            .map((item) => ("str" in item ? item.str : ""))
             .join(" ");
           textParts.push(pageText);
         }
@@ -233,6 +244,13 @@ const FileUpload: React.FC<Props> = ({ label, onFileSelect, onTextExtracted, isR
     onFileSelect(null);
   };
 
+  const replaceFile = () => {
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+    inputRef.current?.click();
+  };
+
   const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 25, 200));
   const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 25, 50));
 
@@ -310,6 +328,13 @@ const FileUpload: React.FC<Props> = ({ label, onFileSelect, onTextExtracted, isR
                 <FiDownload size={14} />
               </button>
               <button
+                className="action-btn replace-btn"
+                onClick={replaceFile}
+                title="Replace"
+              >
+                <FiRefreshCw size={14} />
+              </button>
+              <button
                 className="action-btn remove-btn"
                 onClick={removeFile}
                 title="Remove"
@@ -324,7 +349,7 @@ const FileUpload: React.FC<Props> = ({ label, onFileSelect, onTextExtracted, isR
           ref={inputRef}
           className="hidden-input"
           type="file"
-          accept=".pdf,.docx,.txt,.ppt,.pptx"
+          accept={accept}
           onChange={onBrowse}
         />
       </div>

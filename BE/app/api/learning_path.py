@@ -1,15 +1,25 @@
-"""Learning Path API - Generate personalized learning paths from test results."""
-from fastapi import APIRouter, HTTPException, Depends
+"""Learning Path API - Generate and assign personalized learning paths."""
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func, desc
 from typing import Any, Iterable, Optional
 import logging
-from pydantic import BaseModel
+import re
+from pydantic import BaseModel, Field
 from app.core.dependencies import get_current_user, admin_required
 from datetime import datetime
 
 from app.db.session import get_db
-from app.db.models import TestSession, Answer, Question, QuestionSet, User, Assessment, LearningPath
+from app.db.models import (
+    AdminLearningPathTemplate,
+    TestSession,
+    Answer,
+    Question,
+    QuestionSet,
+    User,
+    Assessment,
+    LearningPath,
+)
 
 
 from app.models.schemas import RecommendedCoursesResponse
@@ -22,6 +32,34 @@ class PushLearningPathRequest(BaseModel):
 
 class SelfLearningPathRequest(BaseModel):
     session_id: str
+
+
+class AdminLearningPathRecommendationRequest(BaseModel):
+    skills: list[dict] = Field(default_factory=list)
+    topic: Optional[str] = None
+    max_results: int = Field(default=20, ge=1, le=20)
+
+
+class AdminLearningPathTemplateCreate(BaseModel):
+    name: str
+    source_type: Optional[str] = None
+    source_filename: Optional[str] = None
+    topic: Optional[str] = None
+    extracted_skills: list[dict] = Field(default_factory=list)
+    recommended_courses: list[dict] = Field(default_factory=list)
+
+
+class AdminLearningPathTemplateUpdate(BaseModel):
+    name: Optional[str] = None
+    source_type: Optional[str] = None
+    source_filename: Optional[str] = None
+    topic: Optional[str] = None
+    extracted_skills: Optional[list[dict]] = None
+    recommended_courses: Optional[list[dict]] = None
+
+
+class AdminLearningPathAssignRequest(BaseModel):
+    emails: list[str] = Field(default_factory=list)
 
 
 def serialize_learning_path(path: LearningPath) -> dict:
@@ -39,6 +77,34 @@ def serialize_learning_path(path: LearningPath) -> dict:
         "created_at": path.created_at,
         "updated_at": path.updated_at,
     }
+
+
+def serialize_admin_learning_path_template(path: AdminLearningPathTemplate) -> dict:
+    return {
+        "id": path.id,
+        "template_id": path.template_id,
+        "name": path.name,
+        "source_type": path.source_type,
+        "source_filename": path.source_filename,
+        "topic": path.topic,
+        "extracted_skills": path.extracted_skills or [],
+        "recommended_courses": path.recommended_courses or [],
+        "course_count": len(path.recommended_courses or []),
+        "created_at": path.created_at,
+        "updated_at": path.updated_at,
+    }
+
+
+def serialize_admin_assignment(path: LearningPath) -> dict:
+    serialized = serialize_learning_path(path)
+    serialized.update(
+        {
+            "progress_percent": 0,
+            "completion_status": "not_started",
+            "courses_completed": 0,
+        }
+    )
+    return serialized
 
 
 async def get_assessment_for_session(db: AsyncSession, session: TestSession) -> Optional[Assessment]:
@@ -178,6 +244,337 @@ logger = logging.getLogger(__name__)
 # Import course recommendation logic from recommended_courses
 from app.api.recommended_courses import recommend_courses_for_topic, sanitize_for_json
 
+
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+LEVEL_LABELS = {
+    "beginner": "Beginner",
+    "basic": "Beginner",
+    "junior": "Beginner",
+    "intermediate": "Intermediate",
+    "mid": "Intermediate",
+    "advanced": "Advanced",
+    "expert": "Advanced",
+    "senior": "Advanced",
+    "lead": "Advanced",
+}
+
+
+def _clean_path_name(value: str) -> str:
+    name = " ".join((value or "").split())
+    if not name:
+        raise HTTPException(status_code=422, detail="Learning path name is required")
+    return name[:500]
+
+
+def _topic_from_skills(skills: list[dict]) -> str:
+    names = []
+    seen = set()
+    for skill in skills:
+        name = " ".join(str(skill.get("skill_name") or skill.get("name") or "").split())
+        key = name.casefold()
+        if name and key not in seen:
+            names.append(name)
+            seen.add(key)
+    return ", ".join(names)[:500] or "General"
+
+
+def _recommendation_level(skill: dict) -> Optional[str]:
+    level = str(skill.get("proficiency_level") or skill.get("level") or "").strip().casefold()
+    return LEVEL_LABELS.get(level)
+
+
+def _recommended_course_key(course: dict) -> str:
+    url = str(course.get("url") or "").strip().casefold()
+    name = str(course.get("name") or "").strip().casefold()
+    topic = str(course.get("topic") or "").strip().casefold()
+    return url or f"{name}|{topic}"
+
+
+def _append_courses(
+    selected: list[dict],
+    seen: set[str],
+    candidates: list[dict],
+    max_results: int,
+) -> None:
+    for course in candidates:
+        key = _recommended_course_key(course)
+        if not key or key in seen:
+            continue
+        selected.append(course)
+        seen.add(key)
+        if len(selected) >= max_results:
+            return
+
+
+async def _recommend_for_extracted_skills(
+    skills: list[dict],
+    requested_topic: Optional[str],
+    max_results: int,
+) -> tuple[str, list[dict]]:
+    topic = " ".join((requested_topic or "").split())[:500] or _topic_from_skills(skills)
+    selected: list[dict] = []
+    seen: set[str] = set()
+
+    for skill in skills[:10]:
+        skill_name = " ".join(str(skill.get("skill_name") or skill.get("name") or "").split())
+        if not skill_name:
+            continue
+
+        recommendations = await recommend_courses_for_topic(
+            skill_name,
+            _recommendation_level(skill),
+            max_results=min(4, max_results),
+        )
+        _append_courses(selected, seen, recommendations, max_results)
+        if len(selected) >= max_results:
+            break
+
+    if len(selected) < max_results and topic != "General":
+        recommendations = await recommend_courses_for_topic(
+            topic,
+            None,
+            max_results=max_results,
+        )
+        _append_courses(selected, seen, recommendations, max_results)
+
+    return topic, selected
+
+
+def _normalized_emails(emails: list[str]) -> list[str]:
+    normalized = []
+    invalid = []
+    seen = set()
+
+    for raw_email in emails:
+        email = str(raw_email or "").strip().lower()
+        if not email:
+            continue
+        if not EMAIL_PATTERN.match(email):
+            invalid.append(email)
+            continue
+        if email not in seen:
+            normalized.append(email)
+            seen.add(email)
+
+    if invalid:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid email address: {', '.join(invalid[:5])}",
+        )
+    if not normalized:
+        raise HTTPException(status_code=422, detail="At least one employee email is required")
+    return normalized
+
+
+async def _get_admin_template(db: AsyncSession, template_id: str) -> AdminLearningPathTemplate:
+    result = await db.execute(
+        select(AdminLearningPathTemplate).where(
+            and_(
+                AdminLearningPathTemplate.template_id == template_id,
+                AdminLearningPathTemplate.is_active == True,
+            )
+        )
+    )
+    template = result.scalar_one_or_none()
+    if not template:
+        raise HTTPException(status_code=404, detail="Learning path not found")
+    return template
+
+
+@router.post("/learning-path/admin/recommendations")
+async def recommend_admin_learning_path_courses(
+    payload: AdminLearningPathRecommendationRequest,
+    current_user: User = Depends(admin_required),
+):
+    if not payload.skills and not (payload.topic or "").strip():
+        raise HTTPException(status_code=422, detail="Extracted skills or a topic are required")
+
+    topic, recommended_courses = await _recommend_for_extracted_skills(
+        payload.skills,
+        payload.topic,
+        payload.max_results,
+    )
+    return sanitize_for_json(
+        {
+            "topic": topic,
+            "recommended_courses": recommended_courses[: payload.max_results],
+        }
+    )
+
+
+@router.get("/learning-path/admin/courses")
+async def search_admin_learning_path_courses(
+    query: str = Query(..., min_length=2, max_length=100),
+    level: Optional[str] = Query(None, max_length=50),
+    limit: int = Query(10, ge=1, le=20),
+    current_user: User = Depends(admin_required),
+):
+    recommendations = await recommend_courses_for_topic(
+        query.strip(),
+        level.strip() if level else None,
+        max_results=limit,
+    )
+    return sanitize_for_json(
+        {
+            "topic": query.strip(),
+            "recommended_courses": recommendations[:limit],
+        }
+    )
+
+
+@router.get("/learning-path/admin/templates")
+async def list_admin_learning_path_templates(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required),
+):
+    result = await db.execute(
+        select(AdminLearningPathTemplate)
+        .where(AdminLearningPathTemplate.is_active == True)
+        .order_by(desc(AdminLearningPathTemplate.updated_at))
+    )
+    templates = result.scalars().all()
+    return {"learning_paths": [serialize_admin_learning_path_template(path) for path in templates]}
+
+
+@router.post("/learning-path/admin/templates")
+async def create_admin_learning_path_template(
+    payload: AdminLearningPathTemplateCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required),
+):
+    topic = " ".join((payload.topic or "").split())[:500] or _topic_from_skills(payload.extracted_skills)
+    template = AdminLearningPathTemplate(
+        name=_clean_path_name(payload.name),
+        source_type=(payload.source_type or "").strip()[:30] or None,
+        source_filename=(payload.source_filename or "").strip()[:500] or None,
+        topic=topic,
+        extracted_skills=payload.extracted_skills,
+        recommended_courses=payload.recommended_courses,
+        created_by=current_user.id,
+        is_active=True,
+    )
+    db.add(template)
+    await db.commit()
+    await db.refresh(template)
+    return {
+        "message": "Learning path saved successfully",
+        "learning_path": serialize_admin_learning_path_template(template),
+    }
+
+
+@router.patch("/learning-path/admin/templates/{template_id}")
+async def update_admin_learning_path_template(
+    template_id: str,
+    payload: AdminLearningPathTemplateUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required),
+):
+    template = await _get_admin_template(db, template_id)
+    changed_fields = payload.model_fields_set
+
+    if "name" in changed_fields:
+        template.name = _clean_path_name(payload.name or "")
+    if "source_type" in changed_fields:
+        template.source_type = (payload.source_type or "").strip()[:30] or None
+    if "source_filename" in changed_fields:
+        template.source_filename = (payload.source_filename or "").strip()[:500] or None
+    if "topic" in changed_fields:
+        template.topic = " ".join((payload.topic or "").split())[:500] or _topic_from_skills(
+            payload.extracted_skills or template.extracted_skills or []
+        )
+    if "extracted_skills" in changed_fields:
+        template.extracted_skills = payload.extracted_skills or []
+        if "topic" not in changed_fields and template.topic == "General":
+            template.topic = _topic_from_skills(template.extracted_skills)
+    if "recommended_courses" in changed_fields:
+        template.recommended_courses = payload.recommended_courses or []
+
+    assignments_result = await db.execute(
+        select(LearningPath).where(
+            and_(
+                LearningPath.admin_template_id == template.id,
+                LearningPath.is_active == True,
+            )
+        )
+    )
+    assignments = assignments_result.scalars().all()
+    for assignment in assignments:
+        assignment.assessment_title = template.name
+        assignment.topic = template.topic
+        assignment.recommended_courses = template.recommended_courses
+
+    await db.commit()
+    await db.refresh(template)
+    return {
+        "message": "Learning path updated successfully",
+        "learning_path": serialize_admin_learning_path_template(template),
+        "updated_assignments": len(assignments),
+    }
+
+
+@router.post("/learning-path/admin/templates/{template_id}/assign")
+async def assign_admin_learning_path_template(
+    template_id: str,
+    payload: AdminLearningPathAssignRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required),
+):
+    template = await _get_admin_template(db, template_id)
+    emails = _normalized_emails(payload.emails)
+    assignments = []
+
+    for email in emails:
+        user_result = await db.execute(select(User).where(func.lower(User.email) == email))
+        user = user_result.scalar_one_or_none()
+
+        existing_result = await db.execute(
+            select(LearningPath).where(
+                and_(
+                    LearningPath.admin_template_id == template.id,
+                    func.lower(LearningPath.employee_email) == email,
+                )
+            )
+        )
+        assignment = existing_result.scalar_one_or_none()
+
+        if assignment:
+            assignment.user_id = user.id if user else assignment.user_id
+            assignment.employee_name = user.full_name if user and user.full_name else assignment.employee_name
+            assignment.assessment_title = template.name
+            assignment.topic = template.topic
+            assignment.recommended_courses = template.recommended_courses
+            assignment.pushed_by = current_user.id
+            assignment.is_active = True
+        else:
+            assignment = LearningPath(
+                user_id=user.id if user else None,
+                employee_email=email,
+                employee_name=user.full_name if user else None,
+                session_id=None,
+                admin_template_id=template.id,
+                assessment_id=None,
+                assessment_public_id=None,
+                assessment_title=template.name,
+                topic=template.topic,
+                recommended_courses=template.recommended_courses,
+                pushed_by=current_user.id,
+                is_active=True,
+            )
+            db.add(assignment)
+
+        assignments.append(assignment)
+
+    await db.commit()
+    for assignment in assignments:
+        await db.refresh(assignment)
+
+    return {
+        "message": "Learning path assigned successfully",
+        "assigned_count": len(assignments),
+        "employee_emails": emails,
+        "learning_paths": [serialize_learning_path(path) for path in assignments],
+    }
+
 @router.get("/learning-path/employee")
 async def get_employee_learning_path(
     current_user: User = Depends(get_current_user),
@@ -191,7 +588,7 @@ async def get_employee_learning_path(
         select(LearningPath)
         .where(
             and_(
-                LearningPath.employee_email == current_user.email,
+                func.lower(LearningPath.employee_email) == current_user.email.strip().lower(),
                 LearningPath.is_active == True
             )
         )
@@ -212,7 +609,7 @@ async def get_employee_learning_path_detail(
         select(LearningPath).where(
             and_(
                 LearningPath.learning_path_id == learning_path_id,
-                LearningPath.employee_email == current_user.email,
+                func.lower(LearningPath.employee_email) == current_user.email.strip().lower(),
                 LearningPath.is_active == True
             )
         )
@@ -568,6 +965,24 @@ async def list_learning_path_employees(
     ]
 
     return {"employees": employees}
+
+
+@router.get("/learning-path/admin/assignments")
+async def list_learning_path_assignments(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required)
+):
+    result = await db.execute(
+        select(LearningPath)
+        .where(LearningPath.is_active == True)
+        .order_by(desc(LearningPath.updated_at))
+    )
+    assignments = result.scalars().all()
+
+    return {
+        "assignment_count": len(assignments),
+        "assignments": [serialize_admin_assignment(path) for path in assignments],
+    }
 
 
 @router.get("/learning-path/admin/employee/{employee_email}")
