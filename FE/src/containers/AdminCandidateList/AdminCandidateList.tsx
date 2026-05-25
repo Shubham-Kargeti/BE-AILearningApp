@@ -14,6 +14,7 @@ import {
   FiSave,
   FiSearch,
   FiTrash2,
+  FiUser,
   FiX,
   FiUsers,
 } from "react-icons/fi";
@@ -468,6 +469,28 @@ const AdminCandidateList: React.FC = () => {
               </div>
 
               <div className="details-grid">
+                <EditableDetailCard<string>
+                  label="Full Name"
+                  icon={<FiUser size={18} />}
+                  value={selectedCandidate.full_name || ""}
+                  displayValue={selectedCandidate.full_name || "N/A"}
+                  editLabel="Edit Name"
+                  successMessage="Full name updated."
+                  validate={(value) => (value.trim() ? null : "Full name cannot be empty.")}
+                  onSave={(value) =>
+                    updateSelectedCandidate({ full_name: value.trim() }, "Full name updated.")
+                  }
+                  renderEditor={(value, setValue) => (
+                    <input
+                      type="text"
+                      value={value}
+                      onChange={(event) => setValue(event.target.value)}
+                      placeholder="Enter candidate full name"
+                      autoFocus
+                    />
+                  )}
+                />
+
                 <EditableDetailCard<string>
                   label="Email"
                   icon={<FiMail size={18} />}
