@@ -1,0 +1,57 @@
+stages:
+  - deploy
+
+variables:
+  APP_DIR: "/home/ec2-user/learningapp"
+  FE_DIR: "/home/ec2-user/learningapp/FE"
+  BE_DIR: "/home/ec2-user/learningapp/BE"
+  ENV_DIR: "/home/ec2-user/learningapp/environments"
+  NGINX_WEB_ROOT: "/usr/share/nginx/html"
+
+.deploy_template:
+  image: alpine:3.20
+  before_script:
+    - apk add --no-cache openssh-client rsync
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+    - when: never
+
+deploy_fe:
+  stage: deploy
+  extends: .deploy_template
+  script:
+    - rsync -az --delete --exclude node_modules --exclude dist --exclude .env FE/ "$SERVER_USER@$SERVER_HOST:$FE_DIR/"
+    - |
+      ssh "$SERVER_USER@$SERVER_HOST" "
+        set -e
+        cd '$APP_DIR'
+        cp '$ENV_DIR/fe.env' '$FE_DIR/.env'
+        cd '$FE_DIR'
+        npm ci
+        npm run build
+        sudo mkdir -p '$NGINX_WEB_ROOT'
+        sudo rm -rf '$NGINX_WEB_ROOT'/*
+        sudo cp -r dist/* '$NGINX_WEB_ROOT'/
+        sudo systemctl reload nginx || sudo systemctl restart nginx
+      "
+
+deploy_be:
+  stage: deploy
+  extends: .deploy_template
+  script:
+    - rsync -az --delete --exclude .venv --exclude .cache --exclude __pycache__ --exclude .env BE/ "$SERVER_USER@$SERVER_HOST:$BE_DIR/"
+    - |
+      ssh "$SERVER_USER@$SERVER_HOST" "
+        set -e
+        cd '$APP_DIR'
+        cp '$ENV_DIR/be.env' '$BE_DIR/.env'
+        cd '$BE_DIR'
+        docker compose down
+        docker compose up -d --build
+      "
