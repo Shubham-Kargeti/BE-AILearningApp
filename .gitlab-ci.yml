@@ -2,9 +2,9 @@ stages:
   - deploy
 
 variables:
-  APP_DIR: "/home/ec2-user/learningapp"
-  FE_DIR: "/home/ec2-user/learningapp/FE"
-  BE_DIR: "/home/ec2-user/learningapp/BE"
+  APP_DIR: "/home/ec2-user/apps"
+  FE_DIR: "/home/ec2-user/apps/FE"
+  BE_DIR: "/home/ec2-user/apps/BE"
   ENV_DIR: "/home/ec2-user/apps/environments"
   NGINX_WEB_ROOT: "/usr/share/nginx/html"
   SERVER_PORT: "22"
@@ -60,6 +60,6 @@ deploy_be:
         cd '$APP_DIR'
         cp '$ENV_DIR/be.env' '$BE_DIR/.env'
         cd '$BE_DIR'
-        docker compose down
+        docker compose down --remove-orphans
         docker compose up -d --build
       "
