@@ -2,11 +2,10 @@ stages:
   - deploy
 
 variables:
-  APP_DIR: "/home/ec2-user/apps"
-  FE_DIR: "/home/ec2-user/apps/FE"
-  BE_DIR: "/home/ec2-user/apps/BE"
+  APP_DIR: "/home/ec2-user/learningapp"
+  FE_DIR: "/home/ec2-user/learningapp/FE"
+  BE_DIR: "/home/ec2-user/learningapp/BE"
   ENV_DIR: "/home/ec2-user/apps/environments"
-  NGINX_WEB_ROOT: "/usr/share/nginx/html"
   SERVER_PORT: "22"
 
 .deploy_template:
@@ -37,15 +36,13 @@ deploy_fe:
     - |
       ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" "
         set -e
-        cd '$APP_DIR'
         cp '$ENV_DIR/fe.env' '$FE_DIR/.env'
+        cp '$ENV_DIR/Caddyfile' '$FE_DIR/Caddyfile'
         cd '$FE_DIR'
         npm ci
         npm run build
-        sudo mkdir -p '$NGINX_WEB_ROOT'
-        sudo rm -rf '$NGINX_WEB_ROOT'/*
-        sudo cp -r dist/* '$NGINX_WEB_ROOT'/
-        sudo systemctl reload nginx || sudo systemctl restart nginx
+        docker compose down --remove-orphans
+        docker compose up -d
       "
 
 deploy_be:
@@ -61,5 +58,7 @@ deploy_be:
         cp '$ENV_DIR/be.env' '$BE_DIR/.env'
         cd '$BE_DIR'
         docker compose down --remove-orphans
+        docker compose up -d --build postgres redis minio
+        docker compose run --rm api alembic upgrade head
         docker compose up -d --build
       "
