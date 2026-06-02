@@ -78,7 +78,7 @@ services:
       - TRANSFORMERS_CACHE=/app/.cache/huggingface
       - HF_HUB_DISABLE_SYMLINKS_WARNING=1
     ports:
-      - "8000:8000"
+      - "4000:8000"
     volumes:
       - .:/app
       - huggingface_cache:/app/.cache/huggingface
