@@ -5,8 +5,9 @@ variables:
   APP_DIR: "/home/ec2-user/learningapp"
   FE_DIR: "/home/ec2-user/learningapp/FE"
   BE_DIR: "/home/ec2-user/learningapp/BE"
-  ENV_DIR: "/home/ec2-user/learningapp/environments"
+  ENV_DIR: "/home/ec2-user/apps/environments"
   NGINX_WEB_ROOT: "/usr/share/nginx/html"
+  SERVER_PORT: "22"
 
 .deploy_template:
   image: alpine:3.20
@@ -14,21 +15,27 @@ variables:
     - apk add --no-cache openssh-client rsync
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
+    - |
+      echo "Checking required GitLab CI/CD variables..."
+      test -n "$SERVER_HOST" && echo "SERVER_HOST is set to $SERVER_HOST" || { echo "SERVER_HOST is missing"; exit 1; }
+      test -n "$SERVER_USER" && echo "SERVER_USER is set to $SERVER_USER" || { echo "SERVER_USER is missing"; exit 1; }
+      test -n "$SERVER_PORT" && echo "SERVER_PORT is set to $SERVER_PORT" || { echo "SERVER_PORT is missing"; exit 1; }
+      test -n "$SSH_PRIVATE_KEY" && echo "SSH_PRIVATE_KEY is set" || { echo "SSH_PRIVATE_KEY is missing"; exit 1; }
+      echo "Deploy target is $SERVER_USER@$SERVER_HOST:$SERVER_PORT"
     - printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
     - chmod 600 ~/.ssh/id_rsa
-    - ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+    - ssh-keyscan -p "$SERVER_PORT" -H "$SERVER_HOST" >> ~/.ssh/known_hosts
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: manual
-    - when: never
+    - when: manual
 
 deploy_fe:
   stage: deploy
   extends: .deploy_template
   script:
-    - rsync -az --delete --exclude node_modules --exclude dist --exclude .env FE/ "$SERVER_USER@$SERVER_HOST:$FE_DIR/"
+    - ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" "mkdir -p '$FE_DIR'"
+    - rsync -az -e "ssh -p $SERVER_PORT" --delete --exclude node_modules --exclude dist --exclude .env FE/ "$SERVER_USER@$SERVER_HOST:$FE_DIR/"
     - |
-      ssh "$SERVER_USER@$SERVER_HOST" "
+      ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" "
         set -e
         cd '$APP_DIR'
         cp '$ENV_DIR/fe.env' '$FE_DIR/.env'
@@ -45,9 +52,10 @@ deploy_be:
   stage: deploy
   extends: .deploy_template
   script:
-    - rsync -az --delete --exclude .venv --exclude .cache --exclude __pycache__ --exclude .env BE/ "$SERVER_USER@$SERVER_HOST:$BE_DIR/"
+    - ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" "mkdir -p '$BE_DIR'"
+    - rsync -az -e "ssh -p $SERVER_PORT" --delete --exclude .venv --exclude .cache --exclude __pycache__ --exclude .env BE/ "$SERVER_USER@$SERVER_HOST:$BE_DIR/"
     - |
-      ssh "$SERVER_USER@$SERVER_HOST" "
+      ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" "
         set -e
         cd '$APP_DIR'
         cp '$ENV_DIR/be.env' '$BE_DIR/.env'
