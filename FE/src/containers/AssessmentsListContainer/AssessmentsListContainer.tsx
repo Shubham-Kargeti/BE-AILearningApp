@@ -73,6 +73,7 @@ interface CandidateAssessmentResult {
   correct_answers: number;
   score_percentage: number | null;
   is_completed: boolean;
+  overall_feedback?: string | null;
   skill: string | null;
   level: string | null;
   questions: ResultQuestion[];
@@ -195,6 +196,7 @@ const mapQuestionSetResult = (
   correct_answers: result.correct_answers,
   score_percentage: result.score_percentage,
   is_completed: true,
+  overall_feedback: result.overall_feedback ?? null,
   skill: result.skill,
   level: session.level,
   questions: result.detailed_results.map((question) => ({
@@ -227,6 +229,7 @@ const mapTestSessionResult = (
   correct_answers: result.correct_answers,
   score_percentage: result.score_percentage,
   is_completed: true,
+  overall_feedback: result.overall_feedback ?? null,
   skill: session.skill,
   level: session.level,
   questions: result.detailed_results.map((question) => ({
@@ -725,6 +728,25 @@ const AssessmentsListContainer = () => {
                             },
                           }}
                         />
+                      </Box>
+                    )}
+
+                    {result.overall_feedback?.trim() && (
+                      <Box
+                        sx={{
+                          p: 2,
+                          borderRadius: 3,
+                          backgroundColor: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          mb: 2.5,
+                        }}
+                      >
+                        <Typography sx={{ fontWeight: 800, color: "#1d4ed8", mb: 0.75 }}>
+                          Overall Feedback
+                        </Typography>
+                        <Typography sx={{ color: "#334155", whiteSpace: "pre-wrap" }}>
+                          {result.overall_feedback}
+                        </Typography>
                       </Box>
                     )}
 

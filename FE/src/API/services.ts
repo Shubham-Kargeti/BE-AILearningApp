@@ -81,7 +81,8 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
-    if (error.response?.status === 401) {
+    const requestUrl = error.config?.url || "";
+    if (error.response?.status === 401 && !requestUrl.includes("/auth/login")) {
       localStorage.clear();
       window.location.href = "/login";
     }
@@ -91,12 +92,15 @@ apiClient.interceptors.response.use(
 
 export interface LoginRequest {
   email: string;
+  password: string;
 }
 
 export interface TokenResponse {
   access_token: string;
   refresh_token: string;
   token_type: string;
+  role?: "admin" | "candidate";
+  candidate_id?: string;
   login_streak?: {
     current_streak: number;
     longest_streak: number;
@@ -233,21 +237,67 @@ export interface Candidate {
   candidate_id: string;
   full_name: string;
   email: string;
+  password?: string;
   phone?: string;
+  current_role?: string;
+  team?: string;
+  location?: string;
+  education?: string;
+  linkedin_url?: string;
+  github_url?: string;
+  portfolio_url?: string;
+  experience_years?: string;
   experience_level: string;
   skills: Record<string, string>;
   availability_percentage: number;
+  is_active?: boolean;
   created_at: string;
+  updated_at?: string;
+}
+
+export interface CandidatePendingAssessment {
+  application_id: string;
+  assessment_id: string;
+  title: string;
+  description?: string;
+  job_title?: string;
+  duration_minutes: number;
+  total_questions: number;
+  required_skills: Record<string, string>;
+  question_set_id?: string | null;
+  assessment_method?: string | null;
+  is_questionnaire_enabled: boolean;
+  is_interview_enabled: boolean;
+  expires_at?: string | null;
+  is_expired: boolean;
+  status: string;
+  applied_at?: string | null;
+  started_at?: string | null;
+  session_id?: string | null;
+  role_applied_for?: string | null;
 }
 
 export interface CandidateCreateRequest {
   full_name: string;
   email: string;
+  password: string;
   phone?: string;
+  current_role?: string;
+  team?: string;
+  location?: string;
+  education?: string;
+  linkedin_url?: string;
+  github_url?: string;
+  portfolio_url?: string;
+  experience_years?: string;
   experience_level: string;
   skills: Record<string, string>;
   availability_percentage?: number;
 }
+
+export type CandidateUpdateRequest = Partial<CandidateCreateRequest> & {
+  created_at?: string;
+};
 
 export interface EmailValidationResponse {
   email: string;
@@ -311,6 +361,17 @@ export interface QuestionFeedbackItem {
 }
 
 export type QuestionFeedbackMap = Record<string, QuestionFeedbackItem[]>;
+
+export interface SessionFeedbackResponse {
+  feedback_id: number;
+  session_id: string;
+  llm_feedback_text: string;
+  feedback_text: string;
+  status: string;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface SkillExtractionResponse {
   role?: string;
@@ -414,8 +475,11 @@ export interface LearningPathEmployeeSummary {
 }
 
 export const authService = {
-  login: async (email: string): Promise<TokenResponse> => {
-    const response = await apiClient.post<TokenResponse>("/auth/login", { email });
+  login: async (email: string, password: string): Promise<TokenResponse> => {
+    const response = await apiClient.post<TokenResponse>("/auth/login", {
+      email,
+      password,
+    });
     return response.data;
   },
 
@@ -490,6 +554,7 @@ export const quizService = {
     total_questions: number;
     completed_at: string;
     score_released_at: string;
+    overall_feedback?: string | null;
     detailed_results: Array<{
       question_id: number;
       question_text: string;
@@ -568,6 +633,7 @@ export const quizService = {
     total_questions: number;
     completed_at: string;
     time_taken_seconds: number;
+    overall_feedback?: string | null;
     detailed_results: Array<{
       question_id: number;
       question_text: string;
@@ -614,15 +680,22 @@ export const candidateService = {
 
   updateCandidate: async (
     candidateId: string,
-    data: Partial<CandidateCreateRequest>
+    data: CandidateUpdateRequest
   ): Promise<Candidate> => {
     const response = await apiClient.patch<Candidate>(`/candidates/${candidateId}`, data);
     return response.data;
   },
 
-  listCandidates: async (skip = 0, limit = 50): Promise<Candidate[]> => {
+  listCandidates: async (skip = 0, limit = 50, search = ""): Promise<Candidate[]> => {
+    const params = new URLSearchParams({
+      skip: String(skip),
+      limit: String(limit),
+    });
+    if (search.trim()) {
+      params.set("search", search.trim());
+    }
     const response = await apiClient.get<Candidate[]>(
-      `/candidates?skip=${skip}&limit=${limit}`
+      `/candidates?${params.toString()}`
     );
     return response.data;
   },
@@ -645,6 +718,13 @@ export const candidateService = {
     attempts_count: number;
   }>> => {
     const response = await apiClient.get("/candidates/my-assessments");
+    return response.data;
+  },
+  getMyPendingAssessments: async (): Promise<CandidatePendingAssessment[]> => {
+    const response = await apiClient.get<CandidatePendingAssessment[]>(
+      "/candidates/my-pending-assessments",
+      { headers: { "x-cache-skip": "true" } }
+    );
     return response.data;
   },
   getEmployeeLearningPath: async () => {
@@ -846,7 +926,15 @@ export const uploadService = {
     file: File,
     assessmentId?: string,
     onProgress?: (percent: number) => void
-  ): Promise<{ message: string; doc_id: string; s3_key: string; task_id?: string }> => {
+  ): Promise<{
+    message: string;
+    doc_id: string;
+    s3_key: string;
+    task_id?: string;
+    indexed?: boolean;
+    chunks?: number;
+    warning?: string;
+  }> => {
     const formData = new FormData();
     formData.append("file", file);
 
@@ -1131,6 +1219,8 @@ export const assessmentResultsService = {
     score_percentage: number | null;
     is_completed: boolean;
     is_scored: boolean;
+    session_feedback: string | null;
+    session_feedback_status: string | null;
     questions: Array<{
       question_id: number;
       question_text: string;
@@ -1146,6 +1236,32 @@ export const assessmentResultsService = {
     application_status: string | null;
   }> => {
     const response = await apiClient.get(`/admin/assessment-results/session/${sessionId}`);
+    return response.data;
+  },
+
+  getSessionFeedback: async (sessionId: string): Promise<SessionFeedbackResponse> => {
+    const response = await apiClient.get<SessionFeedbackResponse>(
+      `/admin/assessment-results/session/${sessionId}/feedback`,
+      { headers: { "x-cache-skip": "true" } }
+    );
+    return response.data;
+  },
+
+  generateSessionFeedback: async (sessionId: string): Promise<SessionFeedbackResponse> => {
+    const response = await apiClient.post<SessionFeedbackResponse>(
+      `/admin/assessment-results/session/${sessionId}/feedback/generate`
+    );
+    return response.data;
+  },
+
+  submitSessionFeedback: async (
+    sessionId: string,
+    feedbackText: string
+  ): Promise<SessionFeedbackResponse> => {
+    const response = await apiClient.put<SessionFeedbackResponse>(
+      `/admin/assessment-results/session/${sessionId}/feedback`,
+      { feedback_text: feedbackText }
+    );
     return response.data;
   },
 

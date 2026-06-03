@@ -18,7 +18,6 @@ import {
   CheckCircle,
   Schedule,
   Assessment,
-  EmojiEvents,
 } from "@mui/icons-material";
 import { candidateService } from "../../API/services";
 

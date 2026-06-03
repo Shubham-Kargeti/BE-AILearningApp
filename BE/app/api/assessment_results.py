@@ -1,4 +1,5 @@
 """Assessment results API endpoints for admin review and sharing."""
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -11,8 +12,9 @@ from pydantic import BaseModel, EmailStr
 from app.core.dependencies import get_db, get_current_user, admin_required
 from app.db.models import (
     User, Assessment, TestSession, Answer, Question, 
-    AssessmentApplication, Candidate
+    AssessmentApplication, Candidate, SessionFeedback
 )
+from app.utils.generate_questions import _get_llm
 from config import get_settings
 
 settings = get_settings()
@@ -59,6 +61,8 @@ class CandidateResultDetail(BaseModel):
     is_completed: bool
     is_scored: bool
     questions: List[DetailedQuestionResult]
+    session_feedback: Optional[str] = None
+    session_feedback_status: Optional[str] = None
     application_status: Optional[str] = None
 
 
@@ -79,6 +83,115 @@ class ShareResultResponse(BaseModel):
 class UpdateAnswerRequest(BaseModel):
     """Request payload for updating an individual answer's correctness."""
     is_correct: bool
+
+
+class SessionFeedbackRequest(BaseModel):
+    """Admin-edited overall feedback for a session."""
+    feedback_text: str
+    publish: bool = True
+
+
+class SessionFeedbackResponse(BaseModel):
+    """Overall feedback for a candidate assessment session."""
+    feedback_id: int
+    session_id: str
+    llm_feedback_text: str
+    feedback_text: str
+    status: str
+    published_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+def _serialize_session_feedback(session: TestSession, feedback: SessionFeedback) -> SessionFeedbackResponse:
+    return SessionFeedbackResponse(
+        feedback_id=feedback.id,
+        session_id=session.session_id,
+        llm_feedback_text=feedback.llm_feedback_text,
+        feedback_text=feedback.feedback_text,
+        status=feedback.status,
+        published_at=feedback.published_at,
+        created_at=feedback.created_at,
+        updated_at=feedback.updated_at,
+    )
+
+
+def _fallback_session_feedback(session: TestSession, answers: List[Answer]) -> str:
+    answered = len(answers)
+    correct = session.correct_answers or sum(1 for answer in answers if answer.is_correct)
+    score = session.score_percentage
+    score_text = f"{score:.1f}%" if score is not None else "not available"
+
+    missed_topics = []
+    strong_topics = []
+    for answer in answers:
+        topic = answer.question.topic if answer.question else None
+        if not topic:
+            continue
+        if answer.is_correct and topic not in strong_topics:
+            strong_topics.append(topic)
+        if not answer.is_correct and topic not in missed_topics:
+            missed_topics.append(topic)
+
+    strengths = ", ".join(strong_topics[:4]) or "areas where the candidate answered correctly"
+    improvements = ", ".join(missed_topics[:4]) or "topics connected to incorrect or incomplete responses"
+
+    return (
+        f"The candidate completed {answered} of {session.total_questions} questions with "
+        f"{correct} correct answers and a score of {score_text}. Strengths were visible in "
+        f"{strengths}. The main improvement areas are {improvements}. Overall, review the "
+        "answer quality, depth of reasoning, and consistency before making the final decision."
+    )
+
+
+async def _generate_session_feedback_text(
+    session: TestSession,
+    assessment: Optional[Assessment],
+    answers: List[Answer],
+) -> str:
+    fallback = _fallback_session_feedback(session, answers)
+    try:
+        question_lines = []
+        for index, answer in enumerate(answers, start=1):
+            question = answer.question
+            question_lines.append(
+                "\n".join(
+                    [
+                        f"{index}. Question: {question.question_text if question else answer.question_id}",
+                        f"Topic: {question.topic if question else 'N/A'}",
+                        f"Difficulty: {question.difficulty if question else 'N/A'}",
+                        f"Candidate answer: {answer.selected_answer}",
+                        f"Expected answer: {question.correct_answer if question else 'N/A'}",
+                        f"Marked correct: {bool(answer.is_correct)}",
+                    ]
+                )
+            )
+
+        prompt = (
+            "You are generating concise assessment feedback for an admin to review and edit before "
+            "publishing to a candidate. Focus on overall performance across the whole assessment. "
+            "Mention strengths, improvement areas, and an actionable next step. Do not include JSON.\n\n"
+            f"Assessment: {assessment.title if assessment else session.question_set_id}\n"
+            f"Job title: {assessment.job_title if assessment else 'N/A'}\n"
+            f"Candidate: {session.candidate_name or session.candidate_email or 'Candidate'}\n"
+            f"Score: {session.score_percentage if session.score_percentage is not None else 'N/A'}\n"
+            f"Correct answers: {session.correct_answers}/{session.total_questions}\n\n"
+            "Question results:\n"
+            + "\n\n".join(question_lines)
+        )
+        llm = _get_llm()
+        response = await asyncio.to_thread(
+            llm.invoke,
+            [
+                {"role": "system", "content": "You write clear, fair candidate assessment feedback."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        content = response.content if hasattr(response, "content") else str(response)
+        content = content.strip()
+        return content or fallback
+    except Exception:
+        return fallback
 
 
 @router.get("/{assessment_id}/results", response_model=List[CandidateResultDetail])
@@ -141,6 +254,11 @@ async def get_assessment_detailed_results(
             )
             application = app_result.scalar_one_or_none()
             app_status = application.status if application else None
+
+        feedback_result = await db.execute(
+            select(SessionFeedback).where(SessionFeedback.test_session_id == session.id)
+        )
+        session_feedback = feedback_result.scalar_one_or_none()
         
         # Build question-by-question results
         question_results = []
@@ -181,6 +299,8 @@ async def get_assessment_detailed_results(
             is_completed=session.is_completed,
             is_scored=session.is_scored,
             questions=question_results,
+            session_feedback=session_feedback.feedback_text if session_feedback else None,
+            session_feedback_status=session_feedback.status if session_feedback else None,
             application_status=app_status
         ))
     
@@ -242,6 +362,11 @@ async def get_session_detailed_result(
         )
         application = app_result.scalar_one_or_none()
         app_status = application.status if application else None
+
+    feedback_result = await db.execute(
+        select(SessionFeedback).where(SessionFeedback.test_session_id == session.id)
+    )
+    session_feedback = feedback_result.scalar_one_or_none()
     
     # Build question results
     question_results = []
@@ -282,8 +407,165 @@ async def get_session_detailed_result(
         is_completed=session.is_completed,
         is_scored=session.is_scored,
         questions=question_results,
+        session_feedback=session_feedback.feedback_text if session_feedback else None,
+        session_feedback_status=session_feedback.status if session_feedback else None,
         application_status=app_status
     )
+
+
+@router.get("/session/{session_id}/feedback", response_model=Optional[SessionFeedbackResponse])
+async def get_session_feedback(
+    session_id: str,
+    current_user: User = Depends(admin_required),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get admin-editable overall feedback for a test session.
+
+    Returns the current draft or published feedback. Use the generate endpoint
+    first when no feedback exists yet.
+    """
+    session_result = await db.execute(
+        select(TestSession).where(TestSession.session_id == session_id)
+    )
+    session = session_result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Test session not found"
+        )
+
+    feedback_result = await db.execute(
+        select(SessionFeedback).where(SessionFeedback.test_session_id == session.id)
+    )
+    feedback = feedback_result.scalar_one_or_none()
+    if not feedback:
+        return None
+
+    return _serialize_session_feedback(session, feedback)
+
+
+@router.post("/session/{session_id}/feedback/generate", response_model=SessionFeedbackResponse)
+async def generate_session_feedback(
+    session_id: str,
+    current_user: User = Depends(admin_required),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Generate or regenerate LLM feedback for the whole assessment session.
+
+    The generated text is saved as a draft so the admin can edit it before
+    publishing it to the candidate.
+    """
+    session_result = await db.execute(
+        select(TestSession)
+        .options(selectinload(TestSession.answers).selectinload(Answer.question))
+        .where(TestSession.session_id == session_id)
+    )
+    session = session_result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Test session not found"
+        )
+    if not session.answers:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot generate feedback because no answers exist for this session"
+        )
+
+    assessment_result = await db.execute(
+        select(Assessment).where(Assessment.question_set_id == session.question_set_id)
+    )
+    assessment = assessment_result.scalar_one_or_none()
+
+    generated_text = await _generate_session_feedback_text(session, assessment, list(session.answers))
+
+    feedback_result = await db.execute(
+        select(SessionFeedback).where(SessionFeedback.test_session_id == session.id)
+    )
+    feedback = feedback_result.scalar_one_or_none()
+
+    if feedback:
+        feedback.llm_feedback_text = generated_text
+        feedback.feedback_text = generated_text
+        feedback.status = "draft"
+        feedback.published_at = None
+        feedback.updated_by = current_user.id
+    else:
+        feedback = SessionFeedback(
+            test_session_id=session.id,
+            created_by=current_user.id,
+            updated_by=current_user.id,
+            llm_feedback_text=generated_text,
+            feedback_text=generated_text,
+            status="draft",
+        )
+        db.add(feedback)
+
+    await db.commit()
+    await db.refresh(feedback)
+
+    return _serialize_session_feedback(session, feedback)
+
+
+@router.put("/session/{session_id}/feedback", response_model=SessionFeedbackResponse)
+async def submit_session_feedback(
+    session_id: str,
+    payload: SessionFeedbackRequest,
+    current_user: User = Depends(admin_required),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Save the admin-edited session feedback.
+
+    By default this publishes the feedback, making it visible to the candidate.
+    Send publish=false to save it as an admin-only draft.
+    """
+    feedback_text = payload.feedback_text.strip()
+    if not feedback_text:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="feedback_text cannot be empty"
+        )
+
+    session_result = await db.execute(
+        select(TestSession).where(TestSession.session_id == session_id)
+    )
+    session = session_result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Test session not found"
+        )
+
+    feedback_result = await db.execute(
+        select(SessionFeedback).where(SessionFeedback.test_session_id == session.id)
+    )
+    feedback = feedback_result.scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+
+    if feedback:
+        feedback.feedback_text = feedback_text
+        feedback.status = "published" if payload.publish else "draft"
+        feedback.published_at = now if payload.publish else None
+        feedback.updated_by = current_user.id
+    else:
+        feedback = SessionFeedback(
+            test_session_id=session.id,
+            created_by=current_user.id,
+            updated_by=current_user.id,
+            llm_feedback_text=feedback_text,
+            feedback_text=feedback_text,
+            status="published" if payload.publish else "draft",
+            published_at=now if payload.publish else None,
+        )
+        db.add(feedback)
+
+    await db.commit()
+    await db.refresh(feedback)
+
+    return _serialize_session_feedback(session, feedback)
 
 
 @router.post("/session/{session_id}/share", response_model=ShareResultResponse)

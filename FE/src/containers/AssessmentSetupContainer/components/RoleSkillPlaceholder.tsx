@@ -297,16 +297,16 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
 
         <div className="level-stack">
           <div className="level-pair">
-            <span>LLM</span>
+            <span>Suggested Level</span>
             <strong className={levelClass(cfg.extracted_level)}>{cfg.extracted_level}</strong>
           </div>
           <div className="level-pair">
-            <span>Effective</span>
+            <span>Final Level</span>
             <strong className={levelClass(cfg.effective_level)}>{cfg.effective_level}</strong>
           </div>
-          <span className={`source-pill ${isOverridden ? "manual" : "llm"}`}>
+          {/* <span className={`source-pill ${isOverridden ? "manual" : "llm"}`}>
             {isOverridden ? "manual override" : "LLM level"}
-          </span>
+          </span> */}
         </div>
 
         <div className="experience-control">
@@ -335,7 +335,7 @@ const RoleSkillPlaceholder: React.FC<Props> = ({
               placeholder={`${sliderValue}`}
               onChange={(event) => applyExperienceOverride(skillData.name, Number(event.target.value || 0))}
             />
-            <span>{isOverridden ? `${cfg.override_experience_years} yrs` : "LLM"}</span>
+            <span>{isOverridden ? `${cfg.override_experience_years} yrs` : ""}</span>
           </div>
         </div>
 

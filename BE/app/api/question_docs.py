@@ -70,6 +70,9 @@ async def upload_question_doc(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Text extraction failed: {str(e)}")
 
+    if not (extracted_text or "").strip():
+        raise HTTPException(status_code=400, detail="No readable text was found in the uploaded document")
+
     # Upload file to S3 for archival
     s3 = get_s3_service()
     doc_id = f"doc_{uuid.uuid4().hex[:12]}"
@@ -88,15 +91,19 @@ async def upload_question_doc(
             lambda: s3.upload_file(file_obj=file_bytes, object_name=s3_key, content_type=file.content_type or "application/octet-stream")
         )
 
-    # Schedule background ingestion (non-blocking via Celery task)
+    # Build the isolated index before returning so assessment generation can use
+    # this doc_id immediately without racing a Celery worker.
     metadata = {"filename": file.filename, "s3_key": s3_key, "assessment_id": assessment_id}
+    task_id = f"question_doc_{uuid.uuid4().hex[:12]}"
+    index_result = None
+    indexing_error = None
     try:
-        from app.core.tasks.question_generation import index_question_document_task
-        # schedule task and get AsyncResult
-        async_result = index_question_document_task.apply_async(args=(doc_id, extracted_text, metadata or {}))
-        task_id = async_result.id
+        index_result = await asyncio.to_thread(index_document, doc_id, extracted_text, metadata or {})
+    except Exception as e:
+        indexing_error = str(e)
 
-        # record a CeleryTask entry so we can query status from the API
+    try:
+        # record an ingestion status entry so the existing status endpoint keeps working
         from app.db.session import get_db_sync_engine
         from sqlalchemy.orm import sessionmaker
         from app.db.models import CeleryTask
@@ -107,7 +114,9 @@ async def upload_question_doc(
             ct = CeleryTask(
                 task_id=task_id,
                 task_name="index_question_document",
-                status="PENDING",
+                status="FAILURE" if indexing_error else "SUCCESS",
+                result=index_result,
+                error=indexing_error,
                 related_type="question_doc",
                 related_id=doc_id,
                 user_id=current_user.id if getattr(current_user, 'id', None) else None,
@@ -116,6 +125,22 @@ async def upload_question_doc(
             session.commit()
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to schedule ingestion task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to record ingestion status: {e}")
 
-    return {"message": "Uploaded and scheduled for ingestion", "doc_id": doc_id, "s3_key": s3_key, "task_id": task_id}
+    indexed = bool(index_result and index_result.get("chunks"))
+    warning = indexing_error or (index_result or {}).get("warning")
+    message = (
+        "Uploaded and indexed for this assessment session"
+        if indexed and not warning
+        else "Uploaded, but RAG indexing is degraded; assessment generation will fall back if needed"
+    )
+
+    return {
+        "message": message,
+        "doc_id": doc_id,
+        "s3_key": s3_key,
+        "task_id": task_id,
+        "indexed": indexed,
+        "chunks": (index_result or {}).get("chunks", 0),
+        "warning": warning,
+    }
