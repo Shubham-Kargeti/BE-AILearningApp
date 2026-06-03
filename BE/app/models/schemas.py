@@ -114,6 +114,7 @@ class TestResultResponse(BaseModel):
     completed_at: Optional[datetime] = None
     time_taken_seconds: Optional[int] = None
     detailed_results: List[QuestionResultDetailed]
+    overall_feedback: Optional[str] = None
     is_partial: bool = False  # Flag for incomplete sessions
 
 class AnswerSubmission(BaseModel):
@@ -180,8 +181,10 @@ class CandidateCreate(BaseModel):
     """Request to create a new candidate."""
     full_name: str
     email: str
+    password: str
     phone: Optional[str] = None
     current_role: Optional[str] = None
+    team: Optional[str] = None
     location: Optional[str] = None
     education: Optional[str] = None
     linkedin_url: Optional[str] = None
@@ -195,8 +198,11 @@ class CandidateCreate(BaseModel):
 class CandidateUpdate(BaseModel):
     """Request to update candidate profile."""
     full_name: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
     phone: Optional[str] = None
     current_role: Optional[str] = None
+    team: Optional[str] = None
     location: Optional[str] = None
     education: Optional[str] = None
     linkedin_url: Optional[str] = None
@@ -206,6 +212,7 @@ class CandidateUpdate(BaseModel):
     experience_level: Optional[str] = None
     skills: Optional[dict] = None
     availability_percentage: Optional[int] = None
+    created_at: Optional[datetime] = None
 
 class CandidateResponse(BaseModel):
     """Response with candidate details."""
@@ -213,9 +220,11 @@ class CandidateResponse(BaseModel):
     candidate_id: str
     full_name: str
     email: str
+    password: Optional[str]=None
     phone: Optional[str]=None
 
     current_role: Optional[str]=None
+    team: Optional[str]=None
     location: Optional[str]=None
     education: Optional[str]=None
     linkedin_url: Optional[str]=None

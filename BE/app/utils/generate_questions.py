@@ -1,7 +1,7 @@
-from langchain_openai import ChatOpenAI
 from config import settings
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from app.models.schemas import MCQQuestion, MCQOption
+from app.core.llm import create_chat_llm
 import json
 import re
 import asyncio
@@ -43,11 +43,7 @@ def _get_llm():
     if not settings.OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY is not configured")
 
-    return ChatOpenAI(
-        model="gpt-4o",
-        temperature=0,
-        api_key=settings.OPENAI_API_KEY
-    )
+    return create_chat_llm()
 
 def parse_mcqs_from_response(response_text: str):
     cleaned = re.sub(r'``````', '', response_text.strip())

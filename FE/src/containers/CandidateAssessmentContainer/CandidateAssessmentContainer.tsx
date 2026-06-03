@@ -38,6 +38,7 @@ const CandidateAssessmentContainer: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [assessment, setAssessment] = useState<AssessmentDetails | null>(null);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState("");
   const [isStarting, setIsStarting] = useState(false);
   const [step, setStep] = useState<"loading" | "details" | "email" | "screening" | "ready" | "expired" | "unavailable">("loading");
@@ -70,6 +71,9 @@ const CandidateAssessmentContainer: React.FC = () => {
         } else {
           setAssessment(response);
           const candidateEmail = response?.candidate_info?.email;
+          if (candidateEmail) {
+            setEmail(candidateEmail);
+          }
           const localEmail = localStorage.getItem("userEmail");
           // If the assessment has a candidate email and the local user doesn't match, show login banner
           setRequiresLogin(!!(candidateEmail && localEmail !== candidateEmail));
@@ -118,23 +122,39 @@ const CandidateAssessmentContainer: React.FC = () => {
       return;
     }
 
+    if (!password) {
+      setEmailError("Please enter your password");
+      return;
+    }
+
     setEmailError("");
     setIsStarting(true);
 
     try {
-      // Login/register the candidate with email
-      const loginResponse = await authService.login(email);
+      const normalizedEmail = email.trim().toLowerCase();
+      const loginResponse = await authService.login(normalizedEmail, password);
       
       if (loginResponse?.access_token) {
         localStorage.setItem("authToken", loginResponse.access_token);
-        localStorage.setItem("userEmail", email);
+        if (loginResponse.refresh_token) {
+          localStorage.setItem("refreshToken", loginResponse.refresh_token);
+        }
+        if (loginResponse.role) {
+          localStorage.setItem("userRole", loginResponse.role);
+        }
+        if (loginResponse.candidate_id) {
+          localStorage.setItem("candidateId", loginResponse.candidate_id);
+        }
+        localStorage.setItem("loggedInUser", normalizedEmail);
+        localStorage.setItem("userEmail", normalizedEmail);
+        setRequiresLogin(false);
         setStep("ready");
       } else {
-        setEmailError("Failed to verify email. Please try again.");
+        setEmailError("Failed to verify credentials. Please try again.");
       }
     } catch (err) {
 
-      setEmailError("Failed to verify email. Please try again.");
+      setEmailError("Invalid email or password.");
     } finally {
       setIsStarting(false);
     }
@@ -152,21 +172,6 @@ const CandidateAssessmentContainer: React.FC = () => {
       }));
       // Store candidate session for tracking
       localStorage.setItem("candidateSessionId", candidateSessionId);
-    }
-
-    // Auto-login candidate if assessment has candidate email
-    try {
-      if (assessment?.candidate_info && assessment.candidate_info.email) {
-        const candidateEmail = assessment.candidate_info.email;
-        const loginResponse = await authService.login(candidateEmail);
-        if (loginResponse?.access_token) {
-          localStorage.setItem("authToken", loginResponse.access_token);
-          localStorage.setItem("userEmail", candidateEmail);
-        }
-      }
-    } catch (err) {
-      // If auto-login failed, log it but still continue to navigation; user can provide email manually
-
     }
 
     navigate(`/candidate-quiz`, {
@@ -299,7 +304,7 @@ const CandidateAssessmentContainer: React.FC = () => {
                     This assessment is intended for <strong>{assessment?.candidate_info?.email}</strong>.
                   </Typography>
                   <Typography variant="body2">
-                    Please login as the candidate (click "Continue") to ensure your results are attributed correctly.
+                    Please sign in with the candidate credentials to ensure your results are attributed correctly.
                   </Typography>
                 </Alert>
               )}
@@ -394,35 +399,10 @@ const CandidateAssessmentContainer: React.FC = () => {
                   variant="contained"
                   size="large"
                   fullWidth
-                  onClick={() => setStep("ready")}
+                  onClick={() => setStep(requiresLogin ? "email" : "ready")}
                 >
-                  Continue
+                  {requiresLogin ? "Enter Credentials" : "Continue"}
                 </Button>
-                {requiresLogin && (
-                  <Button
-                    variant="outlined"
-                    size="large"
-                    sx={{ minWidth: 160 }}
-                    onClick={async () => {
-                      // Attempt to auto-login candidate
-                      try {
-                        if (assessment?.candidate_info?.email) {
-                          const loginResponse = await authService.login(assessment.candidate_info.email);
-                          if (loginResponse?.access_token) {
-                            localStorage.setItem("authToken", loginResponse.access_token);
-                            localStorage.setItem("userEmail", assessment.candidate_info.email);
-                            setRequiresLogin(false);
-                            setStep("ready");
-                          }
-                        }
-                      } catch (err) {
-
-                      }
-                    }}
-                  >
-                    Login as Candidate
-                  </Button>
-                )}
               </Box>
             </Box>
           )}
@@ -433,10 +413,10 @@ const CandidateAssessmentContainer: React.FC = () => {
           {step === "email" && (
             <Box className="candidate-assessment__email">
               <Typography variant="h6" gutterBottom>
-                Enter Your Email
+                Candidate Login
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Please enter your email address to continue with the assessment.
+                Enter the email and password shared by the admin to continue with the assessment.
               </Typography>
 
               <TextField
@@ -457,6 +437,20 @@ const CandidateAssessmentContainer: React.FC = () => {
                 sx={{ mb: 3 }}
               />
 
+              <TextField
+                fullWidth
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setEmailError("");
+                }}
+                error={!!emailError}
+                placeholder="Enter your password"
+                sx={{ mb: 3 }}
+              />
+
               <Button
                 variant="contained"
                 size="large"
@@ -465,7 +459,7 @@ const CandidateAssessmentContainer: React.FC = () => {
                 disabled={isStarting}
                 startIcon={isStarting ? <CircularProgress size={20} /> : null}
               >
-                {isStarting ? "Verifying..." : "Verify Email"}
+                {isStarting ? "Signing In..." : "Sign In"}
               </Button>
 
               <Button
@@ -475,7 +469,7 @@ const CandidateAssessmentContainer: React.FC = () => {
                 sx={{ mt: 2 }}
                 onClick={() => setStep("details")}
               >
-                ← Back to Details
+                Back to Details
               </Button>
             </Box>
           )}

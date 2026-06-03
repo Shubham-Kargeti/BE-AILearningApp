@@ -6,14 +6,14 @@ from fastapi.security import HTTPBearer
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from authlib.integrations.starlette_client import OAuth
 from authlib.integrations.base_client.errors import OAuthError
 import secrets
 
 from app.db.session import get_db
-from app.db.models import User, RefreshToken
-from app.core.security import create_token_pair, decode_token
+from app.db.models import User, RefreshToken, Candidate
+from app.core.security import create_token_pair, decode_token, verify_password
 # from app.core.redis import RedisService, get_redis  # DISABLED - Redis not in use
 from app.core.tasks.email_tasks import send_otp_email, generate_otp
 from app.core.dependencies import verify_refresh_token
@@ -24,6 +24,9 @@ from config import get_settings
 settings = get_settings()
 router = APIRouter()
 security = HTTPBearer()
+
+DEFAULT_ADMIN_EMAIL = "admin@nagarro.com"
+DEFAULT_ADMIN_PASSWORD = "Admin@123"
 
 # Initialize OAuth client for Azure AD
 oauth = OAuth()
@@ -40,8 +43,9 @@ oauth.register(
 
 # Request/Response models
 class LoginRequest(BaseModel):
-    """Simple login request for testing (no OTP required)."""
+    """Email/password login request."""
     email: EmailStr
+    password: str
 
 
 class OTPRequest(BaseModel):
@@ -61,11 +65,96 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     login_streak: Optional[dict] = None  # Streak information
+    role: Optional[str] = None
+    candidate_id: Optional[str] = None
 
 
 class RefreshTokenRequest(BaseModel):
     """Refresh token request."""
     refresh_token: str
+
+
+async def get_or_create_user(
+    db: AsyncSession,
+    email: str,
+    full_name: Optional[str] = None,
+) -> User:
+    """Get an active user record for the authenticated principal."""
+    result = await db.execute(select(User).where(func.lower(User.email) == email))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        user = User(
+            email=email,
+            full_name=full_name or email.split("@")[0].title(),
+            is_active=True,
+            is_verified=True,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return user
+
+    if full_name and user.full_name != full_name:
+        user.full_name = full_name
+    user.is_verified = True
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+def candidate_password_matches(candidate: Candidate, password: str) -> bool:
+    """Validate a candidate password using the stored hash when available."""
+    if candidate.password_hash:
+        try:
+            return verify_password(password, candidate.password_hash)
+        except Exception:
+            return False
+
+    return candidate.password == password
+
+
+async def issue_token_response(
+    user: User,
+    db: AsyncSession,
+    role: str,
+    candidate_id: Optional[str] = None,
+) -> dict:
+    """Create tokens, persist refresh token, and return the login payload."""
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive"
+        )
+
+    streak_info = await update_login_streak(user, db)
+
+    tokens = create_token_pair(
+        user_id=user.id,
+        email=user.email
+    )
+
+    access_token = tokens["access_token"]
+    refresh_token = tokens["refresh_token"]
+
+    refresh_token_record = RefreshToken(
+        user_id=user.id,
+        token=refresh_token,
+        expires_at=datetime.utcnow() + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+    db.add(refresh_token_record)
+    await db.commit()
+
+    auth_attempts_total.labels(status="success").inc()
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "login_streak": streak_info,
+        "role": role,
+        "candidate_id": candidate_id,
+    }
 
 
 @router.post("/auth/login", status_code=status.HTTP_200_OK)
@@ -74,71 +163,61 @@ async def simple_login(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Simple login endpoint for testing (no OTP required).
-    
-    ⚠️ WARNING: This endpoint is for TESTING ONLY!
-    In production, use the OTP-based authentication flow.
-    
+    Email/password login endpoint.
+
     This endpoint:
-    - Gets or creates a user with the provided email
-    - Returns access and refresh tokens immediately
-    - No password or OTP verification required
-    
+    - Authenticates the default admin credentials
+    - Authenticates admin-created candidate credentials
+
     Args:
-        request: Login request with email
+        request: Login request with email and password
         db: Database session
-    
+
     Returns:
         Access and refresh tokens
     """
+    email = request.email.lower().strip()
+    password = request.password
+
+    if email == DEFAULT_ADMIN_EMAIL:
+        if password != DEFAULT_ADMIN_PASSWORD:
+            auth_attempts_total.labels(status="failed").inc()
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
+
+        user = await get_or_create_user(db, email, "Admin")
+        return await issue_token_response(user, db, role="admin")
+
     result = await db.execute(
-        select(User).where(User.email == request.email)
-    )
-    user = result.scalar_one_or_none()
-    
-    if user is None:
-        user = User(
-            email=request.email,
-            full_name=request.email.split("@")[0].title(),
-            is_active=True,
-            is_verified=True
+        select(Candidate).where(
+            func.lower(Candidate.email) == email,
+            Candidate.is_active == True
         )
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
-    
-    if not user.is_active:
+    )
+    candidate = result.scalar_one_or_none()
+
+    if not candidate or not candidate_password_matches(candidate, password):
+        auth_attempts_total.labels(status="failed").inc()
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password"
         )
-    
-    streak_info = await update_login_streak(user, db)
-    
-    tokens = create_token_pair(
-        user_id=user.id,
-        email=user.email
+
+    user = await get_or_create_user(db, email, candidate.full_name)
+    if candidate.user_id != user.id:
+        candidate.user_id = user.id
+        candidate.updated_at = datetime.utcnow()
+        db.add(candidate)
+        await db.commit()
+
+    return await issue_token_response(
+        user,
+        db,
+        role="candidate",
+        candidate_id=candidate.candidate_id,
     )
-    
-    access_token = tokens["access_token"]
-    refresh_token = tokens["refresh_token"]
-    
-    refresh_token_record = RefreshToken(
-        user_id=user.id,
-        token=refresh_token,
-        expires_at=datetime.utcnow() + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
-    )
-    db.add(refresh_token_record)
-    await db.commit()
-    
-    auth_attempts_total.labels(status="success").inc()
-    
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer",
-        "login_streak": streak_info
-    }
 
 
 @router.get("/auth/sso/azure/login")

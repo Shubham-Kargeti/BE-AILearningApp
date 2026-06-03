@@ -72,8 +72,18 @@ interface DetailedResult {
   score_percentage: number | null;
   is_completed: boolean;
   is_scored: boolean;
+  session_feedback: string | null;
+  session_feedback_status: string | null;
   questions: QuestionResult[];
   application_status: string | null;
+}
+
+interface SessionFeedbackState {
+  feedback_id?: number;
+  llm_feedback_text: string;
+  feedback_text: string;
+  status: string | null;
+  published_at?: string | null;
 }
 
 const DetailedResultsView: React.FC = () => {
@@ -92,6 +102,11 @@ const DetailedResultsView: React.FC = () => {
   const [feedbackByQuestion, setFeedbackByQuestion] = useState<Record<number, string>>({});
   const [submittingFeedback, setSubmittingFeedback] = useState<Set<number>>(new Set());
   const [submittedFeedback, setSubmittedFeedback] = useState<Set<number>>(new Set());
+  const [sessionFeedback, setSessionFeedback] = useState<SessionFeedbackState | null>(null);
+  const [sessionFeedbackDraft, setSessionFeedbackDraft] = useState("");
+  const [sessionFeedbackEditing, setSessionFeedbackEditing] = useState(false);
+  const [generatingSessionFeedback, setGeneratingSessionFeedback] = useState(false);
+  const [submittingSessionFeedback, setSubmittingSessionFeedback] = useState(false);
 
   // tracks which question(s) are being updated to disable buttons
   const [updatingQuestions, setUpdatingQuestions] = useState<Set<number>>(new Set());
@@ -182,6 +197,70 @@ const DetailedResultsView: React.FC = () => {
     }
   };
 
+  const applySessionFeedback = (
+    feedback: {
+      feedback_id?: number;
+      llm_feedback_text?: string | null;
+      feedback_text?: string | null;
+      status?: string | null;
+      published_at?: string | null;
+    },
+    openEditor = false
+  ) => {
+    const nextFeedback = {
+      feedback_id: feedback.feedback_id,
+      llm_feedback_text: feedback.llm_feedback_text || "",
+      feedback_text: feedback.feedback_text || "",
+      status: feedback.status || null,
+      published_at: feedback.published_at,
+    };
+    setSessionFeedback(nextFeedback);
+    setSessionFeedbackDraft(nextFeedback.feedback_text || nextFeedback.llm_feedback_text);
+    setSessionFeedbackEditing(openEditor || nextFeedback.status !== "submitted");
+  };
+
+  const handleGenerateSessionFeedback = async () => {
+    if (!sessionId) return;
+
+    setGeneratingSessionFeedback(true);
+    try {
+      const feedback = await assessmentResultsService.generateSessionFeedback(sessionId);
+      applySessionFeedback(feedback, true);
+      setToast({ type: "success", message: "Overall feedback generated" });
+    } catch (err: any) {
+      console.error("Error generating session feedback:", err);
+      setToast({
+        type: "error",
+        message: err?.response?.data?.detail || "Failed to generate overall feedback",
+      });
+    } finally {
+      setGeneratingSessionFeedback(false);
+    }
+  };
+
+  const handleSubmitSessionFeedback = async () => {
+    if (!sessionId) return;
+
+    setSubmittingSessionFeedback(true);
+    try {
+      const feedback = await assessmentResultsService.submitSessionFeedback(
+        sessionId,
+        sessionFeedbackDraft
+      );
+      applySessionFeedback(feedback, false);
+      setSessionFeedbackEditing(false);
+      setToast({ type: "success", message: "Overall feedback submitted" });
+    } catch (err: any) {
+      console.error("Error submitting session feedback:", err);
+      setToast({
+        type: "error",
+        message: err?.response?.data?.detail || "Failed to submit overall feedback",
+      });
+    } finally {
+      setSubmittingSessionFeedback(false);
+    }
+  };
+
   useEffect(() => {
     fetchDetailedResult();
   }, [sessionId]);
@@ -197,6 +276,23 @@ const DetailedResultsView: React.FC = () => {
       setLoading(true);
       const data = await assessmentResultsService.getSessionDetailedResult(sessionId);
       setResult(data);
+      if (data.session_feedback || data.session_feedback_status) {
+        applySessionFeedback({
+          feedback_text: data.session_feedback,
+          status: data.session_feedback_status,
+        });
+
+        try {
+          const feedback = await assessmentResultsService.getSessionFeedback(sessionId);
+          applySessionFeedback(feedback);
+        } catch (sessionFeedbackErr) {
+          console.warn("Unable to load detailed session feedback:", sessionFeedbackErr);
+        }
+      } else {
+        setSessionFeedback(null);
+        setSessionFeedbackDraft("");
+        setSessionFeedbackEditing(false);
+      }
       try {
         const feedbackMap = await quizService.getQuestionFeedback(sessionId);
         const nextFeedback: Record<number, string> = {};
@@ -664,6 +760,123 @@ const DetailedResultsView: React.FC = () => {
                 </AccordionDetails>
               </Accordion>
             ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Overall Session Feedback */}
+      <Card sx={{ mt: 3 }}>
+        <CardContent>
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            gap={2}
+            flexDirection={{ xs: "column", sm: "row" }}
+            mb={2}
+          >
+            <Box>
+              <Typography variant="h6">Overall Feedback</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Candidate-facing assessment feedback for this full session.
+              </Typography>
+            </Box>
+
+            {sessionFeedback?.status === "submitted" && !sessionFeedbackEditing ? (
+              <Button variant="outlined" onClick={() => setSessionFeedbackEditing(true)}>
+                Edit Feedback
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                onClick={handleGenerateSessionFeedback}
+                disabled={generatingSessionFeedback || submittingSessionFeedback}
+              >
+                {generatingSessionFeedback
+                  ? "Generating..."
+                  : sessionFeedback
+                  ? "Regenerate Feedback"
+                  : "Generate Feedback"}
+              </Button>
+            )}
+          </Box>
+
+          {!sessionFeedback && !sessionFeedbackEditing ? (
+            <Alert severity="info">
+              No overall feedback has been generated yet.
+            </Alert>
+          ) : sessionFeedbackEditing ? (
+            <Box className="admin-feedback-panel">
+              {sessionFeedback?.llm_feedback_text && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  LLM draft loaded. Review and edit it before submitting.
+                </Alert>
+              )}
+              <TextField
+                fullWidth
+                multiline
+                minRows={6}
+                placeholder="Write overall feedback for the candidate"
+                value={sessionFeedbackDraft}
+                onChange={(e) => setSessionFeedbackDraft(e.target.value)}
+                disabled={submittingSessionFeedback || generatingSessionFeedback}
+              />
+              <Box mt={1.5} display="flex" alignItems="center" gap={1}>
+                <Button
+                  variant="contained"
+                  onClick={handleSubmitSessionFeedback}
+                  disabled={
+                    submittingSessionFeedback ||
+                    generatingSessionFeedback ||
+                    !sessionFeedbackDraft.trim()
+                  }
+                >
+                  {submittingSessionFeedback ? (
+                    <CircularProgress size={16} />
+                  ) : (
+                    "Submit Feedback"
+                  )}
+                </Button>
+                {sessionFeedback?.status === "submitted" && (
+                  <Button
+                    variant="text"
+                    onClick={() => {
+                      setSessionFeedbackDraft(sessionFeedback.feedback_text);
+                      setSessionFeedbackEditing(false);
+                    }}
+                    disabled={submittingSessionFeedback}
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </Box>
+            </Box>
+          ) : (
+            <Box
+              sx={{
+                p: 2,
+                borderRadius: 2,
+                backgroundColor: "#eff6ff",
+                border: "1px solid #bfdbfe",
+              }}
+            >
+              <Box display="flex" alignItems="center" gap={1} mb={1}>
+                <Chip
+                  size="small"
+                  color="success"
+                  variant="outlined"
+                  label="Submitted"
+                />
+                {sessionFeedback?.published_at && (
+                  <Typography variant="caption" color="text.secondary">
+                    Published: {formatDate(sessionFeedback.published_at)}
+                  </Typography>
+                )}
+              </Box>
+              <Typography sx={{ whiteSpace: "pre-wrap" }}>
+                {sessionFeedback?.feedback_text}
+              </Typography>
+            </Box>
           )}
         </CardContent>
       </Card>

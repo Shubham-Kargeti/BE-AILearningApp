@@ -79,6 +79,7 @@ from celery import Task
 from app.core.celery_app import celery_app
 from app.utils.generate_questions import generate_mcqs_from_text
 from config import get_settings
+from app.core.llm import get_llm_model_name
 
 settings = get_settings()
 
@@ -177,7 +178,7 @@ async def _generate_and_save_questions(
                 correct_answer=q_data['correct_answer'],
                 difficulty=q_data.get('difficulty'),
                 topic=q_data.get('topic'),
-                generation_model=settings.GROQ_API_KEY[:10] + "...",
+                generation_model=get_llm_model_name(),
                 generation_time=generation_time / num_questions
             )
             questions.append(question)

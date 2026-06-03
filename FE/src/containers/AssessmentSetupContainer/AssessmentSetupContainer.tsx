@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./AssessmentSetupContainer.scss";
 import FileUpload from "./components/FileUpload";
@@ -6,10 +6,11 @@ import CandidateInfoSection from "./components/CandidateInfoSection";
 import type { CandidateInfoData } from "./components/CandidateInfoSection";
 import RoleSkillPlaceholder from "./components/RoleSkillPlaceholder";
 import type { SkillConfiguration } from "./components/RoleSkillPlaceholder";
-import AssessmentMethodSelector from "./components/AssessmentMethodSelector";
+// import AssessmentMethodSelector from "./components/AssessmentMethodSelector";
 import AssessmentSetupSubmitButton from "./components/AssessmentSetupSubmitButton";
 import AssessmentLinkModal from "./components/AssessmentLinkModal";
 import Toast from "../../components/Toast/Toast";
+import AIProcessingOverlay from "../../components/AIProcessingOverlay";
 import { isAdmin } from "../../utils/adminUsers";
 import { uploadService, assessmentService } from "../../API/services";
 import type { ExtractedSkill } from "../../API/services";
@@ -44,6 +45,13 @@ type ExtractedSkillMeta = {
 type SkillPriority = "must-have" | "good-to-have" | "resume-based" | "soft";
 
 type RoleCategory = "tech" | "non-tech";
+
+const ASSESSMENT_GENERATION_MESSAGES = [
+  "Creating assessment...",
+  "Generating AI questions...",
+  "Preparing evaluation criteria...",
+  "Finalizing assessment structure...",
+];
 
 const normalizeProficiencyLevel = (value?: string) => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -168,12 +176,28 @@ const AssessmentSetupContainer: React.FC = () => {
   });
 
   useEffect(() => {
-    if (!ragUploadedDocId) {
+    if (!ragUploadedDocId && !ragFile) {
       setGenerationPolicy({ mode: "llm", rag_pct: 0, llm_pct: 100 });
     }
-  }, [ragUploadedDocId]);
+  }, [ragUploadedDocId, ragFile]);
+
+  const handleRagFileSelect = (file: File | null) => {
+    setRagFile(file);
+    setRagUploadedDocId(null);
+    if (file) {
+      setGenerationPolicy((prev) => (
+        prev.rag_pct > 0
+          ? prev
+          : { mode: "mix", rag_pct: 50, llm_pct: 50 }
+      ));
+    } else {
+      setGenerationPolicy({ mode: "llm", rag_pct: 0, llm_pct: 100 });
+    }
+  };
 
   const [processLoading, setProcessLoading] = useState(false);
+  const processLoadingRef = useRef(false);
+  const submitLoadingRef = useRef(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formValid, setFormValid] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
@@ -391,6 +415,10 @@ const AssessmentSetupContainer: React.FC = () => {
   };
 
   const handleProcessFile = async () => {
+    if (processLoadingRef.current) {
+      return;
+    }
+
     if (!cvFile) {
       setToast({ type: "error", message: "Please select a CV first" });
       return;
@@ -401,6 +429,7 @@ const AssessmentSetupContainer: React.FC = () => {
       return;
     }
 
+    processLoadingRef.current = true;
     setProcessLoading(true);
 
     try {
@@ -505,20 +534,67 @@ const AssessmentSetupContainer: React.FC = () => {
       const errorMessage = err.response?.data?.detail || "Failed to process resume. Please try again.";
       setToast({ type: "error", message: errorMessage });
     } finally {
+      processLoadingRef.current = false;
       setProcessLoading(false);
     }
   };
 
-  const handleSubmit = async (skipValidation = false) => {
+  const handleSubmit = async (skipValidation = false, draftOverride = isDraft) => {
+    if (submitLoadingRef.current) {
+      return;
+    }
+
+    const shouldSaveAsDraft = draftOverride;
+
     // Skip validation when called from Question Bank buttons with minimal info
     if (!skipValidation && !formValid) {
       setToast({ type: "error", message: "Please complete all required fields" });
       return;
     }
 
+    submitLoadingRef.current = true;
+    setIsDraft(shouldSaveAsDraft);
     setSubmitLoading(true);
 
     try {
+      let ragDocIdForSubmit = ragUploadedDocId;
+      let generationPolicyForSubmit: GenerationPolicy = generationPolicy;
+
+      if (ragFile && !ragDocIdForSubmit && generationPolicy.rag_pct > 0) {
+        try {
+          setToast({ type: "info", message: "Preparing document context for this assessment..." });
+          setRagUploadProgress(0);
+          const uploadResult = await uploadService.uploadQuestionDoc(
+            ragFile,
+            undefined,
+            (p) => setRagUploadProgress(p)
+          );
+          ragDocIdForSubmit = uploadResult.doc_id;
+          setRagUploadedDocId(uploadResult.doc_id);
+          if (uploadResult.warning) {
+            setToast({
+              type: "info",
+              message: "Document uploaded. If document retrieval is weak, generation will continue with normal AI questions.",
+            });
+          }
+        } catch (uploadErr: any) {
+          console.error("RAG upload failed, falling back to LLM-only generation:", uploadErr);
+          ragDocIdForSubmit = null;
+          generationPolicyForSubmit = { mode: "llm", rag_pct: 0, llm_pct: 100 };
+          setToast({
+            type: "info",
+            message: "Document context could not be prepared. Continuing with normal AI generation.",
+          });
+        } finally {
+          setRagUploadProgress(null);
+        }
+      }
+
+      if (!ragDocIdForSubmit || generationPolicyForSubmit.rag_pct <= 0) {
+        generationPolicyForSubmit = { mode: "llm", rag_pct: 0, llm_pct: 100 };
+        ragDocIdForSubmit = null;
+      }
+
       const requiredSkills = skills.reduce((acc, skill) => {
         const key = skill.toLowerCase();
         const meta = extractedSkillMeta[key];
@@ -560,8 +636,8 @@ const AssessmentSetupContainer: React.FC = () => {
         skill_configuration: skillConfigurationPayload,
 
         skill_priorities: skillPriorities,  // ✅ NEW: Add skill priorities (must-have / good-to-have)
-        is_draft: isDraft,  // ✅ NEW: Mark as draft
-        is_published: !isDraft,  // Don't publish drafts
+        is_draft: shouldSaveAsDraft,  // ✅ NEW: Mark as draft
+        is_published: !shouldSaveAsDraft,  // Don't publish drafts
 
         required_roles: [role.trim()],
         duration_minutes: 30,
@@ -603,7 +679,7 @@ const AssessmentSetupContainer: React.FC = () => {
             },
         passing_score_threshold: cutoffMarks,
         auto_adjust_by_experience: false,
-        generation_policy: generationPolicy,
+        generation_policy: generationPolicyForSubmit,
       };
 
       // Only add candidate_info if we have email (required by backend)
@@ -622,7 +698,7 @@ const AssessmentSetupContainer: React.FC = () => {
             mcq: questionDistribution.mcq,
             coding: questionDistribution.coding,
             architecture: questionDistribution.architecture,
-            doc_id: ragUploadedDocId,
+            doc_id: ragDocIdForSubmit,
             role_type: "tech",
             skill_intelligence: skillConfigurationPayload,
           };
@@ -630,7 +706,7 @@ const AssessmentSetupContainer: React.FC = () => {
           assessmentPayload.questionnaire_config = {
             mcq: questionDistribution.mcq,
             scenario: questionDistribution.scenario || 0,
-            doc_id: ragUploadedDocId,
+            doc_id: ragDocIdForSubmit,
             role_type: "non-tech",
             skill_intelligence: skillConfigurationPayload,
           };
@@ -660,21 +736,6 @@ const AssessmentSetupContainer: React.FC = () => {
           : "Assessment created successfully!",
       });
 
-      // If a Question Bank file was selected during create, upload it automatically (but do NOT auto-generate)
-      if (ragFile && resultAssessmentId) {
-        try {
-          setToast({ type: "info", message: "Uploading Question Bank document..." });
-          setRagUploadProgress(0);
-          const res = await uploadService.uploadQuestionDoc(ragFile, resultAssessmentId, (p) => setRagUploadProgress(p));
-          setRagUploadedDocId(res.doc_id);
-          setToast({ type: "success", message: `Question Bank document uploaded (doc id: ${res.doc_id})` });
-        } catch (err: any) {
-          const errorMessage = err.response?.data?.detail || "Failed to upload Question Bank document";
-          setToast({ type: "error", message: errorMessage });
-        } finally {
-          setRagUploadProgress(null);
-        }
-      }
     } catch (err: any) {
       console.error("Error submitting assessment:", err);
       const errorMessage =
@@ -682,6 +743,7 @@ const AssessmentSetupContainer: React.FC = () => {
         "Failed to create assessment. Please try again.";
       setToast({ type: "error", message: errorMessage });
     } finally {
+      submitLoadingRef.current = false;
       setSubmitLoading(false);
     }
   };
@@ -698,6 +760,18 @@ const AssessmentSetupContainer: React.FC = () => {
 
   return (
     <div className="assessment-page">
+      <AIProcessingOverlay
+        open={processLoading}
+        title="Extracting role and skills"
+        subtitle="We are reading the resume and job description, then matching them into assessment-ready signals."
+      />
+      <AIProcessingOverlay
+        open={submitLoading && !isDraft}
+        title={isEditMode ? "Updating assessment" : "Creating assessment"}
+        subtitle="We are generating the assessment structure, question mix, and evaluation signals with AI."
+        messages={ASSESSMENT_GENERATION_MESSAGES}
+      />
+
       {toast && (
         <Toast
           type={toast.type}
@@ -782,7 +856,9 @@ const AssessmentSetupContainer: React.FC = () => {
       {!isEditMode && (<section className="card question-source-card">
         <div className="card-header">
           <h2>Question Source Document (Optional)</h2>
-          <p className="hint">Upload a document to generate assessment questions based on its content</p>
+          <p className="hint">
+            Optional. The uploaded document is used only for this assessment generation and is cleared after creation.
+          </p>
         </div>
 
         <div className="rag-upload-shell">
@@ -792,10 +868,10 @@ const AssessmentSetupContainer: React.FC = () => {
             </div>
             <div className="source-document-copy">
               <h3>Question Source Document</h3>
-              <p>Use AI + document context to generate targeted questions</p>
+              <p>Enable document-grounded questions for this assessment only</p>
             </div>
 
-            <FileUpload label="Question Source Document" onFileSelect={setRagFile} />
+            <FileUpload label="Question Source Document" onFileSelect={handleRagFileSelect} />
           </div>
         </div>
 
@@ -810,11 +886,16 @@ const AssessmentSetupContainer: React.FC = () => {
               const targetAssessmentId = isEditMode ? assessmentId : createdAssessmentId;
 
               try {
-                setToast({ type: "info", message: "Uploading Question Bank document..." });
+                setToast({ type: "info", message: "Preparing document context..." });
                 setRagUploadProgress(0);
                 const res = await uploadService.uploadQuestionDoc(ragFile, targetAssessmentId ?? undefined, (p) => setRagUploadProgress(p));
                 setRagUploadedDocId(res.doc_id);
-                setToast({ type: 'success', message: `Question Bank uploaded (doc: ${res.doc_id})` });
+                setToast({
+                  type: res.warning ? "info" : "success",
+                  message: res.warning
+                    ? "Document uploaded. Retrieval will fall back safely if context is weak."
+                    : `Document ready with ${res.chunks ?? 0} chunks`,
+                });
               } catch (err: any) {
                 const msg = err.response?.data?.detail || 'Failed to upload Question Bank document';
                 setToast({ type: 'error', message: msg });
@@ -876,10 +957,12 @@ const AssessmentSetupContainer: React.FC = () => {
       </section>
       )}
 
-      {ragUploadedDocId && (
+      {(ragUploadedDocId || ragFile) && (
         <GenerationPolicySelector
           value={generationPolicy}
           onChange={setGenerationPolicy}
+          questionCount={totalQuestions}
+          disabled={!ragUploadedDocId && !ragFile}
         />
       )}
 
@@ -969,20 +1052,22 @@ const AssessmentSetupContainer: React.FC = () => {
         />
       )}
 
-      <section className="card questions-card">
-        <div className="card-header">
-          <h2>{isEditMode ? "Add Questions" : "Manual Question Management"}</h2>
-          <p className="hint">Add, edit, or reorder questions manually for this assessment</p>
-        </div>
+      {isEditMode && (
+        <section className="card questions-card">
+          <div className="card-header">
+            <h2>{isEditMode ? "Add Questions" : "Manual Question Management"}</h2>
+            <p className="hint">Add, edit, or reorder questions manually for this assessment</p>
+          </div>
 
-        <AssessmentQuestionEditor
-          questions={manualQuestions}
-          onQuestionsChange={setManualQuestions}
-          roleCategory={roleCategory}
-        />
-      </section>
+          <AssessmentQuestionEditor
+            questions={manualQuestions}
+            onQuestionsChange={setManualQuestions}
+            roleCategory={roleCategory}
+          />
+        </section>
+      )}
 
-      <section className="card method-card">
+      {/* <section className="card method-card">
         <div className="card-header">
           <h2>Assessment Method</h2>
           <p className="hint">Select how candidates will be assessed</p>
@@ -992,7 +1077,7 @@ const AssessmentSetupContainer: React.FC = () => {
           method={assessmentMethod}
           setMethod={setAssessmentMethod}
         />
-      </section>
+      </section> */}
 
 
 
@@ -1042,8 +1127,7 @@ const AssessmentSetupContainer: React.FC = () => {
         <button
           className="btn btn-secondary"
           onClick={() => {
-            setIsDraft(true);
-            handleSubmit(true);
+            handleSubmit(true, true);
           }}
           disabled={submitLoading}
           style={{ marginRight: '1rem' }}
@@ -1055,8 +1139,7 @@ const AssessmentSetupContainer: React.FC = () => {
           disabled={!formValid || submitLoading}
           loading={submitLoading && !isDraft}
           onClick={() => {
-            setIsDraft(false);
-            handleSubmit();
+            handleSubmit(false, false);
           }}
           validationCount={validationErrors.length}
           label={isEditMode ? "Update Assessment" : "Create Assessment"}

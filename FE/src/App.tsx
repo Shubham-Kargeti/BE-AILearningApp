@@ -21,6 +21,7 @@ import AdminProtectedRoute from "./components/adminProtectedRoute/AdminProtected
 import AdminDashboard from "./containers/AdminDashboard";
 import AdminLayout from "./containers/AdminLayout";
 import AdminAddCandidate from "./containers/AdminAddCandidate/AdminAddCandidate";
+import AdminCandidateList from "./containers/AdminCandidateList/AdminCandidateList";
 import AdminRequirement from "./containers/AdminRequirement/AdminRequirement";
 import AdminSettings from "./containers/AdminSettings/AdminSettings";
 import QuestionBankContainer from "./containers/QuestionBankContainer";
@@ -104,6 +105,7 @@ function App() {
           <Route path="learning-paths/assigned/:employeeEmail/:learningPathId" element={<AdminLearningPathsContainer />} />
           <Route path="assessment-results/:sessionId" element={<DetailedResultsView />} />
           <Route path="add-candidate" element={<AdminAddCandidate />} />
+          <Route path="candidate-list" element={<AdminCandidateList />} />
           <Route path="requirement" element={<AdminRequirement />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>

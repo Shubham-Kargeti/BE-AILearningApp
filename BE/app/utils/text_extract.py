@@ -7,10 +7,12 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
     text_parts = []
     with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
         for page in pdf.pages:
-            page_text = page.extract_text()
+            try:
+                page_text = page.extract_text()
+            except Exception:
+                page_text = None
             if page_text:
                 text_parts.append(page_text)
-    print(text_parts)
     return "\n".join(text_parts)
 
 def extract_text_from_docx(file_bytes: bytes) -> str:
@@ -39,7 +41,6 @@ def extract_text_from_docx(file_bytes: bytes) -> str:
                 if cell_text:
                     text_parts.append(cell_text)
 
-    print(text_parts)
     return "\n".join(text_parts)
 
 
@@ -72,8 +73,16 @@ def extract_text_from_pptx(file_bytes: bytes) -> str:
                         if cell.text.strip():
                             text_parts.append(cell.text.strip())
     
-    print(text_parts)
     return "\n".join(text_parts)
+
+
+def extract_text_from_plain_text(file_bytes: bytes) -> str:
+    for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+        try:
+            return file_bytes.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return file_bytes.decode("utf-8", errors="ignore")
 
 
 def extract_text(file_bytes: bytes, name: str) -> str:
@@ -84,6 +93,8 @@ def extract_text(file_bytes: bytes, name: str) -> str:
         return extract_text_from_docx(file_bytes)
     elif ext in ("ppt", "pptx"):
         return extract_text_from_pptx(file_bytes)
+    elif ext in ("txt", "md", "markdown", "csv"):
+        return extract_text_from_plain_text(file_bytes)
     else:
         raise ValueError(f"Unsupported file extension: {ext}")
 

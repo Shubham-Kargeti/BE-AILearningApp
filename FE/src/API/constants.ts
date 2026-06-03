@@ -16,11 +16,4 @@ export const HTTP_DELETE = "delete";
 
 export const allowedUsers = [
   "admin@nagarro.com",
-  "monesh.sanvaliya@nagarro.com",
-  "shubham.kargeti@nagarro.com",
-  "arjun.singha@nagarro.com",
-  "pintoo.kumar@nagarro.com",
-  "puneet.banga@nagarro.com",
-  "shailja.tyagi@nagarro.com",
-  "devinder.kumar@nagarro.com",
 ];

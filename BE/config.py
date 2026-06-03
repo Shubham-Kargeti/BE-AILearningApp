@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from typing import Optional
 import os
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -127,6 +128,26 @@ class Settings(BaseSettings):
     # AI/ML
     # GROQ_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    OPENAI_API_URL: str = "https://api.openai.com/v1/chat/completions"
+    LLM_PROVIDER: str = "openai"
+    LLM_MODEL: str = "gpt-4o"
+    LLM_TEMPERATURE: float = 0.0
+    LLM_MAX_TOKENS: Optional[int] = None
+    
+    @field_validator("LLM_MAX_TOKENS", mode="before")
+    @classmethod
+    def validate_llm_max_tokens(cls, value):
+        if value in ("", None):
+            return None
+        return int(value)
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def validate_debug(cls, value):
+        if isinstance(value, str) and value.strip().lower() in {"release", "prod", "production"}:
+            return False
+        return value
+    
     MAX_QUESTIONS_PER_TEST: int = 20
     QUESTION_GENERATION_TIMEOUT: int = 300  # 5 minutes
 
@@ -153,13 +174,6 @@ class Settings(BaseSettings):
     # Admin Users (email-based for MVP)
     ADMIN_EMAILS: list[str] = [
         "admin@nagarro.com",
-        "shubham.kargeti@nagarro.com",
-        "monesh.sanvaliya@nagarro.com",
-        "arjun.singha@nagarro.com",
-        "pintoo.kumar@nagarro.com",
-        "puneet.banga@nagarro.com",
-        "shailja.tyagi@nagarro.com",
-        "devinder.kumar@nagarro.com",
     ]
     
     # Logging

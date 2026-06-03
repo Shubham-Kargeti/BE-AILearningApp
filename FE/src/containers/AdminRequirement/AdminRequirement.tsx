@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FiBriefcase,
@@ -13,6 +13,7 @@ import {
   type ExtractedSkill,
 } from "../../API/services";
 import Toast from "../../components/Toast/Toast";
+import AIProcessingOverlay from "../../components/AIProcessingOverlay";
 import FileUpload from "../AssessmentSetupContainer/components/FileUpload";
 import RoleSkillPlaceholder from "../AssessmentSetupContainer/components/RoleSkillPlaceholder";
 import type { SkillConfiguration } from "../AssessmentSetupContainer/components/RoleSkillPlaceholder";
@@ -48,6 +49,13 @@ const NON_TECH_DEFAULT_DISTRIBUTION: RequirementQuestionDistribution = {
   architecture: 0,
   scenario: 4,
 };
+
+const ASSESSMENT_GENERATION_MESSAGES = [
+  "Creating assessment...",
+  "Generating AI questions...",
+  "Preparing evaluation criteria...",
+  "Finalizing assessment structure...",
+];
 
 const TECH_ROLE_KEYWORDS = [
   "developer",
@@ -271,6 +279,8 @@ const AdminRequirement: React.FC = () => {
   const [expiresAt, setExpiresAt] = useState("");
   const [skillLevels, setSkillLevels] = useState<Record<string, string>>({});
   const [processLoading, setProcessLoading] = useState(false);
+  const processLoadingRef = useRef(false);
+  const submitLoadingRef = useRef(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formValid, setFormValid] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
@@ -385,11 +395,16 @@ const AdminRequirement: React.FC = () => {
   };
 
   const handleExtractRoleAndSkills = async () => {
+    if (processLoadingRef.current) {
+      return;
+    }
+
     if (!jdFile) {
       setToast({ type: "error", message: "Please upload a JD first" });
       return;
     }
 
+    processLoadingRef.current = true;
     setProcessLoading(true);
     setRoleError("");
     setSkillsError("");
@@ -501,11 +516,16 @@ const AdminRequirement: React.FC = () => {
         "Failed to extract role and skills from the JD.";
       setToast({ type: "error", message: errorMessage });
     } finally {
+      processLoadingRef.current = false;
       setProcessLoading(false);
     }
   };
 
   const handleSubmit = async () => {
+    if (submitLoadingRef.current) {
+      return;
+    }
+
     if (!formValid) {
       setToast({
         type: "error",
@@ -519,6 +539,7 @@ const AdminRequirement: React.FC = () => {
       return;
     }
 
+    submitLoadingRef.current = true;
     setSubmitLoading(true);
 
     try {
@@ -629,12 +650,25 @@ const AdminRequirement: React.FC = () => {
         "Failed to create assessment. Please try again.";
       setToast({ type: "error", message: errorMessage });
     } finally {
+      submitLoadingRef.current = false;
       setSubmitLoading(false);
     }
   };
 
   return (
     <div className="admin-requirement-page">
+      <AIProcessingOverlay
+        open={processLoading}
+        title="Extracting role and skills"
+        subtitle="We are scanning the job description, classifying the role, and extracting the most relevant skills."
+      />
+      <AIProcessingOverlay
+        open={submitLoading}
+        title="Creating assessment"
+        subtitle="We are generating the role-based assessment structure, question mix, and evaluation criteria with AI."
+        messages={ASSESSMENT_GENERATION_MESSAGES}
+      />
+
       {toast && (
         <Toast
           type={toast.type}
@@ -647,8 +681,8 @@ const AdminRequirement: React.FC = () => {
         <div>
           <h1>Admin Requirement Setup</h1>
           <p>
-            Upload a JD, extract the role and skills, and create a role-aware
-            assessment payload for the backend.
+            Upload a job description to generate a tailored, 
+            role-based assessment powered by AI skill extraction.
           </p>
         </div>
       </header>

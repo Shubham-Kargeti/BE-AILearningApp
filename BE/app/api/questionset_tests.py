@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc
 
 from app.db.session import get_db
-from app.db.models import User, TestSession, Question, Answer, QuestionSet, Assessment, QuestionFeedback
+from app.db.models import User, TestSession, Question, Answer, QuestionSet, Assessment, QuestionFeedback, SessionFeedback
 from app.core.dependencies import get_current_user, optional_user
 from app.core.security import is_admin_user
 from app.utils.streak_manager import check_and_update_quiz_completion
@@ -943,7 +943,17 @@ async def get_questionset_test_results(
             )
         )
 
-         
+    feedback_result = await db.execute(
+        select(SessionFeedback.feedback_text)
+        .join(TestSession, SessionFeedback.test_session_id == TestSession.id)
+        .where(
+            and_(
+                TestSession.session_id == session_id,
+                SessionFeedback.status == "published"
+            )
+        )
+    )
+    overall_feedback = feedback_result.scalar_one_or_none()
 
     return TestResultResponse(
         session_id=session_id,
@@ -960,6 +970,7 @@ async def get_questionset_test_results(
         completed_at=session.completed_at,
         time_taken_seconds=session.duration_seconds,
         detailed_results=detailed_results,
+        overall_feedback=overall_feedback,
         is_partial=is_partial  # Add flag for incomplete sessions
     )
 
