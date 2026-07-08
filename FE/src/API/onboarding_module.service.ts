@@ -8,6 +8,7 @@ import type {
   ActionChecklistItemResponse,
   CandidateChecklistResponse,
   CertificateResponse,
+  CertificateDataResponse,
 } from "./onboarding_module.model";
 
 export const onboardingModuleService = {
@@ -96,6 +97,16 @@ export const onboardingModuleService = {
   ): Promise<CertificateResponse> => {
     const response = await apiClient.post<CertificateResponse>(
       `/onboarding-modules/module-detail/${moduleId}/generate-certificate?candidate_id=${candidateId}`
+    );
+    return response.data;
+  },
+
+  getCertificate: async (
+    candidateId: number,
+    moduleId: number
+  ): Promise<CertificateDataResponse> => {
+    const response = await apiClient.get<CertificateDataResponse>(
+      `/onboarding-modules/certificate/${candidateId}?module_id=${moduleId}`
     );
     return response.data;
   },

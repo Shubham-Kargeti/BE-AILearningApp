@@ -10,4 +10,5 @@ export const client = {
   ASSESSMENTS: "assessments",
   ONBOARDING_CANDIDATE: "onboarding-candidate",
   MODULE_DETAIL: "module-detail/:moduleId",
+  CERTIFICATE: "certificate/:candidateId",
 };

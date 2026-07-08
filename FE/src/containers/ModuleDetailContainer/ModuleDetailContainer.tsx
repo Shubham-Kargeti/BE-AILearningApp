@@ -44,6 +44,8 @@ const ModuleDetailContainer = () => {
   const isModule6 = data?.module?.rank === 6 || data?.module?.title === "Action Checklist";
   const [checklistItems, setChecklistItems] = useState<ActionChecklistItemResponse[]>([]);
   const [completedItemIds, setCompletedItemIds] = useState<Set<number>>(new Set());
+  const completedItemIdsRef = useRef(completedItemIds);
+  completedItemIdsRef.current = completedItemIds;
   const [checklistAllCompleted, setChecklistAllCompleted] = useState(false);
   const [certificateGenerated, setCertificateGenerated] = useState(false);
   const [certificateDate, setCertificateDate] = useState<string | null>(null);
@@ -254,7 +256,8 @@ const ModuleDetailContainer = () => {
   const toggleChecklistItem = async (itemId: number, checked: boolean) => {
     if (isQuizReadOnly || isSubmitting) return;
 
-    const next = new Set(completedItemIds);
+    const prev = completedItemIdsRef.current;
+    const next = new Set(prev);
     if (checked) {
       next.add(itemId);
     } else {
@@ -277,14 +280,17 @@ const ModuleDetailContainer = () => {
   };
 
   const handleGenerateCertificate = async () => {
-    if (!data || isSubmitting || !checklistAllCompleted) return;
+    if (!data || isGeneratingCertificate) return;
 
     setIsGeneratingCertificate(true);
     try {
       const result = await onboardingModuleService.generateCertificate(1, Number(data.module.id));
-      setCertificateGenerated(result.certificate_id > 0);
-      setCertificateDate(result.generated_at);
-      setSubmitted(true);
+      if (result.certificate_id > 0) {
+        setCertificateGenerated(true);
+        setCertificateDate(result.generated_at);
+        setSubmitted(true);
+        navigate(`/app/certificate/1`);
+      }
     } catch (err) {
       if (err instanceof AxiosError) {
         setError(err.response?.data?.detail || "Failed to generate certificate");
@@ -394,17 +400,15 @@ const ModuleDetailContainer = () => {
                     variant="contained"
                     size="large"
                     onClick={handleGenerateCertificate}
-                    disabled={!checklistAllCompleted || certificateGenerated || isGeneratingCertificate}
+                    disabled={isGeneratingCertificate}
                     startIcon={<SendIcon />}
                     className="module-detail-submit-btn"
                   >
-                    {certificateGenerated
-                      ? "Certificate Generated"
-                      : isGeneratingCertificate
-                        ? "Generating..."
-                        : checklistAllCompleted
-                          ? "Generate Certificate"
-                          : "Complete All Items"}
+                    {isGeneratingCertificate
+                      ? "Generating..."
+                      : certificateGenerated
+                        ? "Regenerate Certificate"
+                        : "Generate Certificate"}
                   </Button>
 
                   {certificateGenerated && (

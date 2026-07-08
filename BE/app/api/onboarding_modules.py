@@ -22,6 +22,7 @@ from app.models.schemas import (
     ActionChecklistItemResponse,
     CandidateChecklistResponse,
     CertificateResponse,
+    CertificateDataResponse,
 )
 from app.services.onboarding_module_service import (
     get_onboarding_modules,
@@ -40,6 +41,7 @@ from app.services.onboarding_module_service import (
     get_action_checklist,
     save_candidate_checklist,
     generate_certificate,
+    get_certificate_data,
 )
 
 
@@ -353,5 +355,23 @@ async def issue_certificate(
     
     if not result:
         raise HTTPException(400, "Checklist not completed or certificate already generated")
+    
+    return result
+
+
+@router.get(
+    "/certificate/{candidate_id}",
+    response_model=CertificateDataResponse,
+)
+async def get_certificate(
+    candidate_id: int,
+    module_id: int = Query(..., description="Module ID for certificate context"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get certificate data including candidate name and all module scores."""
+    result = await get_certificate_data(db, candidate_id, module_id)
+    
+    if not result:
+        raise HTTPException(404, "Certificate not found")
     
     return result

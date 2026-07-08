@@ -524,18 +524,8 @@ async def generate_certificate(db: AsyncSession, candidate_id: int, module_id: i
     )
     checklist = result.scalar_one_or_none()
 
-    if not checklist or not checklist.all_completed:
+    if not checklist:
         return None
-
-    if checklist.certificate_generated:
-        return {
-            "certificate_id": checklist.id,
-            "candidate_id": checklist.candidate_id,
-            "module_id": checklist.module_id,
-            "generated_at": checklist.certificate_generated_date or checklist.modified_date,
-            "completion_date": checklist.completed_date,
-            "candidate_name": None,
-        }
 
     checklist.certificate_generated = True
     checklist.certificate_generated_date = func.now()
@@ -544,7 +534,7 @@ async def generate_certificate(db: AsyncSession, candidate_id: int, module_id: i
     await db.refresh(checklist)
 
     progress = await get_employee_module_progress(db, candidate_id, module_id)
-    if progress:
+    if progress and progress.status != "COMPLETED":
         progress.status = "COMPLETED"
         progress.completed_date = func.now()
         await db.flush()
@@ -557,4 +547,55 @@ async def generate_certificate(db: AsyncSession, candidate_id: int, module_id: i
         "generated_at": checklist.certificate_generated_date,
         "completion_date": checklist.completed_date,
         "candidate_name": None,
+    }
+
+
+async def get_certificate_data(db: AsyncSession, candidate_id: int, module_id: int):
+    """Get certificate data including candidate name and all module scores."""
+    from app.db.models import Candidate
+
+    candidate = await db.get(Candidate, candidate_id)
+    if not candidate:
+        return None
+
+    progress_records = await get_employee_modules(db, candidate_id)
+
+    modules = []
+    for progress in progress_records:
+        module = await db.get(OnboardingModule, progress.module_id)
+        if not module:
+            continue
+
+        score = None
+        passing_status = None
+        attempts = await get_employee_quiz_attempts(db, progress.id)
+        if attempts:
+            latest = attempts[0]
+            score = latest.score
+            passing_status = latest.passing_status
+
+        modules.append({
+            "module_id": module.id,
+            "title": module.title,
+            "rank": module.rank,
+            "score": float(score) if score is not None else None,
+            "passing_status": passing_status,
+            "status": progress.status,
+        })
+
+    modules.sort(key=lambda item: item["rank"])
+
+    checklist_result = await db.execute(
+        select(OnboardingModuleCandidateChecklist).where(
+            OnboardingModuleCandidateChecklist.candidate_id == candidate_id,
+            OnboardingModuleCandidateChecklist.module_id == module_id,
+        )
+    )
+    checklist = checklist_result.scalar_one_or_none()
+
+    return {
+        "candidate_name": candidate.full_name,
+        "completed_date": checklist.completed_date if checklist else None,
+        "generated_at": checklist.certificate_generated_date if checklist else None,
+        "modules": modules,
     }

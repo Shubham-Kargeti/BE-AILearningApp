@@ -733,3 +733,25 @@ class CertificateResponse(BaseModel):
     generated_at: datetime
     completion_date: Optional[datetime] = None
     candidate_name: Optional[str] = None
+
+
+class CertificateModuleItem(BaseModel):
+    """Module score item for certificate."""
+    model_config = ConfigDict(from_attributes=True)
+
+    module_id: int
+    title: str
+    rank: int
+    score: Optional[float] = None
+    passing_status: Optional[str] = None
+    status: str
+
+
+class CertificateDataResponse(BaseModel):
+    """Full certificate data for rendering."""
+    model_config = ConfigDict(from_attributes=True)
+
+    candidate_name: Optional[str] = None
+    completed_date: Optional[datetime] = None
+    generated_at: Optional[datetime] = None
+    modules: List[CertificateModuleItem] = []

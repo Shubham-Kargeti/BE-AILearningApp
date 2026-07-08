@@ -126,3 +126,19 @@ export interface CertificateResponse {
   completion_date: string | null;
   candidate_name: string | null;
 }
+
+export interface CertificateModuleItem {
+  module_id: number;
+  title: string;
+  rank: number;
+  score: number | null;
+  passing_status: string | null;
+  status: string;
+}
+
+export interface CertificateDataResponse {
+  candidate_name: string | null;
+  completed_date: string | null;
+  generated_at: string | null;
+  modules: CertificateModuleItem[];
+}
