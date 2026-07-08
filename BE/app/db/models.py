@@ -1,36 +1,69 @@
 """Database models for the application."""
+
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import (
-    String, Integer, Boolean, DateTime, Text, JSON, 
-    Float, ForeignKey, Index, UniqueConstraint
+    String,
+    Integer,
+    Boolean,
+    DateTime,
+    Text,
+    JSON,
+    Float,
+    ForeignKey,
+    Index,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin
 import uuid
 
+# onboarding_module
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Text,
+    Numeric,
+    Date,
+    DateTime,
+    ForeignKey,
+    JSON,
+    Enum,
+)
+from sqlalchemy.sql import func
+import enum
+
 
 class User(Base, TimestampMixin):
     """User model for authentication."""
-    
+
     __tablename__ = "users"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    email: Mapped[str] = mapped_column(
+        String(255), unique=True, index=True, nullable=False
+    )
     full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    last_login: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    
+    last_login: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # Streak tracking
     login_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    login_streak_last_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    login_streak_last_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     login_streak_max: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    
+
     quiz_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    quiz_streak_last_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    quiz_streak_last_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     quiz_streak_max: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    
+
     # Relationships
     test_sessions: Mapped[list["TestSession"]] = relationship(
         "TestSession", back_populates="user", cascade="all, delete-orphan"
@@ -38,59 +71,70 @@ class User(Base, TimestampMixin):
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
         "RefreshToken", back_populates="user", cascade="all, delete-orphan"
     )
-    
+
     def __repr__(self) -> str:
         return f"<User(id={self.id}, email='{self.email}')>"
 
 
 class RefreshToken(Base, TimestampMixin):
     """Refresh token model for JWT authentication."""
-    
+
     __tablename__ = "refresh_tokens"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    token: Mapped[str] = mapped_column(String(500), unique=True, index=True, nullable=False)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    token: Mapped[str] = mapped_column(
+        String(500), unique=True, index=True, nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    
+
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="refresh_tokens")
-    
+
     __table_args__ = (
         Index("ix_refresh_tokens_user_id_expires_at", "user_id", "expires_at"),
     )
-    
+
     def __repr__(self) -> str:
         return f"<RefreshToken(id={self.id}, user_id={self.user_id})>"
 
 
 class JobDescription(Base, TimestampMixin):
     """Job description model for storing uploaded JDs."""
-    
+
     __tablename__ = "job_descriptions"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     jd_id: Mapped[str] = mapped_column(
-        String(100), unique=True, index=True, nullable=False,
-        default=lambda: f"jd_{uuid.uuid4().hex[:12]}"
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: f"jd_{uuid.uuid4().hex[:12]}",
     )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     extracted_text: Mapped[str] = mapped_column(Text, nullable=False)
-    
+
     # S3 storage info
     s3_key: Mapped[str] = mapped_column(String(500), nullable=False)
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     file_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    
+
     # Uploaded by
-    uploaded_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
-    
+    uploaded_by: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    
+
     # Relationships
     questions: Mapped[list["Question"]] = relationship(
         "Question", back_populates="job_description", cascade="all, delete-orphan"
@@ -98,62 +142,76 @@ class JobDescription(Base, TimestampMixin):
     test_sessions: Mapped[list["TestSession"]] = relationship(
         "TestSession", back_populates="job_description", cascade="all, delete-orphan"
     )
-    
+
     def __repr__(self) -> str:
         return f"<JobDescription(id={self.id}, jd_id='{self.jd_id}', title='{self.title}')>"
 
 
 class QuestionSet(Base, TimestampMixin):
     """Question set model for storing generated question sets."""
-    
+
     __tablename__ = "question_sets"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     question_set_id: Mapped[str] = mapped_column(
-        String(100), unique=True, index=True, nullable=False,
-        default=lambda: f"qs_{uuid.uuid4().hex[:12]}"
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: f"qs_{uuid.uuid4().hex[:12]}",
     )
-    skill: Mapped[str] = mapped_column(String(255), nullable=False, index=True)  # Topic/skill name
-    level: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # beginner, intermediate, expert
-    
+    skill: Mapped[str] = mapped_column(
+        String(255), nullable=False, index=True
+    )  # Topic/skill name
+    level: Mapped[str] = mapped_column(
+        String(20), nullable=False, index=True
+    )  # beginner, intermediate, expert
+
     # Metadata
     total_questions: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     generation_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    
+
     # Relationships
     questions: Mapped[list["Question"]] = relationship(
         "Question", back_populates="question_set", cascade="all, delete-orphan"
     )
-    
-    __table_args__ = (
-        Index("ix_question_sets_skill_level", "skill", "level"),
-    )
-    
+
+    __table_args__ = (Index("ix_question_sets_skill_level", "skill", "level"),)
+
     def __repr__(self) -> str:
         return f"<QuestionSet(id={self.id}, question_set_id='{self.question_set_id}', skill='{self.skill}', level='{self.level}')>"
 
 
 class Question(Base, TimestampMixin):
     """MCQ question model."""
-    
+
     __tablename__ = "questions"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    
+
     # Link to either QuestionSet OR JobDescription
     question_set_id: Mapped[Optional[str]] = mapped_column(
-        String(100), ForeignKey("question_sets.question_set_id"), nullable=True, index=True
+        String(100),
+        ForeignKey("question_sets.question_set_id"),
+        nullable=True,
+        index=True,
     )
     jd_id: Mapped[Optional[str]] = mapped_column(
         String(100), ForeignKey("job_descriptions.jd_id"), nullable=True, index=True
     )
-    
+
     question_text: Mapped[str] = mapped_column(Text, nullable=False)
-    options: Mapped[dict] = mapped_column(JSON, nullable=False)  # {"A": "text", "B": "text", ...}
-    correct_answer: Mapped[str] = mapped_column(Text, nullable=False)  # MCQ option key or suggested answer for long-form questions
-    difficulty: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # easy, medium, hard
+    options: Mapped[dict] = mapped_column(
+        JSON, nullable=False
+    )  # {"A": "text", "B": "text", ...}
+    correct_answer: Mapped[str] = mapped_column(
+        Text, nullable=False
+    )  # MCQ option key or suggested answer for long-form questions
+    difficulty: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True
+    )  # easy, medium, hard
     topic: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    
+
     # Generation metadata
     generation_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     generation_time: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -161,85 +219,112 @@ class Question(Base, TimestampMixin):
     source_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     source_meta: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     quality_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    
+
     # Relationships
-    question_set: Mapped[Optional["QuestionSet"]] = relationship("QuestionSet", back_populates="questions")
-    job_description: Mapped[Optional["JobDescription"]] = relationship("JobDescription", back_populates="questions")
+    question_set: Mapped[Optional["QuestionSet"]] = relationship(
+        "QuestionSet", back_populates="questions"
+    )
+    job_description: Mapped[Optional["JobDescription"]] = relationship(
+        "JobDescription", back_populates="questions"
+    )
     answers: Mapped[list["Answer"]] = relationship(
         "Answer", back_populates="question", cascade="all, delete-orphan"
     )
-    
+
     __table_args__ = (
         Index("ix_questions_jd_id_created_at", "jd_id", "created_at"),
         Index("ix_questions_question_set_id", "question_set_id", "created_at"),
     )
-    
+
     def __repr__(self) -> str:
         return f"<Question(id={self.id}, question_set_id='{self.question_set_id}', jd_id='{self.jd_id}')>"
 
 
 class TestSession(Base, TimestampMixin):
     """Test session model for tracking candidate tests."""
-    
+
     __tablename__ = "test_sessions"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     session_id: Mapped[str] = mapped_column(
-        String(100), unique=True, index=True, nullable=False,
-        default=lambda: f"session_{uuid.uuid4().hex}"
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: f"session_{uuid.uuid4().hex}",
     )
-    
+
     # Link to either QuestionSet OR JobDescription
     question_set_id: Mapped[Optional[str]] = mapped_column(
-        String(100), ForeignKey("question_sets.question_set_id"), nullable=True, index=True
+        String(100),
+        ForeignKey("question_sets.question_set_id"),
+        nullable=True,
+        index=True,
     )
     jd_id: Mapped[Optional[str]] = mapped_column(
         String(100), ForeignKey("job_descriptions.jd_id"), nullable=True, index=True
     )
-    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
-    
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+
     # Session details
     candidate_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     candidate_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    
+
     # Timing
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    
+
     # Status
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_scored: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    score_released_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    
+    score_released_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # Results
     total_questions: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     correct_answers: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     score_percentage: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    
+
     # Metadata
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    
+
     # Relationships
     question_set: Mapped[Optional["QuestionSet"]] = relationship("QuestionSet")
-    job_description: Mapped[Optional["JobDescription"]] = relationship("JobDescription", back_populates="test_sessions")
-    user: Mapped[Optional["User"]] = relationship("User", back_populates="test_sessions")
+    job_description: Mapped[Optional["JobDescription"]] = relationship(
+        "JobDescription", back_populates="test_sessions"
+    )
+    user: Mapped[Optional["User"]] = relationship(
+        "User", back_populates="test_sessions"
+    )
     answers: Mapped[list["Answer"]] = relationship(
         "Answer", back_populates="test_session", cascade="all, delete-orphan"
     )
     session_feedback: Mapped[Optional["SessionFeedback"]] = relationship(
         "SessionFeedback", back_populates="test_session", cascade="all, delete-orphan"
     )
-    
+
     __table_args__ = (
         Index("ix_test_sessions_jd_id_created_at", "jd_id", "created_at"),
         Index("ix_test_sessions_user_id_created_at", "user_id", "created_at"),
-        Index("ix_test_sessions_question_set_id_created_at", "question_set_id", "created_at"),
+        Index(
+            "ix_test_sessions_question_set_id_created_at",
+            "question_set_id",
+            "created_at",
+        ),
     )
-    
+
     def __repr__(self) -> str:
         return f"<TestSession(id={self.id}, session_id='{self.session_id}')>"
+
 
 class QuestionFeedback(Base, TimestampMixin):
     __tablename__ = "question_feedback"
@@ -248,31 +333,20 @@ class QuestionFeedback(Base, TimestampMixin):
 
     # Relations
     test_session_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("test_sessions.id"),
-        nullable=False,
-        index=True
+        Integer, ForeignKey("test_sessions.id"), nullable=False, index=True
     )
 
     answer_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("answers.id"),
-        nullable=False,
-        index=True
+        Integer, ForeignKey("answers.id"), nullable=False, index=True
     )
 
     question_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("questions.id"),
-        nullable=False,
-        index=True
+        Integer, ForeignKey("questions.id"), nullable=False, index=True
     )
 
     created_by: Mapped[int] = mapped_column(
-    Integer,
-    ForeignKey("users.id"),
-    nullable=True
-)
+        Integer, ForeignKey("users.id"), nullable=True
+    )
 
     # Actual feedback
     feedback_text: Mapped[str] = mapped_column(Text, nullable=False)
@@ -280,7 +354,7 @@ class QuestionFeedback(Base, TimestampMixin):
     # Relationships (optional)
     test_session: Mapped["TestSession"] = relationship("TestSession")
     answer: Mapped["Answer"] = relationship("Answer")
-    question: Mapped["Question"] = relationship("Question")    
+    question: Mapped["Question"] = relationship("Question")
 
 
 class SessionFeedback(Base, TimestampMixin):
@@ -290,23 +364,33 @@ class SessionFeedback(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     test_session_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("test_sessions.id"),
-        nullable=False,
-        unique=True,
-        index=True
+        Integer, ForeignKey("test_sessions.id"), nullable=False, unique=True, index=True
     )
-    created_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
-    updated_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    updated_by: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
 
     llm_feedback_text: Mapped[str] = mapped_column(Text, nullable=False)
     feedback_text: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False, index=True)
-    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), default="draft", nullable=False, index=True
+    )
+    published_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
-    test_session: Mapped["TestSession"] = relationship("TestSession", back_populates="session_feedback")
-    created_by_user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[created_by])
-    updated_by_user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[updated_by])
+    test_session: Mapped["TestSession"] = relationship(
+        "TestSession", back_populates="session_feedback"
+    )
+    created_by_user: Mapped[Optional["User"]] = relationship(
+        "User", foreign_keys=[created_by]
+    )
+    updated_by_user: Mapped[Optional["User"]] = relationship(
+        "User", foreign_keys=[updated_by]
+    )
 
     __table_args__ = (
         Index("ix_session_feedback_session_status", "test_session_id", "status"),
@@ -324,35 +408,44 @@ class LearningPath(Base, TimestampMixin):
         unique=True,
         index=True,
         nullable=False,
-        default=lambda: f"lp_{uuid.uuid4().hex[:12]}"
+        default=lambda: f"lp_{uuid.uuid4().hex[:12]}",
     )
 
-    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True, index=True
+    )
     employee_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     employee_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     session_id: Mapped[str] = mapped_column(
-        String(100),
-        ForeignKey("test_sessions.session_id"),
-        nullable=False,
-        index=True
+        String(100), ForeignKey("test_sessions.session_id"), nullable=False, index=True
     )
-    assessment_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("assessments.id"), nullable=True, index=True)
-    assessment_public_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    assessment_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("assessments.id"), nullable=True, index=True
+    )
+    assessment_public_id: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True, index=True
+    )
     assessment_title: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     topic: Mapped[str] = mapped_column(String(500), nullable=False)
     recommended_courses: Mapped[list] = mapped_column(JSON, nullable=False, default=[])
-    pushed_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    pushed_by: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[user_id])
-    pushed_by_user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[pushed_by])
+    pushed_by_user: Mapped[Optional["User"]] = relationship(
+        "User", foreign_keys=[pushed_by]
+    )
     test_session: Mapped["TestSession"] = relationship("TestSession")
     assessment: Mapped[Optional["Assessment"]] = relationship("Assessment")
 
     __table_args__ = (
-        UniqueConstraint("employee_email", "session_id", name="uq_learning_path_employee_session"),
+        UniqueConstraint(
+            "employee_email", "session_id", name="uq_learning_path_employee_session"
+        ),
         Index("ix_learning_paths_employee_created", "employee_email", "created_at"),
         Index("ix_learning_paths_assessment_created", "assessment_id", "created_at"),
     )
@@ -363,55 +456,69 @@ class LearningPath(Base, TimestampMixin):
 
 class Answer(Base, TimestampMixin):
     """Answer model for storing candidate responses."""
-    
+
     __tablename__ = "answers"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     session_id: Mapped[str] = mapped_column(
         String(100), ForeignKey("test_sessions.session_id"), nullable=False, index=True
     )
-    question_id: Mapped[int] = mapped_column(Integer, ForeignKey("questions.id"), nullable=False)
+    question_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("questions.id"), nullable=False
+    )
     # Allow long text answers (coding, architecture, free text). Use Text to avoid truncation errors.
     selected_answer: Mapped[str] = mapped_column(Text, nullable=False)
     is_correct: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     time_taken_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    
+
     # Relationships
-    test_session: Mapped["TestSession"] = relationship("TestSession", back_populates="answers")
+    test_session: Mapped["TestSession"] = relationship(
+        "TestSession", back_populates="answers"
+    )
     question: Mapped["Question"] = relationship("Question", back_populates="answers")
-    
+
     __table_args__ = (
-        UniqueConstraint("session_id", "question_id", name="uq_answer_session_question"),
+        UniqueConstraint(
+            "session_id", "question_id", name="uq_answer_session_question"
+        ),
         Index("ix_answers_session_id_created_at", "session_id", "created_at"),
     )
-    
+
     def __repr__(self) -> str:
         return f"<Answer(id={self.id}, session_id='{self.session_id}', question_id={self.question_id})>"
 
 
 class CeleryTask(Base, TimestampMixin):
     """Track Celery async tasks."""
-    
+
     __tablename__ = "celery_tasks"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    task_id: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    task_id: Mapped[str] = mapped_column(
+        String(255), unique=True, index=True, nullable=False
+    )
     task_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    status: Mapped[str] = mapped_column(String(50), nullable=False)  # PENDING, STARTED, SUCCESS, FAILURE
+    status: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # PENDING, STARTED, SUCCESS, FAILURE
     result: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    
+
     # Related entity
-    related_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # jd, session, etc.
+    related_type: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True
+    )  # jd, session, etc.
     related_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    
+
     # User who triggered
-    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
-    
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+
     __table_args__ = (
         Index("ix_celery_tasks_status_created_at", "status", "created_at"),
     )
-    
+
     def __repr__(self) -> str:
         return f"<CeleryTask(id={self.id}, task_id='{self.task_id}', status='{self.status}')>"
 
@@ -432,7 +539,9 @@ class QuestionBank(Base, TimestampMixin):
     source_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     source_meta: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     quality_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    review_state: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    review_state: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="draft"
+    )
 
     def __repr__(self) -> str:
         return f"<QuestionBank(id={self.id}, review_state='{self.review_state}')>"
@@ -440,87 +549,119 @@ class QuestionBank(Base, TimestampMixin):
 
 class Candidate(Base, TimestampMixin):
     """Candidate profile model for assessment applicants."""
-    
+
     __tablename__ = "candidates"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     candidate_id: Mapped[str] = mapped_column(
-        String(100), unique=True, index=True, nullable=False,
-        default=lambda: f"cand_{uuid.uuid4().hex[:12]}"
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: f"cand_{uuid.uuid4().hex[:12]}",
     )
-    
+
     # User link (optional - can be anonymous candidate)
-    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
-    
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+
     # Profile information
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     password: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    
+
     # Professional information
-    current_role: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Current job title
+    current_role: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )  # Current job title
     team: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # City, Country
-    education: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # Highest education
-    
+    location: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )  # City, Country
+    education: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True
+    )  # Highest education
+
     # Social/Professional links
     linkedin_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     github_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     portfolio_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    
+
     # Experience and skills
-    experience_years: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # e.g., "5 years"
-    experience_level: Mapped[str] = mapped_column(String(50), nullable=False)  # junior, mid, senior, etc.
-    skills: Mapped[dict] = mapped_column(JSON, nullable=False, default={})  # {skill_name: proficiency_level}
-    availability_percentage: Mapped[int] = mapped_column(Integer, default=100, nullable=False)  # 0-100
-    
+    experience_years: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True
+    )  # e.g., "5 years"
+    experience_level: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # junior, mid, senior, etc.
+    skills: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default={}
+    )  # {skill_name: proficiency_level}
+    availability_percentage: Mapped[int] = mapped_column(
+        Integer, default=100, nullable=False
+    )  # 0-100
+
     # File storage references
-    jd_file_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Reference to uploaded JD
-    cv_file_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Reference to uploaded CV
-    portfolio_file_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Reference to portfolio
-    
+    jd_file_id: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True
+    )  # Reference to uploaded JD
+    cv_file_id: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True
+    )  # Reference to uploaded CV
+    portfolio_file_id: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True
+    )  # Reference to portfolio
+
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    
+
     # Relationships
     assessment_applications: Mapped[list["AssessmentApplication"]] = relationship(
-        "AssessmentApplication", back_populates="candidate", cascade="all, delete-orphan"
+        "AssessmentApplication",
+        back_populates="candidate",
+        cascade="all, delete-orphan",
     )
-    
+
     __table_args__ = (
         Index("ix_candidates_email", "email"),
         Index("ix_candidates_user_id", "user_id"),
     )
-    
+
     def __repr__(self) -> str:
         return f"<Candidate(id={self.id}, candidate_id='{self.candidate_id}', email='{self.email}')>"
 
 
 class Assessment(Base, TimestampMixin):
     """Assessment configuration model for admin-created assessments."""
-    
+
     __tablename__ = "assessments"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     assessment_id: Mapped[str] = mapped_column(
-        String(100), unique=True, index=True, nullable=False,
-        default=lambda: f"assess_{uuid.uuid4().hex[:12]}"
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: f"assess_{uuid.uuid4().hex[:12]}",
     )
-    
+
     # Assessment metadata
     title: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
     description: Mapped[str] = mapped_column(Text, nullable=True)
     job_title: Mapped[str] = mapped_column(String(255), nullable=False)
-    
+
     # Extracted from JD or admin-defined
     jd_id: Mapped[Optional[str]] = mapped_column(
         String(100), ForeignKey("job_descriptions.jd_id"), nullable=True
     )
-    required_skills: Mapped[dict] = mapped_column(JSON, nullable=False, default={})  # {skill: min_proficiency}
+    required_skills: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default={}
+    )  # {skill: min_proficiency}
     required_roles: Mapped[list] = mapped_column(JSON, nullable=False, default=[])
-    
+
     # Question set link
     question_set_id: Mapped[Optional[str]] = mapped_column(
         String(100), ForeignKey("question_sets.question_set_id"), nullable=True
@@ -530,109 +671,153 @@ class Assessment(Base, TimestampMixin):
         ForeignKey("assessments.id"),
         nullable=True,
     )
-    
+
     # Assessment settings
-    assessment_method: Mapped[str] = mapped_column(String(50), nullable=False)  # questionnaire, interview
+    assessment_method: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # questionnaire, interview
     duration_minutes: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
-    is_questionnaire_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    is_interview_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    
+    is_questionnaire_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    is_interview_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+
     # Question configuration (experience-based)
     total_questions: Mapped[int] = mapped_column(Integer, default=15, nullable=False)
     question_type_mix: Mapped[dict] = mapped_column(
-        JSON, 
-        nullable=False,
-        default={"mcq": 0.5, "coding": 0.3, "architecture": 0.2}
+        JSON, nullable=False, default={"mcq": 0.5, "coding": 0.3, "architecture": 0.2}
     )  # Distribution of question types
-    
+
     # Scoring configuration (experience-adjusted)
-    passing_score_threshold: Mapped[int] = mapped_column(Integer, default=70, nullable=False)  # percentage
-    auto_adjust_by_experience: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    
+    passing_score_threshold: Mapped[int] = mapped_column(
+        Integer, default=70, nullable=False
+    )  # percentage
+    auto_adjust_by_experience: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+
     # Difficulty distribution (can be overridden per role/experience)
     difficulty_distribution: Mapped[dict] = mapped_column(
-        JSON,
-        nullable=False,
-        default={"easy": 0.2, "medium": 0.5, "hard": 0.3}
+        JSON, nullable=False, default={"easy": 0.2, "medium": 0.5, "hard": 0.3}
     )  # Default distribution: 20% easy, 50% medium, 30% hard
 
     # Generation policy for question generation (mode: rag|llm|mix)
-    generation_policy: Mapped[dict] = mapped_column(JSON, nullable=False, default={"mode": "rag", "rag_pct": 100, "llm_pct": 0})
-    
+    generation_policy: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default={"mode": "rag", "rag_pct": 100, "llm_pct": 0}
+    )
+
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    
+    expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     @property
     def is_expired(self) -> bool:
         """Check if assessment has expired."""
         if self.expires_at is None:
             return False
         from datetime import timezone
+
         now = datetime.now(timezone.utc)
-        expires = self.expires_at if self.expires_at.tzinfo else self.expires_at.replace(tzinfo=timezone.utc)
+        expires = (
+            self.expires_at
+            if self.expires_at.tzinfo
+            else self.expires_at.replace(tzinfo=timezone.utc)
+        )
         return expires < now
-    
+
     # Admin who created
-    created_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
-    
+    created_by: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+
     # Relationships
     applications: Mapped[list["AssessmentApplication"]] = relationship(
-        "AssessmentApplication", back_populates="assessment", cascade="all, delete-orphan"
+        "AssessmentApplication",
+        back_populates="assessment",
+        cascade="all, delete-orphan",
     )
-    
+
     __table_args__ = (
         Index("ix_assessments_title", "title"),
         Index("ix_assessments_is_published", "is_published"),
     )
-    
+
     def __repr__(self) -> str:
         return f"<Assessment(id={self.id}, assessment_id='{self.assessment_id}', title='{self.title}')>"
 
 
 class AssessmentApplication(Base, TimestampMixin):
     """Track candidate applications to assessments."""
-    
+
     __tablename__ = "assessment_applications"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     application_id: Mapped[str] = mapped_column(
-        String(100), unique=True, index=True, nullable=False,
-        default=lambda: f"app_{uuid.uuid4().hex[:12]}"
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: f"app_{uuid.uuid4().hex[:12]}",
     )
-    
+
     # Candidate and assessment link
-    candidate_id: Mapped[int] = mapped_column(Integer, ForeignKey("candidates.id"), nullable=False)
-    assessment_id: Mapped[int] = mapped_column(Integer, ForeignKey("assessments.id"), nullable=False)
-    
+    candidate_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("candidates.id"), nullable=False
+    )
+    assessment_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("assessments.id"), nullable=False
+    )
+
     # Test session link (if started)
     test_session_id: Mapped[Optional[str]] = mapped_column(
         String(100), ForeignKey("test_sessions.session_id"), nullable=True
     )
-    
+
     # Application status
-    status: Mapped[str] = mapped_column(String(50), nullable=False)  # pending, in_progress, completed, shortlisted, rejected
-    applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    
+    status: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # pending, in_progress, completed, shortlisted, rejected
+    applied_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    started_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # Submitted form data
-    candidate_availability: Mapped[int] = mapped_column(Integer, nullable=False)  # 0-100
-    submitted_skills: Mapped[dict] = mapped_column(JSON, nullable=False)  # candidate's self-assessed skills
+    candidate_availability: Mapped[int] = mapped_column(
+        Integer, nullable=False
+    )  # 0-100
+    submitted_skills: Mapped[dict] = mapped_column(
+        JSON, nullable=False
+    )  # candidate's self-assessed skills
     role_applied_for: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    
+
     # Relationships
-    candidate: Mapped["Candidate"] = relationship("Candidate", back_populates="assessment_applications")
-    assessment: Mapped["Assessment"] = relationship("Assessment", back_populates="applications")
+    candidate: Mapped["Candidate"] = relationship(
+        "Candidate", back_populates="assessment_applications"
+    )
+    assessment: Mapped["Assessment"] = relationship(
+        "Assessment", back_populates="applications"
+    )
     test_session: Mapped[Optional["TestSession"]] = relationship("TestSession")
-    
+
     __table_args__ = (
-        UniqueConstraint("candidate_id", "assessment_id", name="uq_candidate_assessment"),
+        UniqueConstraint(
+            "candidate_id", "assessment_id", name="uq_candidate_assessment"
+        ),
         Index("ix_assessment_applications_status", "status"),
         Index("ix_assessment_applications_created_at", "created_at"),
     )
-    
+
     def __repr__(self) -> str:
         return f"<AssessmentApplication(id={self.id}, application_id='{self.application_id}', status='{self.status}')>"
 
@@ -643,12 +828,23 @@ class ScreeningResponse(Base, TimestampMixin):
     __tablename__ = "screening_responses"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    screening_id: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False,
-                                              default=lambda: f"sr_{uuid.uuid4().hex[:12]}")
+    screening_id: Mapped[str] = mapped_column(
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: f"sr_{uuid.uuid4().hex[:12]}",
+    )
 
-    assessment_id: Mapped[int] = mapped_column(Integer, ForeignKey("assessments.id"), nullable=False)
-    candidate_session_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    candidate_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("candidates.id"), nullable=True)
+    assessment_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("assessments.id"), nullable=False
+    )
+    candidate_session_id: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True
+    )
+    candidate_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("candidates.id"), nullable=True
+    )
 
     # Answers stored as JSON: list or dict depending on question format
     answers: Mapped[dict] = mapped_column(JSON, nullable=False)
@@ -666,140 +862,397 @@ class ScreeningResponse(Base, TimestampMixin):
 
 class UploadedDocument(Base, TimestampMixin):
     """Track all uploaded documents from candidates."""
-    
+
     __tablename__ = "uploaded_documents"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     file_id: Mapped[str] = mapped_column(
-        String(100), unique=True, index=True, nullable=False,
-        default=lambda: f"file_{uuid.uuid4().hex[:12]}"
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: f"file_{uuid.uuid4().hex[:12]}",
     )
-    
+
     # Uploader info
-    candidate_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("candidates.id"), nullable=True)
-    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
-    
+    candidate_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("candidates.id"), nullable=True
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+
     # File information
     original_filename: Mapped[str] = mapped_column(String(500), nullable=False)
-    file_type: Mapped[str] = mapped_column(String(50), nullable=False)  # jd, cv, portfolio, requirements, specifications
-    document_category: Mapped[str] = mapped_column(String(50), nullable=False)  # jd, cv, portfolio, requirements, specifications
-    
+    file_type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # jd, cv, portfolio, requirements, specifications
+    document_category: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # jd, cv, portfolio, requirements, specifications
+
     # S3 storage
     s3_key: Mapped[str] = mapped_column(String(500), nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    
+
     # Extracted content
     extracted_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    extraction_preview: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
-    
+    extraction_preview: Mapped[Optional[str]] = mapped_column(
+        String(1000), nullable=True
+    )
+
     # Metadata
     is_encrypted: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    encryption_method: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # AES-256, etc.
-    
+    encryption_method: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True
+    )  # AES-256, etc.
+
     # Relationships
     candidate: Mapped[Optional["Candidate"]] = relationship("Candidate")
     user: Mapped[Optional["User"]] = relationship("User")
-    
+
     __table_args__ = (
         Index("ix_uploaded_documents_candidate_id", "candidate_id"),
         Index("ix_uploaded_documents_document_type", "document_category"),
     )
-    
+
     def __repr__(self) -> str:
         return f"<UploadedDocument(id={self.id}, file_id='{self.file_id}', doc_type='{self.document_category}')>"
 
 
 class Skill(Base, TimestampMixin):
     """Master list of available skills for the platform."""
-    
+
     __tablename__ = "skills"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     skill_id: Mapped[str] = mapped_column(
-        String(100), unique=True, index=True, nullable=False,
-        default=lambda: f"skill_{uuid.uuid4().hex[:12]}"
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: f"skill_{uuid.uuid4().hex[:12]}",
     )
-    
+
     # Skill info
-    name: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    name: Mapped[str] = mapped_column(
+        String(255), unique=True, index=True, nullable=False
+    )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    category: Mapped[str] = mapped_column(String(100), nullable=False)  # technical, soft, language, etc.
-    
+    category: Mapped[str] = mapped_column(
+        String(100), nullable=False
+    )  # technical, soft, language, etc.
+
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    
-    __table_args__ = (
-        Index("ix_skills_category", "category"),
-    )
-    
+
+    __table_args__ = (Index("ix_skills_category", "category"),)
+
     def __repr__(self) -> str:
         return f"<Skill(id={self.id}, name='{self.name}', category='{self.category}')>"
 
 
 class Role(Base, TimestampMixin):
     """Master list of available job roles."""
-    
+
     __tablename__ = "roles"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     role_id: Mapped[str] = mapped_column(
-        String(100), unique=True, index=True, nullable=False,
-        default=lambda: f"role_{uuid.uuid4().hex[:12]}"
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: f"role_{uuid.uuid4().hex[:12]}",
     )
-    
+
     # Role info
-    name: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    name: Mapped[str] = mapped_column(
+        String(255), unique=True, index=True, nullable=False
+    )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     department: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    
+
     # Associated skills (as JSON for flexibility)
-    required_skills: Mapped[dict] = mapped_column(JSON, nullable=False, default={})  # {skill_name: required_level}
-    
+    required_skills: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default={}
+    )  # {skill_name: required_level}
+
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    
+
     def __repr__(self) -> str:
-        return f"<Role(id={self.id}, name='{self.name}', department='{self.department}')>"
+        return (
+            f"<Role(id={self.id}, name='{self.name}', department='{self.department}')>"
+        )
 
 
 class AssessmentProgress(Base, TimestampMixin):
     """Store in-progress assessment state for resume capability."""
-    
+
     __tablename__ = "assessment_progress"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    
+
     # Email as unique identifier for anonymous candidates
-    candidate_email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    candidate_email: Mapped[str] = mapped_column(
+        String(255), unique=True, index=True, nullable=False
+    )
     candidate_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    
+
     # Assessment context
-    session_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    session_id: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True, index=True
+    )
     question_set_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     assessment_title: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     skill: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     level: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    
+
     # Progress state (stored as JSON)
-    current_question_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    answers: Mapped[dict] = mapped_column(JSON, nullable=False, default={})  # {questionIndex: answer}
-    question_status: Mapped[dict] = mapped_column(JSON, nullable=False, default={})  # {questionIndex: status}
-    expired_questions: Mapped[list] = mapped_column(JSON, nullable=False, default=[])  # List of expired question indices
-    
+    current_question_index: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    answers: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default={}
+    )  # {questionIndex: answer}
+    question_status: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default={}
+    )  # {questionIndex: status}
+    expired_questions: Mapped[list] = mapped_column(
+        JSON, nullable=False, default=[]
+    )  # List of expired question indices
+
     # Timer state
-    remaining_time_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    initial_duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    last_saved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    
+    remaining_time_seconds: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True
+    )
+    initial_duration_seconds: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True
+    )
+    last_saved_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
     # Assessment metadata
     total_questions: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    
+
     __table_args__ = (
         Index("ix_assessment_progress_email", "candidate_email"),
         Index("ix_assessment_progress_session_id", "session_id"),
     )
-    
+
     def __repr__(self) -> str:
         return f"<AssessmentProgress(id={self.id}, email='{self.candidate_email}', progress={self.current_question_index}/{self.total_questions})>"
+
+
+class OnboardingModule(Base):
+    __tablename__ = "onboarding_modules"
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text)
+    rank = Column(Integer, nullable=False)
+    passing_criteria = Column(Numeric(5, 2), nullable=False)
+    icon = Column(String(500))
+    date = Column(Date)
+    created_date = Column(DateTime, server_default=func.now(), nullable=False)
+    modified_date = Column(DateTime, server_default=func.now(), nullable=False)
+    deleted_date = Column(DateTime)
+
+
+class QuestionType(str, enum.Enum):
+    MCQ = "MCQ"
+    SCENARIO = "SCENARIO"
+
+
+class OnboardingModuleQuiz(Base):
+    __tablename__ = "onboarding_module_quiz"
+
+    id = Column(Integer, primary_key=True)
+
+    module_id = Column(
+        Integer,
+        ForeignKey("onboarding_modules.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    question_text = Column(Text, nullable=False)
+
+    question_type = Column(
+        Enum(
+            QuestionType,
+            name="question_type_enum",
+            create_type=False,  # IMPORTANT
+        ),
+        nullable=False,
+    )
+
+    choices = Column(JSON, nullable=True)
+
+    correct_answer = Column(Text, nullable=True)
+
+    display_order = Column(Integer, nullable=False)
+
+    points = Column(Integer, nullable=False, default=1)
+
+    created_date = Column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    modified_date = Column(
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    deleted_date = Column(DateTime)
+
+class OnboardingModuleKeyConcept(Base):
+    __tablename__ = "onboarding_module_key_concepts"
+
+    id = Column(Integer, primary_key=True)
+
+    module_id = Column(
+        Integer,
+        ForeignKey("onboarding_modules.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    title = Column(
+        Text,
+        nullable=False,
+    )
+
+    description = Column(
+        Text,
+        nullable=True,
+    )
+
+    display_order = Column(
+        Integer,
+        nullable=False,
+    )
+
+    created_date = Column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    modified_date = Column(
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
+# ==================== Employee Onboarding Module Tracking Models ====================
+
+class OnboardingModuleEmployeeProgress(Base):
+    """Track employee progress through onboarding modules."""
+    
+    __tablename__ = "onboarding_module_employee_progress"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False)
+    module_id = Column(Integer, ForeignKey("onboarding_modules.id", ondelete="CASCADE"), nullable=False)
+    
+    status = Column(
+        Enum(
+            "LOCKED",
+            "NOT_STARTED",
+            "VIDEO_IN_PROGRESS",
+            "VIDEO_COMPLETED",
+            "QUIZ_IN_PROGRESS",
+            "COMPLETED",
+            name="module_status_enum",
+        ),
+        nullable=False,
+        server_default="LOCKED",
+    )
+    
+    started_date = Column(DateTime, nullable=True)
+    video_completed_date = Column(DateTime, nullable=True)
+    completed_date = Column(DateTime, nullable=True)
+    
+    created_date = Column(DateTime, server_default=func.now(), nullable=False)
+    modified_date = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    __table_args__ = (
+        UniqueConstraint("candidate_id", "module_id", name="uq_candidate_module"),
+    )
+
+
+class OnboardingModuleVideoProgress(Base):
+    """Track employee video viewing progress."""
+    
+    __tablename__ = "onboarding_module_video_progress"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    employee_progress_id = Column(
+        Integer,
+        ForeignKey("onboarding_module_employee_progress.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    
+    video_url = Column(String, nullable=False)
+    current_duration_seconds = Column(Integer, server_default="0", nullable=False)
+    total_duration_seconds = Column(Integer, nullable=True)
+    completion_percentage = Column(Numeric(5, 2), server_default="0", nullable=False)
+    is_completed = Column(Boolean, server_default="false", nullable=False)
+    completed_date = Column(DateTime, nullable=True)
+    
+    created_date = Column(DateTime, server_default=func.now(), nullable=False)
+    modified_date = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class OnboardingModuleQuizAttempt(Base):
+    """Track employee quiz attempts and scores."""
+    
+    __tablename__ = "onboarding_module_quiz_attempts"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    employee_progress_id = Column(
+        Integer,
+        ForeignKey("onboarding_module_employee_progress.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    quiz_id = Column(Integer, ForeignKey("onboarding_module_quiz.id", ondelete="SET NULL"), nullable=True)
+    
+    score = Column(Numeric(5, 2), nullable=True)
+    passing_status = Column(String(20), nullable=True)  # PASS / FAIL
+    attempt_number = Column(Integer, server_default="1", nullable=False)
+    time_spent_seconds = Column(Integer, nullable=True)
+    
+    attempted_date = Column(DateTime, server_default=func.now(), nullable=False)
+    created_date = Column(DateTime, server_default=func.now(), nullable=False)
+    modified_date = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class OnboardingModuleQuizResponseModel(Base):
+    """Track individual question-answer responses in quiz attempts."""
+    
+    __tablename__ = "onboarding_module_quiz_responses"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    quiz_attempt_id = Column(
+        Integer,
+        ForeignKey("onboarding_module_quiz_attempts.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    
+    question_id = Column(Integer, nullable=False)
+    question_text = Column(Text, nullable=True)
+    employee_answer = Column(Text, nullable=True)
+    correct_answer = Column(Text, nullable=True)
+    is_correct = Column(Boolean, nullable=True)
+    time_spent_seconds = Column(Integer, nullable=True)
+    
+    created_date = Column(DateTime, server_default=func.now(), nullable=False)

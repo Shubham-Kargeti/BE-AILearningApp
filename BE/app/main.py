@@ -36,6 +36,16 @@ from app.api.question_bank import router as question_bank_router
 from app.api.generator_jobs import router as generator_jobs_router
 from app.api.assessment_results import router as assessment_results_router
 
+#onboarding_module
+from sqlalchemy.orm import Session
+from app.db.session import async_session_maker
+from app.scripts.seed_onboarding_modules import (
+    seed_onboarding_modules,
+    seed_employee_onboarding_progress,
+    seed_module_quiz,
+    seed_module_key_concepts,
+)
+from app.api.onboarding_modules import router as onboarding_modules_router
 
 # Import for recommended courses if it exists
 try:
@@ -72,6 +82,21 @@ async def lifespan(app: FastAPI):
     try:
         await init_db()
         logger.info("database_initialized")
+        # Seed onboarding modules
+        async with async_session_maker() as db:
+            await seed_onboarding_modules(db)
+            logger.info("onboarding_modules_seeded")
+        
+        # Seed module quiz and key concepts (separate session)
+        async with async_session_maker() as db:
+            await seed_module_quiz(db)
+            await seed_module_key_concepts(db)
+            logger.info("module_quiz_and_concepts_seeded")
+        
+        # Seed employee progress (separate session to ensure all module data is committed)
+        async with async_session_maker() as db:
+            await seed_employee_onboarding_progress(db)
+            logger.info("employee_onboarding_progress_seeded")
     except Exception as e:
         logger.error("database_initialization_failed", error=str(e))
     
@@ -339,6 +364,13 @@ app.include_router(question_bank_router, prefix=settings.API_V1_PREFIX, tags=["Q
 app.include_router(generator_jobs_router, prefix=settings.API_V1_PREFIX, tags=["Questions"])
 app.include_router(question_docs_router, prefix=settings.API_V1_PREFIX, tags=["Admin"])
 app.include_router(assessment_results_router, tags=["Assessment Results"])
+
+#onboarding_module
+app.include_router(
+    onboarding_modules_router,
+    prefix=settings.API_V1_PREFIX,
+    tags=["Onboarding Modules"],
+)
 
 # Include recommended courses router if available
 if has_recommended_courses:

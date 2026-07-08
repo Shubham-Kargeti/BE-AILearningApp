@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict, AliasChoices
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime,date
 
 # ============ VALIDATION ERROR SCHEMAS ============
 
@@ -480,3 +480,129 @@ class AdminBulkSkillExtractionResponse(BaseModel):
     )
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
+class OnboardingModuleResponse(BaseModel):
+    id: int
+    title: str
+    description: str | None
+    rank: int
+    passing_criteria: float
+    icon: str | None
+    date: date | None
+
+    class Config:
+        from_attributes = True
+
+class QuizChoiceResponse(BaseModel):
+    id: str
+    text: str
+
+
+class OnboardingModuleQuizResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    question_text: str
+    question_type: str
+    choices: Optional[List[str]] = None
+    correct_answer: Optional[str] = None
+    display_order: int
+    points: int
+
+class OnboardingModuleKeyConceptResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: str
+    icon: Optional[str] = None
+    display_order: int
+
+class OnboardingModuleDetailResponse(BaseModel):
+    """Response schema for onboarding module details."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: Optional[str] = None
+    rank: int
+    passing_criteria: float
+    icon: Optional[str] = None
+    date: Optional[date] = None
+
+    quizzes: List[OnboardingModuleQuizResponse]
+    key_concepts: List[OnboardingModuleKeyConceptResponse]
+
+
+# Employee Onboarding Module Tracking Schemas
+
+class EmployeeModuleVideoProgressResponse(BaseModel):
+    """Response schema for employee video progress."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    employee_progress_id: int
+    video_url: str
+    current_duration_seconds: int
+    total_duration_seconds: Optional[int] = None
+    completion_percentage: float
+    is_completed: bool
+    completed_date: Optional[datetime] = None
+
+
+class EmployeeQuizResponseItemResponse(BaseModel):
+    """Response schema for individual quiz response."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    question_id: int
+    question_text: Optional[str] = None
+    employee_answer: Optional[str] = None
+    correct_answer: Optional[str] = None
+    is_correct: Optional[bool] = None
+    time_spent_seconds: Optional[int] = None
+
+
+class EmployeeQuizAttemptResponse(BaseModel):
+    """Response schema for employee quiz attempt."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    employee_progress_id: int
+    quiz_id: Optional[int] = None
+    score: Optional[float] = None
+    passing_status: Optional[str] = None  # PASS / FAIL
+    attempt_number: int
+    time_spent_seconds: Optional[int] = None
+    attempted_date: datetime
+    responses: Optional[List[EmployeeQuizResponseItemResponse]] = []
+
+
+class EmployeeModuleProgressResponse(BaseModel):
+    """Response schema for employee module progress."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    candidate_id: int
+    module_id: int
+    status: str  # LOCKED, NOT_STARTED, VIDEO_IN_PROGRESS, VIDEO_COMPLETED, QUIZ_IN_PROGRESS, COMPLETED
+    started_date: Optional[datetime] = None
+    video_completed_date: Optional[datetime] = None
+    completed_date: Optional[datetime] = None
+    created_date: datetime
+
+
+class EmployeeModuleProgressDetailResponse(BaseModel):
+    """Detailed response schema for employee module with video and quiz data."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    candidate_id: int
+    module_id: int
+    status: str
+    started_date: Optional[datetime] = None
+    video_completed_date: Optional[datetime] = None
+    completed_date: Optional[datetime] = None
+    
+    module: OnboardingModuleResponse
+    video_progress: Optional[EmployeeModuleVideoProgressResponse] = None
+    quiz_attempts: List[EmployeeQuizAttemptResponse] = []
