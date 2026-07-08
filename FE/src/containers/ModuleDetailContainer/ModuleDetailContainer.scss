@@ -54,6 +54,10 @@
   gap: 1.5rem;
 }
 
+.module-detail-grid--checklist {
+  grid-template-columns: 1fr;
+}
+
 .module-detail-card {
   border: 1px solid #e2e8f0;
   border-radius: 8px !important;
@@ -405,4 +409,73 @@
     font-weight: 700;
     color: #713f12;
   }
+}
+
+.module-detail-card__subtitle {
+  color: #475569;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.module-detail-checklist-disclaimer {
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 1.25rem;
+
+  .module-detail-checklist-disclaimer__text {
+    color: #334155;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+}
+
+.module-detail-checklist-progress {
+  margin-bottom: 1.25rem;
+
+  .module-detail-checklist-progress__label {
+    color: #4f46e5;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+    display: inline-block;
+  }
+}
+
+.module-detail-checklist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.module-detail-checklist-item {
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.module-detail-checklist-item--checked {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.module-detail-checklist-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: #667eea;
+    margin-top: 2px;
+  }
+}
+
+.module-detail-checklist-text {
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.5;
 }

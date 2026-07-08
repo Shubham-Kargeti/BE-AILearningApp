@@ -13,6 +13,8 @@ from app.db.models import (
     OnboardingModuleVideoProgress,
     OnboardingModuleQuizAttempt,
     OnboardingModuleQuizResponseModel,
+    OnboardingModuleActionItem,
+    OnboardingModuleCandidateChecklist,
 )
 
 
@@ -446,4 +448,113 @@ async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: in
             }
             for r in response_models
         ],
+    }
+
+
+async def get_action_checklist(db: AsyncSession, module_id: int):
+    """Get action checklist items for a module."""
+    result = await db.execute(
+        select(OnboardingModuleActionItem)
+        .where(
+            OnboardingModuleActionItem.module_id == module_id,
+            OnboardingModuleActionItem.is_active == True,
+        )
+        .order_by(OnboardingModuleActionItem.display_order)
+    )
+    return result.scalars().all()
+
+
+async def save_candidate_checklist(db: AsyncSession, candidate_id: int, module_id: int, completed_item_ids: list[int]):
+    """Save candidate checklist progress."""
+    result = await db.execute(
+        select(OnboardingModuleCandidateChecklist).where(
+            OnboardingModuleCandidateChecklist.candidate_id == candidate_id,
+            OnboardingModuleCandidateChecklist.module_id == module_id,
+        )
+    )
+    checklist = result.scalar_one_or_none()
+
+    module = await db.get(OnboardingModule, module_id)
+    if not module:
+        return None
+
+    total_items_result = await db.execute(
+        select(func.count(OnboardingModuleActionItem.id)).where(
+            OnboardingModuleActionItem.module_id == module_id,
+            OnboardingModuleActionItem.is_active == True,
+        )
+    )
+    total_items = total_items_result.scalar_one() or 0
+    all_completed = len(completed_item_ids) == total_items and total_items > 0
+
+    if not checklist:
+        checklist = OnboardingModuleCandidateChecklist(
+            candidate_id=candidate_id,
+            module_id=module_id,
+            completed_item_ids=",".join(str(i) for i in completed_item_ids) if completed_item_ids else None,
+            all_completed=all_completed,
+        )
+        db.add(checklist)
+    else:
+        checklist.completed_item_ids = ",".join(str(i) for i in completed_item_ids) if completed_item_ids else None
+        checklist.all_completed = all_completed
+
+    await db.flush()
+    await db.refresh(checklist)
+
+    return {
+        "id": checklist.id,
+        "candidate_id": checklist.candidate_id,
+        "module_id": checklist.module_id,
+        "completed_item_ids": checklist.completed_item_ids,
+        "all_completed": checklist.all_completed,
+        "certificate_generated": checklist.certificate_generated,
+        "certificate_generated_date": checklist.certificate_generated_date,
+        "completed_date": checklist.completed_date,
+    }
+
+
+async def generate_certificate(db: AsyncSession, candidate_id: int, module_id: int):
+    """Generate certificate for candidate after checklist completion."""
+    result = await db.execute(
+        select(OnboardingModuleCandidateChecklist).where(
+            OnboardingModuleCandidateChecklist.candidate_id == candidate_id,
+            OnboardingModuleCandidateChecklist.module_id == module_id,
+        )
+    )
+    checklist = result.scalar_one_or_none()
+
+    if not checklist or not checklist.all_completed:
+        return None
+
+    if checklist.certificate_generated:
+        return {
+            "certificate_id": checklist.id,
+            "candidate_id": checklist.candidate_id,
+            "module_id": checklist.module_id,
+            "generated_at": checklist.certificate_generated_date or checklist.modified_date,
+            "completion_date": checklist.completed_date,
+            "candidate_name": None,
+        }
+
+    checklist.certificate_generated = True
+    checklist.certificate_generated_date = func.now()
+    checklist.completed_date = func.now()
+    await db.flush()
+    await db.refresh(checklist)
+
+    progress = await get_employee_module_progress(db, candidate_id, module_id)
+    if progress:
+        progress.status = "COMPLETED"
+        progress.completed_date = func.now()
+        await db.flush()
+        await db.refresh(progress)
+
+    return {
+        "certificate_id": checklist.id,
+        "candidate_id": checklist.candidate_id,
+        "module_id": checklist.module_id,
+        "generated_at": checklist.certificate_generated_date,
+        "completion_date": checklist.completed_date,
+        "candidate_name": None,
     }

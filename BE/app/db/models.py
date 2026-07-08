@@ -1256,3 +1256,52 @@ class OnboardingModuleQuizResponseModel(Base):
     time_spent_seconds = Column(Integer, nullable=True)
     
     created_date = Column(DateTime, server_default=func.now(), nullable=False)
+
+
+class OnboardingModuleActionItem(Base):
+    """Master checklist items for action-checklist modules."""
+
+    __tablename__ = "onboarding_module_action_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    module_id = Column(
+        Integer,
+        ForeignKey("onboarding_modules.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    item_text = Column(Text, nullable=False)
+    display_order = Column(Integer, nullable=False, server_default="0")
+    is_active = Column(Boolean, nullable=False, server_default="true")
+
+    created_date = Column(DateTime, server_default=func.now(), nullable=False)
+    modified_date = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class OnboardingModuleCandidateChecklist(Base):
+    """Candidate action-checklist completion state."""
+
+    __tablename__ = "onboarding_module_candidate_checklists"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    candidate_id = Column(
+        Integer,
+        ForeignKey("candidates.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    module_id = Column(
+        Integer,
+        ForeignKey("onboarding_modules.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    completed_item_ids = Column(Text, nullable=True)
+    all_completed = Column(Boolean, nullable=False, server_default="false")
+    certificate_generated = Column(Boolean, nullable=False, server_default="false")
+    certificate_generated_date = Column(DateTime, nullable=True)
+    completed_date = Column(DateTime, nullable=True)
+
+    created_date = Column(DateTime, server_default=func.now(), nullable=False)
+    modified_date = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("candidate_id", "module_id", name="uq_candidate_action_checklist"),
+    )

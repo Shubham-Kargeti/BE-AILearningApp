@@ -5,6 +5,9 @@ import type {
   ModuleDetailResponse,
   QuizSubmitResponse,
   VideoProgressResponse,
+  ActionChecklistItemResponse,
+  CandidateChecklistResponse,
+  CertificateResponse,
 } from "./onboarding_module.model";
 
 export const onboardingModuleService = {
@@ -61,6 +64,38 @@ export const onboardingModuleService = {
     const response = await apiClient.patch<VideoProgressResponse>(
       `/onboarding-modules/module-detail/${moduleId}/video-progress?candidate_id=${candidateId}`,
       payload
+    );
+    return response.data;
+  },
+
+  getActionChecklist: async (
+    candidateId: number,
+    moduleId: number
+  ): Promise<CandidateChecklistResponse> => {
+    const response = await apiClient.get<CandidateChecklistResponse>(
+      `/onboarding-modules/module-detail/${moduleId}/action-checklist?candidate_id=${candidateId}`
+    );
+    return response.data;
+  },
+
+  saveActionChecklist: async (
+    candidateId: number,
+    moduleId: number,
+    completedItemIds: number[]
+  ): Promise<CandidateChecklistResponse> => {
+    const response = await apiClient.post<CandidateChecklistResponse>(
+      `/onboarding-modules/module-detail/${moduleId}/action-checklist?candidate_id=${candidateId}`,
+      completedItemIds
+    );
+    return response.data;
+  },
+
+  generateCertificate: async (
+    candidateId: number,
+    moduleId: number
+  ): Promise<CertificateResponse> => {
+    const response = await apiClient.post<CertificateResponse>(
+      `/onboarding-modules/module-detail/${moduleId}/generate-certificate?candidate_id=${candidateId}`
     );
     return response.data;
   },

@@ -10,6 +10,8 @@ from app.db.models import (
     OnboardingModuleQuizResponseModel,
     OnboardingModuleQuiz,
     OnboardingModuleKeyConcept,
+    OnboardingModuleActionItem,
+    OnboardingModuleCandidateChecklist,
 )
 
 
@@ -483,58 +485,35 @@ async def seed_module_quiz(db: AsyncSession) -> None:
         },
         {
             "title": "Action Checklist",
-            "quiz_data": [
+            "quiz_data": [],
+            "action_items": [
                 {
-                    "question_text": "What is the main purpose of the final action checklist module?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Confirm all onboarding actions are complete before clearance",
-                        "Schedule another training session",
-                        "Request a new laptop",
-                        "Reset your passwords",
-                    ],
-                    "correct_answer": "Confirm all onboarding actions are complete before clearance",
+                    "item_text": "I have completed all mandatory onboarding training modules.",
                     "display_order": 1,
-                    "points": 1,
                 },
                 {
-                    "question_text": "If a checklist item is incomplete, what should you do before requesting engagement clearance?",
-                    "question_type": "SCENARIO",
-                    "choices": [
-                        "Complete or escalate the missing item first",
-                        "Ignore it if the project is urgent",
-                        "Ask another new joinee to mark it done",
-                        "Skip it and submit anyway",
-                    ],
-                    "correct_answer": "Complete or escalate the missing item first",
+                    "item_text": "I have set up my dual-laptop configuration as per policy.",
                     "display_order": 2,
-                    "points": 1,
                 },
                 {
-                    "question_text": "Which document or confirmation typically signals onboarding completion?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Engagement Clearance Certificate / completion confirmation",
-                        "Badge request form only",
-                        "Welcome email",
-                        "Parking pass",
-                    ],
-                    "correct_answer": "Engagement Clearance Certificate / completion confirmation",
+                    "item_text": "I have reviewed the org structure and know my escalation paths.",
                     "display_order": 3,
-                    "points": 1,
                 },
                 {
-                    "question_text": "What should you do after successfully completing the final checklist?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Confirm completion and inform your lead",
-                        "Delete all onboarding emails",
-                        "Uninstall onboarding apps",
-                        "Reset the HRMS profile",
-                    ],
-                    "correct_answer": "Confirm completion and inform your lead",
+                    "item_text": "I have installed all required tools and approved software.",
                     "display_order": 4,
-                    "points": 1,
+                },
+                {
+                    "item_text": "I have read and acknowledged the compliance and security policies.",
+                    "display_order": 5,
+                },
+                {
+                    "item_text": "I have submitted my first timesheet and expense claim (if applicable).",
+                    "display_order": 6,
+                },
+                {
+                    "item_text": "I have introduced myself to the team and scheduled 1:1s with leads.",
+                    "display_order": 7,
                 },
             ],
         },
@@ -774,6 +753,46 @@ async def seed_module_key_concepts(db: AsyncSession) -> None:
         db.add_all([
             OnboardingModuleKeyConcept(module_id=module.id, **c)
             for c in item["concepts"]
+        ])
+        await db.commit()
+
+
+async def seed_module_action_items(db: AsyncSession) -> None:
+    """Seed action checklist items for module 6."""
+    modules_to_seed = [
+        {
+            "title": "Action Checklist",
+            "action_items": [
+                {"item_text": "I have completed all mandatory onboarding training modules.", "display_order": 1},
+                {"item_text": "I have set up my dual-laptop configuration as per policy.", "display_order": 2},
+                {"item_text": "I have reviewed the org structure and know my escalation paths.", "display_order": 3},
+                {"item_text": "I have installed all required tools and approved software.", "display_order": 4},
+                {"item_text": "I have read and acknowledged the compliance and security policies.", "display_order": 5},
+                {"item_text": "I have submitted my first timesheet and expense claim (if applicable).", "display_order": 6},
+                {"item_text": "I have introduced myself to the team and scheduled 1:1s with leads.", "display_order": 7},
+            ],
+        },
+    ]
+
+    for item in modules_to_seed:
+        module_result = await db.execute(
+            select(OnboardingModule).where(OnboardingModule.title == item["title"])
+        )
+        module = module_result.scalar_one_or_none()
+        if not module:
+            continue
+
+        existing_items = await db.execute(
+            select(OnboardingModuleActionItem).where(
+                OnboardingModuleActionItem.module_id == module.id
+            ).limit(1)
+        )
+        if existing_items.scalar_one_or_none():
+            continue
+
+        db.add_all([
+            OnboardingModuleActionItem(module_id=module.id, **a)
+            for a in item["action_items"]
         ])
         await db.commit()
 

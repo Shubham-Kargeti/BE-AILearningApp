@@ -695,3 +695,41 @@ class VideoProgressResponse(BaseModel):
     completed_date: Optional[datetime] = None
     created_date: Optional[datetime] = None
     modified_date: Optional[datetime] = None
+
+
+class ActionChecklistItemResponse(BaseModel):
+    """Action checklist item schema."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    module_id: int
+    item_text: str
+    display_order: int
+    is_active: bool
+
+
+class CandidateChecklistResponse(BaseModel):
+    """Candidate checklist state schema."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    candidate_id: int
+    module_id: int
+    completed_item_ids: Optional[str] = None
+    all_completed: bool = False
+    certificate_generated: bool = False
+    certificate_generated_date: Optional[datetime] = None
+    completed_date: Optional[datetime] = None
+    items: List[ActionChecklistItemResponse] = []
+
+
+class CertificateResponse(BaseModel):
+    """Certificate generation response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
+    certificate_id: int
+    candidate_id: int
+    module_id: int
+    generated_at: datetime
+    completion_date: Optional[datetime] = None
+    candidate_name: Optional[str] = None

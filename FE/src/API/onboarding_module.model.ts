@@ -97,3 +97,32 @@ export interface VideoProgressResponse {
   is_completed: boolean;
   completed_date: string | null;
 }
+
+export interface ActionChecklistItemResponse {
+  id: number;
+  module_id: number;
+  item_text: string;
+  display_order: number;
+  is_active: boolean;
+}
+
+export interface CandidateChecklistResponse {
+  id: number;
+  candidate_id: number;
+  module_id: number;
+  completed_item_ids: string | null;
+  all_completed: boolean;
+  certificate_generated: boolean;
+  certificate_generated_date: string | null;
+  completed_date: string | null;
+  items: ActionChecklistItemResponse[];
+}
+
+export interface CertificateResponse {
+  certificate_id: number;
+  candidate_id: number;
+  module_id: number;
+  generated_at: string;
+  completion_date: string | null;
+  candidate_name: string | null;
+}

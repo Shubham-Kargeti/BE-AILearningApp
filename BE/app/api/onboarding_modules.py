@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
+from sqlalchemy import select
 
 from app.db.session import get_db
-from app.db.models import OnboardingModule
+from app.db.models import OnboardingModule, OnboardingModuleCandidateChecklist
 from app.models.schemas import (
     OnboardingModuleDetailResponse,
     OnboardingModuleResponse,
@@ -18,6 +19,9 @@ from app.models.schemas import (
     QuizSubmitResponse,
     VideoProgressUpdateRequest,
     VideoProgressResponse,
+    ActionChecklistItemResponse,
+    CandidateChecklistResponse,
+    CertificateResponse,
 )
 from app.services.onboarding_module_service import (
     get_onboarding_modules,
@@ -33,6 +37,9 @@ from app.services.onboarding_module_service import (
     submit_quiz_attempt,
     update_employee_video_progress,
     update_employee_module_progress_status,
+    get_action_checklist,
+    save_candidate_checklist,
+    generate_certificate,
 )
 
 
@@ -259,5 +266,92 @@ async def submit_module_quiz(
     
     if not result:
         raise HTTPException(404, "Module not found")
+    
+    return result
+
+
+@router.get(
+    "/module-detail/{module_id}/action-checklist",
+    response_model=CandidateChecklistResponse,
+)
+async def read_action_checklist(
+    module_id: int,
+    candidate_id: int = Query(..., description="Candidate ID"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get action checklist for a module."""
+    module = await db.get(OnboardingModule, module_id)
+    if not module:
+        raise HTTPException(404, "Module not found")
+
+    items = await get_action_checklist(db, module_id)
+
+    checklist_result = await db.execute(
+        select(OnboardingModuleCandidateChecklist).where(
+            OnboardingModuleCandidateChecklist.candidate_id == candidate_id,
+            OnboardingModuleCandidateChecklist.module_id == module_id,
+        )
+    )
+    checklist = checklist_result.scalar_one_or_none()
+
+    completed_item_ids = []
+    if checklist and checklist.completed_item_ids:
+        completed_item_ids = [int(i) for i in checklist.completed_item_ids.split(",") if i.isdigit()]
+
+    return {
+        "id": checklist.id if checklist else 0,
+        "candidate_id": candidate_id,
+        "module_id": module_id,
+        "completed_item_ids": checklist.completed_item_ids if checklist else None,
+        "all_completed": checklist.all_completed if checklist else False,
+        "certificate_generated": checklist.certificate_generated if checklist else False,
+        "certificate_generated_date": checklist.certificate_generated_date if checklist else None,
+        "completed_date": checklist.completed_date if checklist else None,
+        "items": [
+            {
+                "id": item.id,
+                "module_id": item.module_id,
+                "item_text": item.item_text,
+                "display_order": item.display_order,
+                "is_active": item.is_active,
+            }
+            for item in items
+        ],
+    }
+
+
+@router.post(
+    "/module-detail/{module_id}/action-checklist",
+    response_model=CandidateChecklistResponse,
+)
+async def save_action_checklist(
+    module_id: int,
+    candidate_id: int = Query(..., description="Candidate ID"),
+    completed_item_ids: list[int] = Body(..., description="List of checked item IDs"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save candidate checklist progress."""
+    result = await save_candidate_checklist(db, candidate_id, module_id, completed_item_ids)
+    
+    if not result:
+        raise HTTPException(404, "Module not found")
+    
+    return result
+
+
+@router.post(
+    "/module-detail/{module_id}/generate-certificate",
+    response_model=CertificateResponse,
+)
+async def issue_certificate(
+    module_id: int,
+    candidate_id: int = Query(..., description="Candidate ID"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate certificate for candidate."""
+    result = await generate_certificate(db, candidate_id, module_id)
+    
+    if not result:
+        raise HTTPException(400, "Checklist not completed or certificate already generated")
     
     return result

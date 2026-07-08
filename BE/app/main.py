@@ -44,6 +44,7 @@ from app.scripts.seed_onboarding_modules import (
     seed_candidate_journey,
     seed_module_quiz,
     seed_module_key_concepts,
+    seed_module_action_items,
 )
 from app.api.onboarding_modules import router as onboarding_modules_router
 
@@ -91,7 +92,8 @@ async def lifespan(app: FastAPI):
         async with async_session_maker() as db:
             await seed_module_quiz(db)
             await seed_module_key_concepts(db)
-            logger.info("module_quiz_and_concepts_seeded")
+            await seed_module_action_items(db)
+            logger.info("module_quiz_concepts_and_action_items_seeded")
         
         # Seed employee progress (separate session to ensure all module data is committed)
         async with async_session_maker() as db:
