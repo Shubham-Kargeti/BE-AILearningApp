@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -13,6 +13,8 @@ from app.models.schemas import (
     EmployeeModuleVideoProgressResponse,
     EmployeeQuizAttemptResponse,
     EmployeeOnboardingProgressSummaryResponse,
+    ModuleDetailResponse,
+    QuizSubmitResponse,
 )
 from app.services.onboarding_module_service import (
     get_onboarding_modules,
@@ -24,6 +26,8 @@ from app.services.onboarding_module_service import (
     get_employee_quiz_attempts,
     get_quiz_attempt_responses,
     get_employee_onboarding_progress_summary,
+    get_module_detail,
+    submit_quiz_attempt,
 )
 
 
@@ -179,3 +183,40 @@ async def get_module_quiz_attempts(
         attempt.responses = responses
     
     return quiz_attempts
+
+
+@router.get(
+    "/module-detail/{module_id}",
+    response_model=ModuleDetailResponse,
+)
+async def read_module_detail(
+    module_id: int,
+    candidate_id: int = Query(..., description="Candidate ID"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get full module detail including video, key concepts, and quiz questions."""
+    data = await get_module_detail(db, candidate_id, module_id)
+    
+    if not data:
+        raise HTTPException(404, "Module not found")
+    
+    return data
+
+
+@router.post(
+    "/module-detail/{module_id}/submit-quiz",
+    response_model=QuizSubmitResponse,
+)
+async def submit_module_quiz(
+    module_id: int,
+    candidate_id: int = Query(..., description="Candidate ID"),
+    answers: list[dict] = Body(..., description="List of answers with question_id and answer"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit quiz answers, grade against correct answers, and return result."""
+    result = await submit_quiz_attempt(db, candidate_id, module_id, answers)
+    
+    if not result:
+        raise HTTPException(404, "Module not found")
+    
+    return result

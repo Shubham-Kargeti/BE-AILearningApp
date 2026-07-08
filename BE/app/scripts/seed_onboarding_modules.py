@@ -121,7 +121,7 @@ async def seed_employee_onboarding_progress(db: AsyncSession, candidate_id: int 
     # Create video progress record
     video_progress = OnboardingModuleVideoProgress(
         employee_progress_id=progress.id,
-        video_url="https://example.com/videos/module-1-intro.mp4",
+        video_url="https://puneetbanga15.github.io/bcg-onboarding/videos/step1.mp4",
         current_duration_seconds=1425,
         total_duration_seconds=1425,
         completion_percentage=100.0,
@@ -192,162 +192,247 @@ async def seed_employee_onboarding_progress(db: AsyncSession, candidate_id: int 
 
 async def seed_module_quiz(db: AsyncSession) -> None:
     """
-    Seed quiz questions for "Welcome & Project Overview" module.
+    Seed quiz questions for onboarding modules.
     Can be toggled on/off as needed.
     """
-    # Find the "Welcome & Project Overview" module
-    module_result = await db.execute(
-        select(OnboardingModule).where(
-            OnboardingModule.title == "Welcome & Project Overview"
-        )
-    )
-    module = module_result.scalar_one_or_none()
-    
-    if not module:
-        return
-    
-    # Check if quiz already exists for this module
-    existing_quiz = await db.execute(
-        select(OnboardingModuleQuiz).where(
-            OnboardingModuleQuiz.module_id == module.id
-        ).limit(1)
-    )
-    
-    if existing_quiz.scalar_one_or_none():
-        return
-    
-    # Create quiz questions
-    quiz_data = [
+    modules_to_seed = [
         {
-            "module_id": module.id,
-            "question_text": "What is the dual-laptop policy at BCG Nagarro?",
-            "question_type": "MCQ",
-            "choices": [
-                "One personal laptop for personal work and one company laptop for project work",
-                "Only company-provided laptop is required",
-                "Personal choice of laptop",
-                "No specific policy",
+            "title": "Welcome & Project Overview",
+            "quiz_data": [
+                {
+                    "question_text": "What is the dual-laptop policy at BCG Nagarro?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "One personal laptop for personal work and one company laptop for project work",
+                        "Only company-provided laptop is required",
+                        "Personal choice of laptop",
+                        "No specific policy",
+                    ],
+                    "correct_answer": "One personal laptop for personal work and one company laptop for project work",
+                    "display_order": 1,
+                    "points": 1,
+                },
+                {
+                    "question_text": "Who is the primary escalation point for project issues?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Project Manager or Team Lead",
+                        "HR Department",
+                        "Finance Team",
+                        "Senior Management",
+                    ],
+                    "correct_answer": "Project Manager or Team Lead",
+                    "display_order": 2,
+                    "points": 1,
+                },
+                {
+                    "question_text": "Which tools are used for daily standups at BCG Nagarro?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Slack and Jira",
+                        "Email and Excel",
+                        "Teams and Asana",
+                        "WhatsApp and Spreadsheets",
+                    ],
+                    "correct_answer": "Slack and Jira",
+                    "display_order": 3,
+                    "points": 1,
+                },
+                {
+                    "question_text": "What is the minimum leave notice period for planned leaves?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "2 weeks for planned leave",
+                        "1 week",
+                        "1 month",
+                        "Immediate leave is allowed",
+                    ],
+                    "correct_answer": "2 weeks for planned leave",
+                    "display_order": 4,
+                    "points": 1,
+                },
             ],
-            "correct_answer": "One personal laptop for personal work and one company laptop for project work",
-            "display_order": 1,
-            "points": 1,
         },
         {
-            "module_id": module.id,
-            "question_text": "Who is the primary escalation point for project issues?",
-            "question_type": "MCQ",
-            "choices": [
-                "Project Manager or Team Lead",
-                "HR Department",
-                "Finance Team",
-                "Senior Management",
+            "title": "Who's Who & Org Structure",
+            "quiz_data": [
+                {
+                    "question_text": "What best describes BCG Nagarro's leadership structure?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Flat hierarchy with direct access to leadership",
+                        "BCG leads client strategy and Nagarro leads engineering delivery",
+                        "Nagarro manages all client relationships",
+                        "No formal structure",
+                    ],
+                    "correct_answer": "BCG leads client strategy and Nagarro leads engineering delivery",
+                    "display_order": 1,
+                    "points": 1,
+                },
+                {
+                    "question_text": "Who defines project KPIs for delivery teams?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Engagement Manager / Delivery Lead",
+                        "HR",
+                        "Finance",
+                        "Individual contributors",
+                    ],
+                    "correct_answer": "Engagement Manager / Delivery Lead",
+                    "display_order": 2,
+                    "points": 1,
+                },
+                {
+                    "question_text": "How should a blocking delivery risk be escalated?",
+                    "question_type": "SCENARIO",
+                    "choices": [
+                        "Raise it first with your Delivery Lead, then escalate to the Engagement Manager",
+                        "Post it in the general Slack channel",
+                        "Wait until the next review meeting",
+                        "Resolve it alone without escalation",
+                    ],
+                    "correct_answer": "Raise it first with your Delivery Lead, then escalate to the Engagement Manager",
+                    "display_order": 3,
+                    "points": 1,
+                },
+                {
+                    "question_text": "Which profile should you update for project role clarity and visibility?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Internal HRMS and project tool profiles",
+                        "Only LinkedIn",
+                        "Only timesheet tool",
+                        "Only email signature",
+                    ],
+                    "correct_answer": "Internal HRMS and project tool profiles",
+                    "display_order": 4,
+                    "points": 1,
+                },
             ],
-            "correct_answer": "Project Manager or Team Lead",
-            "display_order": 2,
-            "points": 1,
-        },
-        {
-            "module_id": module.id,
-            "question_text": "Which tools are used for daily standups at BCG Nagarro?",
-            "question_type": "MCQ",
-            "choices": [
-                "Slack and Jira",
-                "Email and Excel",
-                "Teams and Asana",
-                "WhatsApp and Spreadsheets",
-            ],
-            "correct_answer": "Slack and Jira",
-            "display_order": 3,
-            "points": 1,
-        },
-        {
-            "module_id": module.id,
-            "question_text": "What is the minimum leave notice period for planned leaves?",
-            "question_type": "MCQ",
-            "choices": [
-                "2 weeks for planned leave",
-                "1 week",
-                "1 month",
-                "Immediate leave is allowed",
-            ],
-            "correct_answer": "2 weeks for planned leave",
-            "display_order": 4,
-            "points": 1,
         },
     ]
-    
-    db.add_all([OnboardingModuleQuiz(**q) for q in quiz_data])
-    await db.commit()
+
+    for item in modules_to_seed:
+        module_result = await db.execute(
+            select(OnboardingModule).where(
+                OnboardingModule.title == item["title"]
+            )
+        )
+        module = module_result.scalar_one_or_none()
+        if not module:
+            continue
+
+        existing_quiz = await db.execute(
+            select(OnboardingModuleQuiz).where(
+                OnboardingModuleQuiz.module_id == module.id
+            ).limit(1)
+        )
+        if existing_quiz.scalar_one_or_none():
+            continue
+
+        db.add_all([
+            OnboardingModuleQuiz(module_id=module.id, **q)
+            for q in item["quiz_data"]
+        ])
+        await db.commit()
 
 
 async def seed_module_key_concepts(db: AsyncSession) -> None:
     """
-    Seed key concepts for "Welcome & Project Overview" module.
+    Seed key concepts for onboarding modules.
     Can be toggled on/off as needed.
     """
-    # Find the "Welcome & Project Overview" module
-    module_result = await db.execute(
-        select(OnboardingModule).where(
-            OnboardingModule.title == "Welcome & Project Overview"
-        )
-    )
-    module = module_result.scalar_one_or_none()
-    
-    if not module:
-        return
-    
-    # Check if key concepts already exist for this module
-    existing_concepts = await db.execute(
-        select(OnboardingModuleKeyConcept).where(
-            OnboardingModuleKeyConcept.module_id == module.id
-        ).limit(1)
-    )
-    
-    if existing_concepts.scalar_one_or_none():
-        return
-    
-    # Create key concepts
-    concepts_data = [
+    modules_to_seed = [
         {
-            "module_id": module.id,
-            "title": "Dual-Laptop Policy",
-            "description": "Understanding the dual-laptop setup: one personal laptop for personal use and one company-provided laptop for BCG project work to ensure data security and compliance.",
-            "display_order": 1,
+            "title": "Welcome & Project Overview",
+            "concepts": [
+                {
+                    "title": "Dual-Laptop Policy",
+                    "description": "Understanding the dual-laptop setup: one personal laptop for personal use and one company-provided laptop for BCG project work to ensure data security and compliance.",
+                    "display_order": 1,
+                },
+                {
+                    "title": "Engagement Model",
+                    "description": "BCG's engagement model focuses on client success, collaborative teamwork, and continuous learning. Every consultant is empowered to contribute ideas and drive impact.",
+                    "display_order": 2,
+                },
+                {
+                    "title": "Office Setup & Resources",
+                    "description": "Your office workspace includes access to meeting rooms, collaboration zones, wellness facilities, and IT support. Familiarize yourself with the office layout and available resources.",
+                    "display_order": 3,
+                },
+                {
+                    "title": "Project Overview Documents",
+                    "description": "Review the project charter, stakeholder list, and key deliverables. Understand the project timeline, milestones, and success metrics before your first day.",
+                    "display_order": 4,
+                },
+                {
+                    "title": "Communication Channels",
+                    "description": "Primary communication happens via Slack for instant messaging, email for formal communications, and Jira for project tracking. Ensure your profiles are set up correctly.",
+                    "display_order": 5,
+                },
+                {
+                    "title": "Getting Started Checklist",
+                    "description": "Complete all prerequisite tasks including account setup, security training, software installations, and team introductions before your first project assignment.",
+                    "display_order": 6,
+                },
+            ],
         },
         {
-            "module_id": module.id,
-            "title": "Engagement Model",
-            "description": "BCG's engagement model focuses on client success, collaborative teamwork, and continuous learning. Every consultant is empowered to contribute ideas and drive impact.",
-            "display_order": 2,
-        },
-        {
-            "module_id": module.id,
-            "title": "Office Setup & Resources",
-            "description": "Your office workspace includes access to meeting rooms, collaboration zones, wellness facilities, and IT support. Familiarize yourself with the office layout and available resources.",
-            "display_order": 3,
-        },
-        {
-            "module_id": module.id,
-            "title": "Project Overview Documents",
-            "description": "Review the project charter, stakeholder list, and key deliverables. Understand the project timeline, milestones, and success metrics before your first day.",
-            "display_order": 4,
-        },
-        {
-            "module_id": module.id,
-            "title": "Communication Channels",
-            "description": "Primary communication happens via Slack for instant messaging, email for formal communications, and Jira for project tracking. Ensure your profiles are set up correctly.",
-            "display_order": 5,
-        },
-        {
-            "module_id": module.id,
-            "title": "Getting Started Checklist",
-            "description": "Complete all prerequisite tasks including account setup, security training, software installations, and team introductions before your first project assignment.",
-            "display_order": 6,
+            "title": "Who's Who & Org Structure",
+            "concepts": [
+                {
+                    "title": "BCG-Nagarro Operating Model",
+                    "description": "BCG defines client strategy and Nagarro owns engineering delivery. Clear accountability exists across consulting, delivery, and support teams.",
+                    "display_order": 1,
+                },
+                {
+                    "title": "Org Hierarchy",
+                    "description": "Typical flow: Delivery Lead / Engagement Manager -> Module Lead -> Senior Consultant -> Consultant -> Associate.",
+                    "display_order": 2,
+                },
+                {
+                    "title": "Escalation Paths",
+                    "description": "Delivery issues escalate to the Delivery Lead, then to the Engagement Manager. People or HR concerns go to HRBP.",
+                    "display_order": 3,
+                },
+                {
+                    "title": "RACI Awareness",
+                    "description": "Know who is Responsible, Accountable, Consulted, and Informed for each workstream before starting assignments.",
+                    "display_order": 4,
+                },
+                {
+                    "title": "Tools for Visibility",
+                    "description": "Use the org chart tool, HRMS, and project roster to understand team structures, reporting lines, and contact information.",
+                    "display_order": 5,
+                },
+            ],
         },
     ]
-    
-    db.add_all([OnboardingModuleKeyConcept(**c) for c in concepts_data])
-    await db.commit()
+
+    for item in modules_to_seed:
+        module_result = await db.execute(
+            select(OnboardingModule).where(
+                OnboardingModule.title == item["title"]
+            )
+        )
+        module = module_result.scalar_one_or_none()
+        if not module:
+            continue
+
+        existing_concepts = await db.execute(
+            select(OnboardingModuleKeyConcept).where(
+                OnboardingModuleKeyConcept.module_id == module.id
+            ).limit(1)
+        )
+        if existing_concepts.scalar_one_or_none():
+            continue
+
+        db.add_all([
+            OnboardingModuleKeyConcept(module_id=module.id, **c)
+            for c in item["concepts"]
+        ])
+        await db.commit()
 
 
 async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> None:
@@ -436,11 +521,11 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
 
     VIDEO_URLS = {
         "Welcome & Project Overview": "https://puneetbanga15.github.io/bcg-onboarding/videos/step1.mp4",
-        "Who's Who & Org Structure": "https://example.com/videos/module-2-org-structure.mp4",
-        "Ways of Working & Tools": "https://example.com/videos/module-3-ways-of-working.mp4",
-        "Compliance, Security & Assets": "https://example.com/videos/module-4-compliance.mp4",
-        "Leave, Reimbursements & Essentials": "https://example.com/videos/module-5-leave.mp4",
-        "Action Checklist": "https://example.com/videos/module-6-checklist.mp4",
+        "Who's Who & Org Structure": "https://puneetbanga15.github.io/bcg-onboarding/videos/step2.mp4",
+        "Ways of Working & Tools": "https://puneetbanga15.github.io/bcg-onboarding/videos/step3.mp4",
+        "Compliance, Security & Assets": "https://puneetbanga15.github.io/bcg-onboarding/videos/step4.mp4",
+        "Leave, Reimbursements & Essentials": "https://puneetbanga15.github.io/bcg-onboarding/videos/step5.mp4",
+        "Action Checklist": "https://puneetbanga15.github.io/bcg-onboarding/videos/step6.mp4",
     }
 
     # Per-module journey definition
@@ -516,47 +601,75 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
         if not module:
             continue
 
-        # Idempotency: skip a module already seeded for this candidate
-        existing = await db.execute(
+        existing_progress = await db.execute(
             select(OnboardingModuleEmployeeProgress).where(
                 OnboardingModuleEmployeeProgress.candidate_id == candidate_id,
                 OnboardingModuleEmployeeProgress.module_id == module.id,
             )
         )
-        if existing.scalar_one_or_none():
-            continue
+        progress = existing_progress.scalar_one_or_none()
 
-        # LOCKED modules have no progress row yet (they are locked in the UI)
         if state["status"] == "LOCKED":
+            if progress:
+                await db.delete(progress)
             continue
 
-        progress = OnboardingModuleEmployeeProgress(
-            candidate_id=candidate_id,
-            module_id=module.id,
-            status=state["status"],
-            started_date=state["started_date"],
-            video_completed_date=state["video_completed_date"],
-            completed_date=state["completed_date"],
-        )
-        db.add(progress)
-        await db.flush()
+        if not progress:
+            progress = OnboardingModuleEmployeeProgress(
+                candidate_id=candidate_id,
+                module_id=module.id,
+                status=state["status"],
+                started_date=state["started_date"],
+                video_completed_date=state["video_completed_date"],
+                completed_date=state["completed_date"],
+            )
+            db.add(progress)
+            await db.flush()
+        else:
+            progress.status = state["status"]
+            progress.started_date = state["started_date"]
+            progress.video_completed_date = state["video_completed_date"]
+            progress.completed_date = state["completed_date"]
 
-        # Video progress
+        existing_video = await db.execute(
+            select(OnboardingModuleVideoProgress).where(
+                OnboardingModuleVideoProgress.employee_progress_id == progress.id
+            )
+        )
+        video_record = existing_video.scalar_one_or_none()
+
         if state["video"]:
             v = state["video"]
-            video_progress = OnboardingModuleVideoProgress(
-                employee_progress_id=progress.id,
-                video_url=VIDEO_URLS.get(title, "https://example.com/videos/unknown.mp4"),
-                current_duration_seconds=v["current"],
-                total_duration_seconds=v["total"],
-                completion_percentage=v["pct"],
-                is_completed=v["completed"],
-                completed_date=v["completed_date"],
-            )
-            db.add(video_progress)
-            await db.flush()
+            video_url = VIDEO_URLS.get(title, "https://example.com/videos/unknown.mp4")
+            if video_record:
+                video_record.video_url = video_url
+                video_record.current_duration_seconds = v["current"]
+                video_record.total_duration_seconds = v["total"]
+                video_record.completion_percentage = v["pct"]
+                video_record.is_completed = v["completed"]
+                video_record.completed_date = v["completed_date"]
+            else:
+                video_progress = OnboardingModuleVideoProgress(
+                    employee_progress_id=progress.id,
+                    video_url=video_url,
+                    current_duration_seconds=v["current"],
+                    total_duration_seconds=v["total"],
+                    completion_percentage=v["pct"],
+                    is_completed=v["completed"],
+                    completed_date=v["completed_date"],
+                )
+                db.add(video_progress)
+        elif video_record:
+            await db.delete(video_record)
 
-        # Quiz attempts + responses
+        existing_attempts = await db.execute(
+            select(OnboardingModuleQuizAttempt).where(
+                OnboardingModuleQuizAttempt.employee_progress_id == progress.id
+            )
+        )
+        for old_attempt in existing_attempts.scalars().all():
+            await db.delete(old_attempt)
+
         quiz_questions = await get_quiz_questions(module.id)
         for attempt in state["quiz"]["attempts"]:
             quiz_attempt = OnboardingModuleQuizAttempt(

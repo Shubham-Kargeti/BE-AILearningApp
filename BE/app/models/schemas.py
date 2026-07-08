@@ -633,3 +633,41 @@ class EmployeeOnboardingProgressSummaryResponse(BaseModel):
     remaining_modules: int
     overall_progress_percentage: float
     modules: List[EmployeeModuleProgressSummaryItem]
+
+
+class ModuleDetailResponse(BaseModel):
+    """Full module detail for employee module view."""
+    model_config = ConfigDict(from_attributes=True)
+
+    module: OnboardingModuleResponse
+    video_url: Optional[str] = None
+    video_completed: bool = False
+    key_concepts: List[OnboardingModuleKeyConceptResponse] = []
+    quiz_questions: List[OnboardingModuleQuizResponse] = []
+    quiz_attempts: List[EmployeeQuizAttemptResponse] = []
+
+
+class QuizQuestionResultItem(BaseModel):
+    """Question-level result for a submitted quiz."""
+    model_config = ConfigDict(from_attributes=True)
+
+    question_id: int
+    question_text: Optional[str] = None
+    employee_answer: Optional[str] = None
+    correct_answer: Optional[str] = None
+    is_correct: Optional[bool] = None
+
+
+class QuizSubmitResponse(BaseModel):
+    """Response schema for submitted quiz."""
+    model_config = ConfigDict(from_attributes=True)
+
+    attempt_id: int
+    module_id: int
+    attempt_number: int
+    total_questions: int
+    correct_answers: int
+    score: float
+    passing_status: str
+    passing_criteria: float
+    responses: List[QuizQuestionResultItem]

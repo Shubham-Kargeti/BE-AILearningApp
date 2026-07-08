@@ -8,10 +8,11 @@ import {
   LinearProgress,
   Typography,
 } from "@mui/material";
-import type { AxiosError } from "axios";
+import { AxiosError } from "axios";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import LockIcon from "@mui/icons-material/Lock";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
+import { useNavigate } from "react-router-dom";
 import { onboardingModuleService } from "../../API/onboarding_module.service";
 import type {
   EmployeeOnboardingProgressSummaryResponse,
@@ -20,6 +21,7 @@ import type {
 import "./OnboardingCandidateContainer.scss";
 
 type ModuleItem = {
+  id: number;
   module_no: number;
   title: string;
   description: string;
@@ -53,6 +55,7 @@ const mapSummaryModulesToUi = (
 
   if (rawStatus === "COMPLETED") {
     return {
+      id: module.module_id,
       module_no: module.rank,
       title: module.title,
       description: module.description || "",
@@ -66,25 +69,49 @@ const mapSummaryModulesToUi = (
     rawStatus === "VIDEO_IN_PROGRESS" ||
     rawStatus === "VIDEO_COMPLETED"
   ) {
+    if (module.is_unlocked) {
+      return {
+        id: module.module_id,
+        module_no: module.rank,
+        title: module.title,
+        description: module.description || "",
+        passing_criteria: String(Math.round(module.passing_criteria)),
+        status: "in_progress",
+      };
+    }
     return {
+      id: module.module_id,
       module_no: module.rank,
       title: module.title,
       description: module.description || "",
       passing_criteria: String(Math.round(module.passing_criteria)),
-      status: "in_progress",
+      status: "locked",
+    };
+  }
+
+  if (module.is_unlocked) {
+    return {
+      id: module.module_id,
+      module_no: module.rank,
+      title: module.title,
+      description: module.description || "",
+      passing_criteria: String(Math.round(module.passing_criteria)),
+      status: "unlocked",
     };
   }
 
   return {
+    id: module.module_id,
     module_no: module.rank,
     title: module.title,
     description: module.description || "",
     passing_criteria: String(Math.round(module.passing_criteria)),
-    status: module.is_unlocked ? "unlocked" : "locked",
+    status: "locked",
   };
 };
 
 const OnboardingCandidateContainer = () => {
+  const navigate = useNavigate();
   const [modules, setModules] = useState<ModuleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -227,6 +254,11 @@ const OnboardingCandidateContainer = () => {
                     className="onboarding-module-card__action"
                     fullWidth
                     variant="contained"
+                    onClick={() => {
+                      if (!isLocked) {
+                        navigate(`/app/module-detail/${module.id}`);
+                      }
+                    }}
                   >
                     {module.status === "completed"
                       ? "Review Module"

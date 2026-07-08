@@ -41,7 +41,7 @@ from sqlalchemy.orm import Session
 from app.db.session import async_session_maker
 from app.scripts.seed_onboarding_modules import (
     seed_onboarding_modules,
-    seed_employee_onboarding_progress,
+    seed_candidate_journey,
     seed_module_quiz,
     seed_module_key_concepts,
 )
@@ -95,7 +95,7 @@ async def lifespan(app: FastAPI):
         
         # Seed employee progress (separate session to ensure all module data is committed)
         async with async_session_maker() as db:
-            await seed_employee_onboarding_progress(db)
+            await seed_candidate_journey(db)
             logger.info("employee_onboarding_progress_seeded")
     except Exception as e:
         logger.error("database_initialization_failed", error=str(e))

@@ -194,3 +194,127 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
         "overall_progress_percentage": overall_progress_percentage,
         "modules": modules,
     }
+
+
+async def get_module_detail(db: AsyncSession, candidate_id: int, module_id: int):
+    """Get full detail for a module including video, key concepts, and quiz."""
+
+    module = await db.get(OnboardingModule, module_id)
+    if not module:
+        return None
+
+    progress = await get_employee_module_progress(db, candidate_id, module.id)
+    video_progress = await get_employee_video_progress(db, progress.id) if progress else None
+    video_url = video_progress.video_url if video_progress else None
+
+    key_concepts = await get_onboarding_module_key_concepts(db, module.id)
+    quiz_questions = await get_onboarding_module_quiz(db, module.id)
+
+    quiz_attempts = []
+    if progress:
+        attempts = await get_employee_quiz_attempts(db, progress.id)
+        for attempt in attempts:
+            responses = await get_quiz_attempt_responses(db, attempt.id)
+            attempt.responses = responses
+            quiz_attempts.append(attempt)
+
+    return {
+        "module": module,
+        "video_url": video_url,
+        "video_completed": progress.video_completed_date is not None if progress else False,
+        "key_concepts": key_concepts,
+        "quiz_questions": quiz_questions,
+        "quiz_attempts": quiz_attempts,
+    }
+
+
+async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: int, answers: list[dict]):
+    """Grade a submitted quiz and save attempt + responses."""
+
+    module = await db.get(OnboardingModule, module_id)
+    if not module:
+        return None
+
+    progress = await get_employee_module_progress(db, candidate_id, module_id)
+    if not progress:
+        progress = OnboardingModuleEmployeeProgress(
+            candidate_id=candidate_id,
+            module_id=module_id,
+            status="QUIZ_IN_PROGRESS",
+        )
+        db.add(progress)
+        await db.flush()
+
+    quiz_questions = await get_onboarding_module_quiz(db, module_id)
+    questions_by_id = {q.id: q for q in quiz_questions}
+
+    last_attempt = await get_employee_quiz_attempts(db, progress.id)
+    attempt_number = (last_attempt[0].attempt_number + 1) if last_attempt else 1
+
+    quiz_attempt = OnboardingModuleQuizAttempt(
+        employee_progress_id=progress.id,
+        quiz_id=None,
+        attempt_number=attempt_number,
+        time_spent_seconds=None,
+    )
+    db.add(quiz_attempt)
+    await db.flush()
+
+    response_models = []
+    correct_count = 0
+    for answer in answers:
+        question = questions_by_id.get(answer["question_id"])
+        correct_answer = question.correct_answer if question else None
+        is_correct = False
+        if correct_answer is not None and answer["answer"] is not None:
+            is_correct = str(answer["answer"]).strip().lower() == str(correct_answer).strip().lower()
+        if is_correct:
+            correct_count += 1
+
+        response_models.append(
+            OnboardingModuleQuizResponseModel(
+                quiz_attempt_id=quiz_attempt.id,
+                question_id=answer["question_id"],
+                question_text=question.question_text if question else None,
+                employee_answer=answer["answer"],
+                correct_answer=correct_answer,
+                is_correct=is_correct,
+            )
+        )
+
+    db.add_all(response_models)
+    await db.flush()
+
+    total_questions = len(quiz_questions) or len(answers)
+    score = round((correct_count / total_questions) * 100, 2) if total_questions > 0 else 0.0
+    passing_status = "PASS" if score >= float(module.passing_criteria) else "FAIL"
+
+    quiz_attempt.score = score
+    quiz_attempt.passing_status = passing_status
+    await db.flush()
+
+    if passing_status == "PASS":
+        progress.status = "COMPLETED"
+        progress.completed_date = func.now()
+        await db.flush()
+
+    return {
+        "attempt_id": quiz_attempt.id,
+        "module_id": module.id,
+        "attempt_number": attempt_number,
+        "total_questions": total_questions,
+        "correct_answers": correct_count,
+        "score": score,
+        "passing_status": passing_status,
+        "passing_criteria": float(module.passing_criteria),
+        "responses": [
+            {
+                "question_id": r.question_id,
+                "question_text": r.question_text,
+                "employee_answer": r.employee_answer,
+                "correct_answer": r.correct_answer,
+                "is_correct": r.is_correct,
+            }
+            for r in response_models
+        ],
+    }

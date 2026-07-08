@@ -18,6 +18,7 @@ import AssessmentsListContainer from "./containers/AssessmentsListContainer/Asse
 import SettingsContainer from "./containers/SettingsContainer/SettingsContainer";
 import EmployeeLearningPath from "./containers/LearningPathsContainer/EmployeeLearningPath";
 import OnboardingCandidateContainer from "./containers/OnboardingCandidateContainer";
+import ModuleDetailContainer from "./containers/ModuleDetailContainer";
 import AdminProtectedRoute from "./components/adminProtectedRoute/AdminProtectedRoute";
 import AdminDashboard from "./containers/AdminDashboard";
 import AdminLayout from "./containers/AdminLayout";
@@ -72,6 +73,7 @@ function App() {
           <Route path={client.SETTINGS} element={<SettingsContainer />} />
           <Route path={client.ASSESSMENTS} element={<AssessmentsListContainer />} />
           <Route path={client.ONBOARDING_CANDIDATE} element={<OnboardingCandidateContainer />} />
+          <Route path={client.MODULE_DETAIL} element={<ModuleDetailContainer />} />
           {/*<Route path="learning-paths" element={<LearningPathsContainer />} /> */}
           <Route path="learning-paths" element={<EmployeeLearningPath />} />
           <Route path="learning-paths/:learningPathId" element={<EmployeeLearningPath />} />
