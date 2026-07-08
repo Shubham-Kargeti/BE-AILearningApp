@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import Optional
+
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -98,6 +101,99 @@ async def get_employee_video_progress(
     return result.scalar_one_or_none()
 
 
+async def update_employee_video_progress(
+    db: AsyncSession,
+    employee_progress_id: int,
+    video_url: str,
+    current_duration_seconds: int,
+    total_duration_seconds: int,
+    completion_percentage: float,
+    is_completed: bool,
+):
+    """Create or update video progress for an employee module."""
+
+    result = await db.execute(
+        select(OnboardingModuleVideoProgress).where(
+            OnboardingModuleVideoProgress.employee_progress_id == employee_progress_id
+        )
+    )
+    video_progress = result.scalar_one_or_none()
+
+    if video_progress:
+        if video_url:
+            video_progress.video_url = video_url
+        video_progress.current_duration_seconds = current_duration_seconds
+        video_progress.total_duration_seconds = total_duration_seconds
+        video_progress.completion_percentage = completion_percentage
+        video_progress.is_completed = is_completed
+        if is_completed and not video_progress.completed_date:
+            video_progress.completed_date = func.now()
+    else:
+        final_video_url = video_url or "https://puneetbanga15.github.io/bcg-onboarding/videos/unknown.mp4"
+        video_progress = OnboardingModuleVideoProgress(
+            employee_progress_id=employee_progress_id,
+            video_url=final_video_url,
+            current_duration_seconds=current_duration_seconds,
+            total_duration_seconds=total_duration_seconds,
+            completion_percentage=completion_percentage,
+            is_completed=is_completed,
+            completed_date=func.now() if is_completed else None,
+        )
+        db.add(video_progress)
+
+    await db.flush()
+    await db.refresh(video_progress)
+    return {
+        "id": video_progress.id,
+        "employee_progress_id": video_progress.employee_progress_id,
+        "video_url": video_progress.video_url,
+        "current_duration_seconds": video_progress.current_duration_seconds,
+        "total_duration_seconds": video_progress.total_duration_seconds,
+        "completion_percentage": float(video_progress.completion_percentage),
+        "is_completed": video_progress.is_completed,
+        "completed_date": video_progress.completed_date,
+        "created_date": video_progress.created_date,
+        "modified_date": video_progress.modified_date,
+    }
+
+
+async def update_employee_module_progress_status(
+    db: AsyncSession,
+    employee_progress_id: int,
+    status: str,
+    video_completed_date: Optional[datetime] = None,
+    completed_date: Optional[datetime] = None,
+):
+    """Update employee module progress status."""
+
+    result = await db.execute(
+        select(OnboardingModuleEmployeeProgress).where(
+            OnboardingModuleEmployeeProgress.id == employee_progress_id
+        )
+    )
+    progress = result.scalar_one_or_none()
+    if not progress:
+        return None
+
+    progress.status = status
+    if video_completed_date:
+        progress.video_completed_date = video_completed_date
+    if completed_date:
+        progress.completed_date = completed_date
+
+    await db.flush()
+    await db.refresh(progress)
+    return {
+        "id": progress.id,
+        "candidate_id": progress.candidate_id,
+        "module_id": progress.module_id,
+        "status": progress.status,
+        "started_date": progress.started_date,
+        "video_completed_date": progress.video_completed_date,
+        "completed_date": progress.completed_date,
+    }
+
+
 async def get_employee_quiz_attempts(
     db: AsyncSession,
     employee_progress_id: int,
@@ -196,6 +292,16 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
     }
 
 
+VIDEO_URL_MAP = {
+    "Welcome & Project Overview": "https://puneetbanga15.github.io/bcg-onboarding/videos/step1.mp4",
+    "Who's Who & Org Structure": "https://puneetbanga15.github.io/bcg-onboarding/videos/step2.mp4",
+    "Ways of Working & Tools": "https://puneetbanga15.github.io/bcg-onboarding/videos/step3.mp4",
+    "Compliance, Security & Assets": "https://puneetbanga15.github.io/bcg-onboarding/videos/step4.mp4",
+    "Leave, Reimbursements & Essentials": "https://puneetbanga15.github.io/bcg-onboarding/videos/step5.mp4",
+    "Action Checklist": "https://puneetbanga15.github.io/bcg-onboarding/videos/step6.mp4",
+}
+
+
 async def get_module_detail(db: AsyncSession, candidate_id: int, module_id: int):
     """Get full detail for a module including video, key concepts, and quiz."""
 
@@ -204,24 +310,47 @@ async def get_module_detail(db: AsyncSession, candidate_id: int, module_id: int)
         return None
 
     progress = await get_employee_module_progress(db, candidate_id, module.id)
-    video_progress = await get_employee_video_progress(db, progress.id) if progress else None
+    if not progress:
+        progress = OnboardingModuleEmployeeProgress(
+            candidate_id=candidate_id,
+            module_id=module.id,
+            status="NOT_STARTED",
+        )
+        db.add(progress)
+        await db.flush()
+
+    video_progress = await get_employee_video_progress(db, progress.id)
     video_url = video_progress.video_url if video_progress else None
+
+    if not video_progress:
+        video_url = VIDEO_URL_MAP.get(module.title)
+        if video_url:
+            video_progress = OnboardingModuleVideoProgress(
+                employee_progress_id=progress.id,
+                video_url=video_url,
+                current_duration_seconds=0,
+                total_duration_seconds=0,
+                completion_percentage=0.0,
+                is_completed=False,
+                completed_date=None,
+            )
+            db.add(video_progress)
+            await db.flush()
 
     key_concepts = await get_onboarding_module_key_concepts(db, module.id)
     quiz_questions = await get_onboarding_module_quiz(db, module.id)
 
     quiz_attempts = []
-    if progress:
-        attempts = await get_employee_quiz_attempts(db, progress.id)
-        for attempt in attempts:
-            responses = await get_quiz_attempt_responses(db, attempt.id)
-            attempt.responses = responses
-            quiz_attempts.append(attempt)
+    attempts = await get_employee_quiz_attempts(db, progress.id)
+    for attempt in attempts:
+        responses = await get_quiz_attempt_responses(db, attempt.id)
+        attempt.responses = responses
+        quiz_attempts.append(attempt)
 
     return {
         "module": module,
         "video_url": video_url,
-        "video_completed": progress.video_completed_date is not None if progress else False,
+        "video_completed": progress.video_completed_date is not None,
         "key_concepts": key_concepts,
         "quiz_questions": quiz_questions,
         "quiz_attempts": quiz_attempts,

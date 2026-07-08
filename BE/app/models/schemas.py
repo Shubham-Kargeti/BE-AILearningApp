@@ -671,3 +671,27 @@ class QuizSubmitResponse(BaseModel):
     passing_status: str
     passing_criteria: float
     responses: List[QuizQuestionResultItem]
+
+
+class VideoProgressUpdateRequest(BaseModel):
+    """Request schema for updating video progress."""
+    current_duration_seconds: int
+    total_duration_seconds: int
+    completion_percentage: float
+    is_completed: bool
+
+
+class VideoProgressResponse(BaseModel):
+    """Response schema for video progress."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    employee_progress_id: int
+    video_url: Optional[str] = None
+    current_duration_seconds: int
+    total_duration_seconds: Optional[int] = None
+    completion_percentage: float
+    is_completed: bool
+    completed_date: Optional[datetime] = None
+    created_date: Optional[datetime] = None
+    modified_date: Optional[datetime] = None

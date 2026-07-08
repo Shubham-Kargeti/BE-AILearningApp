@@ -310,6 +310,234 @@ async def seed_module_quiz(db: AsyncSession) -> None:
                 },
             ],
         },
+        {
+            "title": "Ways of Working & Tools",
+            "quiz_data": [
+                {
+                    "question_text": "Which tool is primarily used for project task tracking?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Jira",
+                        "PowerPoint",
+                        "Outlook calendar only",
+                        "Files shared on chat",
+                    ],
+                    "correct_answer": "Jira",
+                    "display_order": 1,
+                    "points": 1,
+                },
+                {
+                    "question_text": "A daily 15-minute check-in with your team is most likely referring to which ritual?",
+                    "question_type": "SCENARIO",
+                    "choices": [
+                        "Daily standup",
+                        "Monthly business review",
+                        "Quarterly planning",
+                        "Annual appraisal",
+                    ],
+                    "correct_answer": "Daily standup",
+                    "display_order": 2,
+                    "points": 1,
+                },
+                {
+                    "question_text": "Where should work-related project updates normally be recorded instead of personal chat threads?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Confluence and Jira",
+                        "Personal notes only",
+                        "WhatsApp group",
+                        "Email drafts",
+                    ],
+                    "correct_answer": "Confluence and Jira",
+                    "display_order": 3,
+                    "points": 1,
+                },
+                {
+                    "question_text": "What is the best practice when a feedback item is assigned to you after a review session?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Acknowledge it and create a follow-up action",
+                        "Ignore it until reminded again",
+                        "Forward it to another teammate",
+                        "Delete the feedback note",
+                    ],
+                    "correct_answer": "Acknowledge it and create a follow-up action",
+                    "display_order": 4,
+                    "points": 1,
+                },
+            ],
+        },
+        {
+            "title": "Compliance, Security & Assets",
+            "quiz_data": [
+                {
+                    "question_text": "Which action is safest when you receive an external email with an unexpected attachment?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Do not open it and report it to IT security",
+                        "Open it immediately to check what it contains",
+                        "Forward it to friends in the team",
+                        "Upload it to a shared drive first",
+                    ],
+                    "correct_answer": "Do not open it and report it to IT security",
+                    "display_order": 1,
+                    "points": 1,
+                },
+                {
+                    "question_text": "Who must approve access to sensitive project data before you share it outside the workspace?",
+                    "question_type": "SCENARIO",
+                    "choices": [
+                        "Your Delivery Lead and Information Security",
+                        "Any peer in the same project",
+                        "The office admin team only",
+                        "No approval is needed for internal data",
+                    ],
+                    "correct_answer": "Your Delivery Lead and Information Security",
+                    "display_order": 2,
+                    "points": 1,
+                },
+                {
+                    "question_text": "What is the main purpose of an NDA in client engagements?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Protect confidential client and company information",
+                        "Speed up laptop setup",
+                        "Record daily attendance",
+                        "Assign parking slots",
+                    ],
+                    "correct_answer": "Protect confidential client and company information",
+                    "display_order": 3,
+                    "points": 1,
+                },
+                {
+                    "question_text": "If you lose your company laptop or mobile device, what should you do first?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Report it to IT security immediately",
+                        "Wait to see if someone returns it",
+                        "Buy a replacement yourself",
+                        "Use personal email to recover accounts only",
+                    ],
+                    "correct_answer": "Report it to IT security immediately",
+                    "display_order": 4,
+                    "points": 1,
+                },
+            ],
+        },
+        {
+            "title": "Leave, Reimbursements & Essentials",
+            "quiz_data": [
+                {
+                    "question_text": "Which platform is typically used for travel and expense reimbursements?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "SAP Concur",
+                        "Jira",
+                        "Slack expense bot",
+                        "Personal spreadsheet",
+                    ],
+                    "correct_answer": "SAP Concur",
+                    "display_order": 1,
+                    "points": 1,
+                },
+                {
+                    "question_text": "Before taking planned leave, what is the minimum expected action?",
+                    "question_type": "SCENARIO",
+                    "choices": [
+                        "Apply in the leave system and inform your lead",
+                        "Message your team only on chat",
+                        "Wait until returning from leave",
+                        "Send a personal email to HR only",
+                    ],
+                    "correct_answer": "Apply in the leave system and inform your lead",
+                    "display_order": 2,
+                    "points": 1,
+                },
+                {
+                    "question_text": "What is the best source for upcoming public holidays and blackout dates?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Official company holiday calendar",
+                        "Teammate memory",
+                        "Random website",
+                        "Previous year's calendar by guess",
+                    ],
+                    "correct_answer": "Official company holiday calendar",
+                    "display_order": 3,
+                    "points": 1,
+                },
+                {
+                    "question_text": "Which detail is most important while submitting an expense claim?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Valid receipt, correct amount, and relevant project/cost center",
+                        "Screenshot of payment app only",
+                        "Colleague approval text message",
+                        "Only the total amount",
+                    ],
+                    "correct_answer": "Valid receipt, correct amount, and relevant project/cost center",
+                    "display_order": 4,
+                    "points": 1,
+                },
+            ],
+        },
+        {
+            "title": "Action Checklist",
+            "quiz_data": [
+                {
+                    "question_text": "What is the main purpose of the final action checklist module?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Confirm all onboarding actions are complete before clearance",
+                        "Schedule another training session",
+                        "Request a new laptop",
+                        "Reset your passwords",
+                    ],
+                    "correct_answer": "Confirm all onboarding actions are complete before clearance",
+                    "display_order": 1,
+                    "points": 1,
+                },
+                {
+                    "question_text": "If a checklist item is incomplete, what should you do before requesting engagement clearance?",
+                    "question_type": "SCENARIO",
+                    "choices": [
+                        "Complete or escalate the missing item first",
+                        "Ignore it if the project is urgent",
+                        "Ask another new joinee to mark it done",
+                        "Skip it and submit anyway",
+                    ],
+                    "correct_answer": "Complete or escalate the missing item first",
+                    "display_order": 2,
+                    "points": 1,
+                },
+                {
+                    "question_text": "Which document or confirmation typically signals onboarding completion?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Engagement Clearance Certificate / completion confirmation",
+                        "Badge request form only",
+                        "Welcome email",
+                        "Parking pass",
+                    ],
+                    "correct_answer": "Engagement Clearance Certificate / completion confirmation",
+                    "display_order": 3,
+                    "points": 1,
+                },
+                {
+                    "question_text": "What should you do after successfully completing the final checklist?",
+                    "question_type": "MCQ",
+                    "choices": [
+                        "Confirm completion and inform your lead",
+                        "Delete all onboarding emails",
+                        "Uninstall onboarding apps",
+                        "Reset the HRMS profile",
+                    ],
+                    "correct_answer": "Confirm completion and inform your lead",
+                    "display_order": 4,
+                    "points": 1,
+                },
+            ],
+        },
     ]
 
     for item in modules_to_seed:
@@ -405,6 +633,121 @@ async def seed_module_key_concepts(db: AsyncSession) -> None:
                     "title": "Tools for Visibility",
                     "description": "Use the org chart tool, HRMS, and project roster to understand team structures, reporting lines, and contact information.",
                     "display_order": 5,
+                },
+            ],
+        },
+        {
+            "title": "Ways of Working & Tools",
+            "concepts": [
+                {
+                    "title": "Agile Delivery Rhythms",
+                    "description": "Daily standups, sprint planning, review, and retrospective ceremonies keep delivery predictable and aligned.",
+                    "display_order": 1,
+                },
+                {
+                    "title": "Task Tracking",
+                    "description": "Jira tickets should be kept current with status, assignee, blockers, and acceptance criteria.",
+                    "display_order": 2,
+                },
+                {
+                    "title": "Documentation Standards",
+                    "description": "Confluence pages should be updated after major decisions, incidents, and handovers.",
+                    "display_order": 3,
+                },
+                {
+                    "title": "Communication Etiquette",
+                    "description": "Use Slack for instant messaging, email for formal comms, calendar invites for meetings, and project tools for work artifacts.",
+                    "display_order": 4,
+                },
+                {
+                    "title": "Feedback Norms",
+                    "description": "Give timely, specific, behavior-focused feedback; receive it without defensiveness and convert it into actions.",
+                    "display_order": 5,
+                },
+            ],
+        },
+        {
+            "title": "Compliance, Security & Assets",
+            "concepts": [
+                {
+                    "title": "Data Classification",
+                    "description": "Understand public, internal, confidential, and restricted data labels, and handle information accordingly.",
+                    "display_order": 1,
+                },
+                {
+                    "title": "Secure Laptop Setup",
+                    "description": "Enable encryption, VPN, antivirus, auto-lock, and approved browser extensions before accessing systems.",
+                    "display_order": 2,
+                },
+                {
+                    "title": "Phishing Awareness",
+                    "description": "Look for suspicious sender addresses, unexpected attachments, urgency tricks, and mismatched URLs.",
+                    "display_order": 3,
+                },
+                {
+                    "title": "Incident Reporting",
+                    "description": "Report suspected breaches, lost devices, and policy violations immediately to the security team.",
+                    "display_order": 4,
+                },
+                {
+                    "title": "Audit Readiness",
+                    "description": "Keep approvals, training records, and access logs current for internal and client audits.",
+                    "display_order": 5,
+                },
+            ],
+        },
+        {
+            "title": "Leave, Reimbursements & Essentials",
+            "concepts": [
+                {
+                    "title": "Leave Workflow",
+                    "description": "Apply in the leave system, notify your lead, and ensure handover notes exist before long absences.",
+                    "display_order": 1,
+                },
+                {
+                    "title": "Expense Submission",
+                    "description": "Submit within policy timelines with valid receipts and correct cost center/code mapping.",
+                    "display_order": 2,
+                },
+                {
+                    "title": "Holiday Calendar",
+                    "description": "Use the official holiday calendar to plan delivery milestones, client coverage, and release schedules.",
+                    "display_order": 3,
+                },
+                {
+                    "title": "Work Package IDs",
+                    "description": "Always tag time and expenses to the correct work package or project code for accurate billing.",
+                    "display_order": 4,
+                },
+                {
+                    "title": "Support Contacts",
+                    "description": "Know the right contacts for HR, IT, facilities, finance, and compliance questions.",
+                    "display_order": 5,
+                },
+            ],
+        },
+        {
+            "title": "Action Checklist",
+            "concepts": [
+                {
+                    "title": "Completion Criteria",
+                    "description": "All mandatory setup, training, approvals, and acknowledgement steps must be marked complete before clearance.",
+                    "display_order": 1,
+                },
+                {
+                    "title": "Escalation Path",
+                    "description": "If a checklist item is blocked, escalate to your lead or HR contact with clear blockers and timelines.",
+                    "display_order": 2,
+                },
+                {
+                    "title": "Documentation Handoff",
+                    "description": "Ensure account setups, access lists, onboarding notes, and asset handovers are documented.",
+                    "display_order": 3,
+                },
+                {
+                    "title": "Final Confirmation",
+                    "description": "Confirm completion formally, get acknowledgment, and retain onboarding closure evidence.",
+                    "display_order": 4,
                 },
             ],
         },
@@ -562,12 +905,11 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
             "quiz": {"attempts": []},
         },
         "Ways of Working & Tools": {
-            "status": "VIDEO_IN_PROGRESS",
-            "started_date": now - timedelta(days=1),
+            "status": "NOT_STARTED",
+            "started_date": None,
             "video_completed_date": None,
             "completed_date": None,
-            "video": {"current": 320, "total": 711, "pct": 45.0, "completed": False,
-                      "completed_date": None},
+            "video": None,
             "quiz": {"attempts": []},
         },
         "Compliance, Security & Assets": {
@@ -638,27 +980,47 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
         )
         video_record = existing_video.scalar_one_or_none()
 
-        if state["video"]:
-            v = state["video"]
-            video_url = VIDEO_URLS.get(title, "https://example.com/videos/unknown.mp4")
-            if video_record:
-                video_record.video_url = video_url
-                video_record.current_duration_seconds = v["current"]
-                video_record.total_duration_seconds = v["total"]
-                video_record.completion_percentage = v["pct"]
-                video_record.is_completed = v["completed"]
-                video_record.completed_date = v["completed_date"]
+        video_url = VIDEO_URLS.get(title)
+        if video_url:
+            if state["video"]:
+                v = state["video"]
+                if video_record:
+                    video_record.video_url = video_url
+                    video_record.current_duration_seconds = v["current"]
+                    video_record.total_duration_seconds = v["total"]
+                    video_record.completion_percentage = v["pct"]
+                    video_record.is_completed = v["completed"]
+                    video_record.completed_date = v["completed_date"]
+                else:
+                    video_progress = OnboardingModuleVideoProgress(
+                        employee_progress_id=progress.id,
+                        video_url=video_url,
+                        current_duration_seconds=v["current"],
+                        total_duration_seconds=v["total"],
+                        completion_percentage=v["pct"],
+                        is_completed=v["completed"],
+                        completed_date=v["completed_date"],
+                    )
+                    db.add(video_progress)
             else:
-                video_progress = OnboardingModuleVideoProgress(
-                    employee_progress_id=progress.id,
-                    video_url=video_url,
-                    current_duration_seconds=v["current"],
-                    total_duration_seconds=v["total"],
-                    completion_percentage=v["pct"],
-                    is_completed=v["completed"],
-                    completed_date=v["completed_date"],
-                )
-                db.add(video_progress)
+                if video_record:
+                    video_record.video_url = video_url
+                    video_record.current_duration_seconds = 0
+                    video_record.total_duration_seconds = 0
+                    video_record.completion_percentage = 0.0
+                    video_record.is_completed = False
+                    video_record.completed_date = None
+                else:
+                    video_progress = OnboardingModuleVideoProgress(
+                        employee_progress_id=progress.id,
+                        video_url=video_url,
+                        current_duration_seconds=0,
+                        total_duration_seconds=0,
+                        completion_percentage=0.0,
+                        is_completed=False,
+                        completed_date=None,
+                    )
+                    db.add(video_progress)
         elif video_record:
             await db.delete(video_record)
 

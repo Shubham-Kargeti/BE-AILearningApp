@@ -86,3 +86,14 @@ export interface QuizSubmitResponse {
     is_correct: boolean | null;
   }>;
 }
+
+export interface VideoProgressResponse {
+  id: number;
+  employee_progress_id: number;
+  video_url: string | null;
+  current_duration_seconds: number;
+  total_duration_seconds: number | null;
+  completion_percentage: number;
+  is_completed: boolean;
+  completed_date: string | null;
+}

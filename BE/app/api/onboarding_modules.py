@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
 
 from app.db.session import get_db
 from app.db.models import OnboardingModule
@@ -15,6 +16,8 @@ from app.models.schemas import (
     EmployeeOnboardingProgressSummaryResponse,
     ModuleDetailResponse,
     QuizSubmitResponse,
+    VideoProgressUpdateRequest,
+    VideoProgressResponse,
 )
 from app.services.onboarding_module_service import (
     get_onboarding_modules,
@@ -28,6 +31,8 @@ from app.services.onboarding_module_service import (
     get_employee_onboarding_progress_summary,
     get_module_detail,
     submit_quiz_attempt,
+    update_employee_video_progress,
+    update_employee_module_progress_status,
 )
 
 
@@ -183,6 +188,42 @@ async def get_module_quiz_attempts(
         attempt.responses = responses
     
     return quiz_attempts
+
+
+@router.patch(
+    "/module-detail/{module_id}/video-progress",
+    response_model=VideoProgressResponse,
+)
+async def update_module_video_progress(
+    module_id: int,
+    payload: VideoProgressUpdateRequest,
+    candidate_id: int = Query(..., description="Candidate ID"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update video progress for an employee module."""
+    progress = await get_employee_module_progress(db, candidate_id, module_id)
+    if not progress:
+        raise HTTPException(404, "Employee progress not found")
+
+    video_progress = await update_employee_video_progress(
+        db,
+        progress.id,
+        "",
+        payload.current_duration_seconds,
+        payload.total_duration_seconds,
+        payload.completion_percentage,
+        payload.is_completed,
+    )
+
+    if payload.is_completed:
+        await update_employee_module_progress_status(
+            db,
+            progress.id,
+            "VIDEO_COMPLETED",
+            video_completed_date=datetime.utcnow(),
+        )
+
+    return video_progress
 
 
 @router.get(

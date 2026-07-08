@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Box,
@@ -36,9 +36,86 @@ const ModuleDetailContainer = () => {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [quizResult, setQuizResult] = useState<QuizSubmitResponse | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoCompleted, setVideoCompleted] = useState(false);
+  const lastVideoUpdateRef = useRef<number>(0);
+  const isVideoReady = !!data?.video_url;
+
+  useEffect(() => {
+    if (!isVideoReady || !videoRef.current) return;
+
+    const video = videoRef.current;
+
+    const handleTimeUpdate = async () => {
+      if (!data?.module?.id) return;
+      const current = Math.floor(video.currentTime || 0);
+      const total = Math.floor(video.duration || 0);
+      if (total <= 0) return;
+
+      const now = Date.now();
+      if (now - lastVideoUpdateRef.current < 2000) {
+        return;
+      }
+
+      const percentage = Math.round((current / total) * 100);
+      const isCompleted = percentage >= 95;
+
+      try {
+        const updated = await onboardingModuleService.updateVideoProgress(1, Number(moduleId), {
+          current_duration_seconds: current,
+          total_duration_seconds: total,
+          completion_percentage: percentage,
+          is_completed: isCompleted,
+        });
+        if (updated && isCompleted) {
+          setVideoCompleted(true);
+        }
+      } catch (err) {
+        if (err instanceof AxiosError) {
+          console.error("Video progress update failed", err.response?.data || err.message);
+        } else {
+          console.error("Video progress update failed", err);
+        }
+      } finally {
+        lastVideoUpdateRef.current = Date.now();
+      }
+    };
+
+    const handleEnded = async () => {
+      if (!data?.module?.id) return;
+      const total = Math.floor(video.duration || 0);
+      try {
+        const updated = await onboardingModuleService.updateVideoProgress(1, Number(moduleId), {
+          current_duration_seconds: total,
+          total_duration_seconds: total,
+          completion_percentage: 100,
+          is_completed: true,
+        });
+        if (updated) {
+          setVideoCompleted(true);
+        }
+      } catch (err) {
+        if (err instanceof AxiosError) {
+          console.error("Video completion update failed", err.response?.data || err.message);
+        } else {
+          console.error("Video completion update failed", err);
+        }
+      }
+    };
+
+    video.addEventListener("timeupdate", handleTimeUpdate);
+    video.addEventListener("ended", handleEnded);
+
+    return () => {
+      video.removeEventListener("timeupdate", handleTimeUpdate);
+      video.removeEventListener("ended", handleEnded);
+    };
+  }, [isVideoReady, data?.module?.id, moduleId]);
 
   const hasExistingAttempt = !!data?.quiz_attempts?.length;
   const lastAttempt = hasExistingAttempt ? data.quiz_attempts[0] : null;
+  const isQuizReadOnly = (quizResult?.passing_status === "PASS") ||
+                         (hasExistingAttempt && lastAttempt?.passing_status === "PASS");
 
   useEffect(() => {
     if (!data?.quiz_attempts?.length) return;
@@ -58,6 +135,14 @@ const ModuleDetailContainer = () => {
     setSubmitted(false);
     setQuizResult(null);
   }, [data?.quiz_attempts, data?.quiz_questions]);
+
+  useEffect(() => {
+    if (!isVideoReady || !videoRef.current) return;
+    const video = videoRef.current;
+    if (data.video_completed && !videoCompleted) {
+      video.currentTime = video.duration || 0;
+    }
+  }, [isVideoReady, data?.video_completed, videoCompleted]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -151,12 +236,10 @@ const ModuleDetailContainer = () => {
   }
 
   const isVideoAvailable = !!data.video_url;
-  const isQuizLocked = !data.video_completed && !hasExistingAttempt;
+  const isQuizLocked = !data.video_completed && !hasExistingAttempt && !videoCompleted;
   const allQuestionsAnswered = data.quiz_questions.every((q) => getAnswerValue(q.id).trim() !== "");
   const answeredCount = data.quiz_questions.filter((q) => getAnswerValue(q.id).trim() !== "").length;
   const answeredPercentage = data.quiz_questions.length > 0 ? Math.round((answeredCount / data.quiz_questions.length) * 100) : 0;
-  const isQuizReadOnly = (quizResult?.passing_status === "PASS") ||
-                         (hasExistingAttempt && lastAttempt?.passing_status === "PASS");
   const canSubmit = !isQuizLocked && !isQuizReadOnly && !isSubmitting && allQuestionsAnswered;
 
   return (
@@ -185,6 +268,7 @@ const ModuleDetailContainer = () => {
 
               {isVideoAvailable ? (
                 <video
+                  ref={videoRef}
                   className="module-detail-video"
                   controls
                   controlsList="nodownload"
