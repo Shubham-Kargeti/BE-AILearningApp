@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -7,100 +8,24 @@ import {
   LinearProgress,
   Typography,
 } from "@mui/material";
+import type { AxiosError } from "axios";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import LockIcon from "@mui/icons-material/Lock";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
+import { onboardingModuleService } from "../../API/onboarding_module.service";
+import type {
+  EmployeeOnboardingProgressSummaryResponse,
+  EmployeeModuleProgressSummaryItem,
+} from "../../API/onboarding_module.model";
 import "./OnboardingCandidateContainer.scss";
 
-type OnboardingModule = {
+type ModuleItem = {
   module_no: number;
   title: string;
   description: string;
   passing_criteria: string;
-  date: string;
-  icon_path: string;
-  status: "completed" | "in_progress" | "locked";
+  status: "completed" | "in_progress" | "locked" | "unlocked";
 };
-
-const createModuleIconPath = (
-  moduleNo: number,
-  background: string,
-  primary: string,
-  secondary: string
-) => {
-  const svg = `
-    <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="56" height="56" rx="14" fill="${background}"/>
-      <rect x="14" y="14" width="28" height="28" rx="10" fill="url(#paint0_linear)"/>
-      <text x="28" y="34" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="800" fill="white">${moduleNo}</text>
-      <defs>
-        <linearGradient id="paint0_linear" x1="14" y1="14" x2="42" y2="42" gradientUnits="userSpaceOnUse">
-          <stop stop-color="${primary}"/>
-          <stop offset="1" stop-color="${secondary}"/>
-        </linearGradient>
-      </defs>
-    </svg>
-  `;
-
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
-};
-
-const onboardingModules: OnboardingModule[] = [
-  {
-    module_no: 1,
-    title: "Welcome & Project Overview",
-    description: "BCG overview, dual-laptop policy, office setup, and key onboarding expectations.",
-    passing_criteria: "80",
-    date: "2026-07-08",
-    icon_path: createModuleIconPath(1, "#eef2ff", "#667eea", "#764ba2"),
-    status: "in_progress",
-  },
-  {
-    module_no: 2,
-    title: "Who's Who & Org Structure",
-    description: "Nagarro and BCG hierarchy, escalation paths, and stakeholder communication.",
-    passing_criteria: "80",
-    date: "",
-    icon_path: createModuleIconPath(2, "#fce7f3", "#f093fb", "#f5576c"),
-    status: "locked",
-  },
-  {
-    module_no: 3,
-    title: "Ways of Working & Tools",
-    description: "Agile rituals, Slack, Jira, timesheets, leave process, and collaboration norms.",
-    passing_criteria: "80",
-    date: "",
-    icon_path: createModuleIconPath(3, "#e0f2fe", "#4facfe", "#00f2fe"),
-    status: "locked",
-  },
-  {
-    module_no: 4,
-    title: "Security & Compliance",
-    description: "Data protection basics, secure access, client confidentiality, and policy checks.",
-    passing_criteria: "80",
-    date: "",
-    icon_path: createModuleIconPath(4, "#fef3c7", "#f59e0b", "#f97316"),
-    status: "locked",
-  },
-  {
-    module_no: 5,
-    title: "Delivery Quality Standards",
-    description: "Definition of done, review expectations, documentation, and quality checkpoints.",
-    passing_criteria: "80",
-    date: "",
-    icon_path: createModuleIconPath(5, "#dcfce7", "#43e97b", "#38f9d7"),
-    status: "locked",
-  },
-  {
-    module_no: 6,
-    title: "Final Readiness Assessment",
-    description: "Complete the final quiz and confirm readiness for project onboarding.",
-    passing_criteria: "80",
-    date: "",
-    icon_path: createModuleIconPath(6, "#ffe4e6", "#fa709a", "#fee140"),
-    status: "locked",
-  },
-];
 
 const statusConfig = {
   completed: {
@@ -111,36 +36,106 @@ const statusConfig = {
     label: "In Progress",
     icon: <PlayCircleOutlineIcon />,
   },
+  unlocked: {
+    label: "Unlocked",
+    icon: <PlayCircleOutlineIcon />,
+  },
   locked: {
     label: "Locked",
     icon: <LockIcon />,
   },
 };
 
-const formatModuleDate = (date: string) => {
-  if (!date) return "Not started";
-  const parsedDate = new Date(date);
-  if (Number.isNaN(parsedDate.getTime())) return "Not started";
+const mapSummaryModulesToUi = (
+  module: EmployeeModuleProgressSummaryItem
+): ModuleItem => {
+  const rawStatus = (module.status || "LOCKED").toUpperCase();
 
-  return parsedDate.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  if (rawStatus === "COMPLETED") {
+    return {
+      module_no: module.rank,
+      title: module.title,
+      description: module.description || "",
+      passing_criteria: String(Math.round(module.passing_criteria)),
+      status: "completed",
+    };
+  }
+
+  if (
+    rawStatus === "QUIZ_IN_PROGRESS" ||
+    rawStatus === "VIDEO_IN_PROGRESS" ||
+    rawStatus === "VIDEO_COMPLETED"
+  ) {
+    return {
+      module_no: module.rank,
+      title: module.title,
+      description: module.description || "",
+      passing_criteria: String(Math.round(module.passing_criteria)),
+      status: "in_progress",
+    };
+  }
+
+  return {
+    module_no: module.rank,
+    title: module.title,
+    description: module.description || "",
+    passing_criteria: String(Math.round(module.passing_criteria)),
+    status: module.is_unlocked ? "unlocked" : "locked",
+  };
 };
 
 const OnboardingCandidateContainer = () => {
+  const [modules, setModules] = useState<ModuleItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [totalModules, setTotalModules] = useState(0);
+  const [completedModules, setCompletedModules] = useState(0);
+  const [remainingModules, setRemainingModules] = useState(0);
+  const [overallProgress, setOverallProgress] = useState(0);
+
   const userEmail = localStorage.getItem("loggedInUser") || localStorage.getItem("userEmail");
   const userName = userEmail ? userEmail.split(".")[0].charAt(0).toUpperCase() + userEmail.split(".")[0].slice(1) : "User";
 
-  const completedModules = onboardingModules.filter(
-    (module) => module.status === "completed"
-  ).length;
-  const totalModules = onboardingModules.length;
-  const remainingModules = totalModules - completedModules;
-  const overallProgress = totalModules
-    ? Math.round((completedModules / totalModules) * 100)
-    : 0;
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const data: EmployeeOnboardingProgressSummaryResponse = await onboardingModuleService.getEmployeeProgressSummary(1);
+        setTotalModules(data.total_modules);
+        setCompletedModules(data.completed_modules);
+        setRemainingModules(data.remaining_modules);
+        setOverallProgress(data.overall_progress_percentage);
+
+        const mapped = data.modules.map(mapSummaryModulesToUi);
+        setModules(mapped);
+      } catch (err) {
+        if (err instanceof AxiosError) {
+          setError(err.response?.data?.detail || "Failed to load onboarding modules");
+        } else {
+          setError("Failed to load onboarding modules");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <Box className="onboarding-candidate-container" sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+        <Typography sx={{ color: "#fff" }}>Loading modules...</Typography>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box className="onboarding-candidate-container" sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+        <Typography sx={{ color: "#fff" }}>{error}</Typography>
+      </Box>
+    );
+  }
 
   return (
     <main className="onboarding-candidate-container">
@@ -196,7 +191,7 @@ const OnboardingCandidateContainer = () => {
         </div>
 
         <div className="onboarding-module-grid">
-          {onboardingModules.map((module) => {
+          {modules.map((module) => {
             const config = statusConfig[module.status];
             const isLocked = module.status === "locked";
 
@@ -208,11 +203,6 @@ const OnboardingCandidateContainer = () => {
                 key={module.module_no}
               >
                 <CardContent>
-                  <div className="onboarding-module-card__top">
-                    <span>Module {module.module_no}</span>
-                    <img src={module.icon_path} alt="" aria-hidden="true" />
-                  </div>
-
                   <Typography component="h3" className="onboarding-module-card__title">
                     {module.title}
                   </Typography>
@@ -230,7 +220,6 @@ const OnboardingCandidateContainer = () => {
                       label={config.label}
                       className={`onboarding-status onboarding-status--${module.status}`}
                     />
-                    <span>{formatModuleDate(module.date)}</span>
                   </div>
 
                   <Button
@@ -243,7 +232,9 @@ const OnboardingCandidateContainer = () => {
                       ? "Review Module"
                       : module.status === "in_progress"
                         ? "Continue Module"
-                        : "Locked"}
+                        : module.status === "unlocked"
+                          ? "Start Module"
+                          : "Locked"}
                   </Button>
                 </CardContent>
               </Card>

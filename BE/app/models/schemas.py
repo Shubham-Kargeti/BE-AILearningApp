@@ -606,3 +606,30 @@ class EmployeeModuleProgressDetailResponse(BaseModel):
     module: OnboardingModuleResponse
     video_progress: Optional[EmployeeModuleVideoProgressResponse] = None
     quiz_attempts: List[EmployeeQuizAttemptResponse] = []
+
+
+class EmployeeModuleProgressSummaryItem(BaseModel):
+    """Lightweight module summary for onboarding dashboard."""
+    model_config = ConfigDict(from_attributes=True)
+
+    module_id: int
+    title: str
+    description: Optional[str] = None
+    rank: int
+    passing_criteria: float
+    status: str
+    is_unlocked: bool
+    started_date: Optional[datetime] = None
+    video_completed_date: Optional[datetime] = None
+    completed_date: Optional[datetime] = None
+
+
+class EmployeeOnboardingProgressSummaryResponse(BaseModel):
+    """Aggregated onboarding progress summary for a candidate."""
+    model_config = ConfigDict(from_attributes=True)
+
+    total_modules: int
+    completed_modules: int
+    remaining_modules: int
+    overall_progress_percentage: float
+    modules: List[EmployeeModuleProgressSummaryItem]

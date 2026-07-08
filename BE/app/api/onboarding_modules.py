@@ -12,6 +12,7 @@ from app.models.schemas import (
     EmployeeModuleProgressDetailResponse,
     EmployeeModuleVideoProgressResponse,
     EmployeeQuizAttemptResponse,
+    EmployeeOnboardingProgressSummaryResponse,
 )
 from app.services.onboarding_module_service import (
     get_onboarding_modules,
@@ -22,6 +23,7 @@ from app.services.onboarding_module_service import (
     get_employee_video_progress,
     get_employee_quiz_attempts,
     get_quiz_attempt_responses,
+    get_employee_onboarding_progress_summary,
 )
 
 
@@ -86,6 +88,18 @@ async def list_employee_modules(
     """Get all onboarding modules and their progress for a candidate."""
     modules = await get_employee_modules(db, candidate_id)
     return modules
+
+
+@router.get(
+    "/employee-progress-summary",
+    response_model=EmployeeOnboardingProgressSummaryResponse,
+)
+async def get_employee_progress_summary(
+    candidate_id: int = Query(..., description="Candidate ID"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get aggregated onboarding stats and module list for the candidate dashboard."""
+    return await get_employee_onboarding_progress_summary(db, candidate_id)
 
 
 @router.get(

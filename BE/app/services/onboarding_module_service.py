@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -125,3 +125,72 @@ async def get_quiz_attempt_responses(
     )
     
     return result.scalars().all()
+
+
+async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_id: int):
+    """Get aggregated onboarding progress stats and module list for a candidate."""
+    
+    total_modules_result = await db.execute(
+        select(func.count(OnboardingModule.id))
+        .where(OnboardingModule.deleted_date.is_(None))
+    )
+    total_modules = total_modules_result.scalar_one() or 0
+
+    stmt = (
+        select(
+            OnboardingModule.id,
+            OnboardingModule.title,
+            OnboardingModule.description,
+            OnboardingModule.rank,
+            OnboardingModule.passing_criteria,
+            OnboardingModuleEmployeeProgress.status,
+            OnboardingModuleEmployeeProgress.started_date,
+            OnboardingModuleEmployeeProgress.video_completed_date,
+            OnboardingModuleEmployeeProgress.completed_date,
+        )
+        .join(
+            OnboardingModuleEmployeeProgress,
+            (OnboardingModule.id == OnboardingModuleEmployeeProgress.module_id)
+            & (OnboardingModuleEmployeeProgress.candidate_id == candidate_id),
+            isouter=True,
+        )
+        .where(OnboardingModule.deleted_date.is_(None))
+        .order_by(OnboardingModule.rank)
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    modules = []
+    completed_modules = 0
+    for index, row in enumerate(rows):
+        status = row.status or "LOCKED"
+        previous_status = rows[index - 1].status if index > 0 else None
+        is_unlocked = index == 0 or (previous_status or "LOCKED") == "COMPLETED"
+        modules.append({
+            "module_id": row.id,
+            "title": row.title,
+            "description": row.description,
+            "rank": row.rank,
+            "passing_criteria": float(row.passing_criteria),
+            "status": status,
+            "is_unlocked": is_unlocked,
+            "started_date": row.started_date,
+            "video_completed_date": row.video_completed_date,
+            "completed_date": row.completed_date,
+        })
+        if status == "COMPLETED":
+            completed_modules += 1
+
+    remaining_modules = total_modules - completed_modules
+    overall_progress_percentage = round(
+        (completed_modules / total_modules) * 100, 2
+    ) if total_modules > 0 else 0.0
+
+    return {
+        "total_modules": total_modules,
+        "completed_modules": completed_modules,
+        "remaining_modules": remaining_modules,
+        "overall_progress_percentage": overall_progress_percentage,
+        "modules": modules,
+    }
