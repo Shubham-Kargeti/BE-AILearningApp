@@ -957,6 +957,20 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
         },
     }
 
+    # Reset any persisted Action Checklist for the candidate so the action list
+    # starts unchecked on reseed (otherwise a previously saved/completed checklist
+    # would make every item appear checked).
+    action_module = module_by_title.get("Action Checklist")
+    if action_module:
+        existing_checklists = await db.execute(
+            select(OnboardingModuleCandidateChecklist).where(
+                OnboardingModuleCandidateChecklist.candidate_id == candidate_id,
+                OnboardingModuleCandidateChecklist.module_id == action_module.id,
+            )
+        )
+        for checklist in existing_checklists.scalars().all():
+            await db.delete(checklist)
+
     for title, state in journey.items():
         module = module_by_title.get(title)
         if not module:

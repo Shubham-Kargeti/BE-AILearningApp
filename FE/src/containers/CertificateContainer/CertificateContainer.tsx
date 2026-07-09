@@ -103,13 +103,18 @@ const CertificateContainer = () => {
     );
   }
 
-  const passingModules = data.modules.filter((m) => m.passing_status === "PASS").length;
-  const totalModules = data.modules.length;
+  // The Action Checklist module has no quiz, so exclude it from the
+  // certificate scorecard (Modules / Passed / Avg Score) calculation.
+  const quizModules = data.modules.filter((m) => m.title !== "Action Checklist");
+
+  const passingModules = quizModules.filter((m) => m.passing_status === "PASS").length;
+  const totalModules = quizModules.length;
+  const scoredScores = quizModules
+    .filter((m) => m.score !== null && m.score !== undefined)
+    .map((m) => m.score as number);
   const overallScore =
-    totalModules > 0
-      ? Math.round(
-          data.modules.reduce((sum, m) => sum + (m.score ?? 0), 0) / totalModules
-        )
+    scoredScores.length > 0
+      ? Math.round(scoredScores.reduce((sum, s) => sum + s, 0) / scoredScores.length)
       : 0;
 
   return (
