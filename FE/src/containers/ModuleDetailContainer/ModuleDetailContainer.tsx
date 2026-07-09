@@ -401,7 +401,10 @@ const ModuleDetailContainer = () => {
                     variant="contained"
                     size="large"
                     onClick={handleGenerateCertificate}
-                    disabled={isGeneratingCertificate}
+                    disabled={
+                      isGeneratingCertificate ||
+                      !(checklistItems.length > 0 && completedItemIds.size === checklistItems.length)
+                    }
                     startIcon={<SendIcon />}
                     className="module-detail-submit-btn"
                   >
@@ -533,7 +536,7 @@ const ModuleDetailContainer = () => {
                     {data.quiz_questions.map((question, index) => {
                       const answerValue = getAnswerValue(question.id);
                       const questionType = (question.question_type || "MCQ").toUpperCase();
-                      const isRadio = questionType === "MCQ" || questionType === "SCENARIO";
+                      const isRadio = questionType === "MCQ";
                       const displayChoices = question.choices && question.choices.length > 0
                         ? question.choices.map((choice, i) => ({ id: String(i + 1), text: choice }))
                         : [];

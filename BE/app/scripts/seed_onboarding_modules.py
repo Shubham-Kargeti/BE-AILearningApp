@@ -287,13 +287,8 @@ async def seed_module_quiz(db: AsyncSession) -> None:
                 {
                     "question_text": "How should a blocking delivery risk be escalated?",
                     "question_type": "SCENARIO",
-                    "choices": [
-                        "Raise it first with your Delivery Lead, then escalate to the Engagement Manager",
-                        "Post it in the general Slack channel",
-                        "Wait until the next review meeting",
-                        "Resolve it alone without escalation",
-                    ],
-                    "correct_answer": "Raise it first with your Delivery Lead, then escalate to the Engagement Manager",
+                    "choices": [],
+                    "correct_answer": "",
                     "display_order": 3,
                     "points": 1,
                 },
@@ -331,13 +326,8 @@ async def seed_module_quiz(db: AsyncSession) -> None:
                 {
                     "question_text": "A daily 15-minute check-in with your team is most likely referring to which ritual?",
                     "question_type": "SCENARIO",
-                    "choices": [
-                        "Daily standup",
-                        "Monthly business review",
-                        "Quarterly planning",
-                        "Annual appraisal",
-                    ],
-                    "correct_answer": "Daily standup",
+                    "choices": [],
+                    "correct_answer": "",
                     "display_order": 2,
                     "points": 1,
                 },

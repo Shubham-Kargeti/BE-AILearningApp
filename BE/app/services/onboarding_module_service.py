@@ -15,6 +15,7 @@ from app.db.models import (
     OnboardingModuleQuizResponseModel,
     OnboardingModuleActionItem,
     OnboardingModuleCandidateChecklist,
+    QuestionType,
 )
 
 
@@ -399,6 +400,12 @@ async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: in
         is_correct = False
         if correct_answer is not None and answer["answer"] is not None:
             is_correct = str(answer["answer"]).strip().lower() == str(correct_answer).strip().lower()
+
+        # Scenario-based questions have no predefined correct answer; consider any
+        # non-empty candidate answer as correct for now.
+        if question and question.question_type == QuestionType.SCENARIO and answer["answer"]:
+            is_correct = True
+
         if is_correct:
             correct_count += 1
 
