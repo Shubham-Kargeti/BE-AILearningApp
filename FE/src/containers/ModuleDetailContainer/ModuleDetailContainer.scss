@@ -284,6 +284,25 @@
   }
 }
 
+.module-detail-next-btn {
+  border-color: #4f46e5 !important;
+  color: #4338ca !important;
+  text-transform: none !important;
+  font-weight: 800 !important;
+  border-radius: 8px !important;
+  padding: 0.7rem 1.5rem !important;
+
+  &:hover {
+    border-color: #4338ca !important;
+    background: #eef2ff !important;
+  }
+
+  &.Mui-disabled {
+    border-color: #cbd5e1 !important;
+    color: #94a3b8 !important;
+  }
+}
+
 .module-detail-quiz-success {
   color: #166534;
   font-weight: 700;

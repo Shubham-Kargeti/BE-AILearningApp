@@ -656,6 +656,7 @@ class QuizQuestionResultItem(BaseModel):
     employee_answer: Optional[str] = None
     correct_answer: Optional[str] = None
     is_correct: Optional[bool] = None
+    llm_score: Optional[int] = None
 
 
 class QuizSubmitResponse(BaseModel):

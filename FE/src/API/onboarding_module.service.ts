@@ -5,7 +5,6 @@ import type {
   ModuleDetailResponse,
   QuizSubmitResponse,
   VideoProgressResponse,
-  ActionChecklistItemResponse,
   CandidateChecklistResponse,
   CertificateResponse,
   CertificateDataResponse,
