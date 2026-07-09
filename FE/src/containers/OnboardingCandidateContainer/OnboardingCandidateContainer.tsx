@@ -122,11 +122,12 @@ const OnboardingCandidateContainer = () => {
 
   const userEmail = localStorage.getItem("loggedInUser") || localStorage.getItem("userEmail");
   const userName = userEmail ? userEmail.split(".")[0].charAt(0).toUpperCase() + userEmail.split(".")[0].slice(1) : "User";
+  const candidateId = localStorage.getItem("candidateId") || "";
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const data: EmployeeOnboardingProgressSummaryResponse = await onboardingModuleService.getEmployeeProgressSummary(1);
+        const data: EmployeeOnboardingProgressSummaryResponse = await onboardingModuleService.getEmployeeProgressSummary(candidateId);
         setTotalModules(data.total_modules);
         setCompletedModules(data.completed_modules);
         setRemainingModules(data.remaining_modules);

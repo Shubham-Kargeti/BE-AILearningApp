@@ -4,7 +4,11 @@ from datetime import datetime
 from sqlalchemy import select
 
 from app.db.session import get_db
-from app.db.models import OnboardingModule, OnboardingModuleCandidateChecklist
+from app.db.models import (
+    OnboardingModule,
+    OnboardingModuleCandidateChecklist,
+    Candidate,
+)
 from app.models.schemas import (
     OnboardingModuleDetailResponse,
     OnboardingModuleResponse,
@@ -49,6 +53,17 @@ router = APIRouter(
     prefix="/onboarding-modules",
     tags=["Onboarding Modules"],
 )
+
+
+async def resolve_candidate_id(db: AsyncSession, candidate_id: str) -> int:
+    """Resolve a public candidate_id string (e.g. 'cand_afe15b366e4a') to the integer candidates.id."""
+    result = await db.execute(
+        select(Candidate.id).where(Candidate.candidate_id == candidate_id)
+    )
+    internal_id = result.scalar_one_or_none()
+    if internal_id is None:
+        raise HTTPException(404, "Candidate not found")
+    return internal_id
 
 
 @router.get(
@@ -100,11 +115,12 @@ async def onboarding_module_key_concepts(
     response_model=list[EmployeeModuleProgressResponse],
 )
 async def list_employee_modules(
-    candidate_id: int = Query(..., description="Candidate ID"),
+    candidate_id: str = Query(..., description="Candidate ID"),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all onboarding modules and their progress for a candidate."""
-    modules = await get_employee_modules(db, candidate_id)
+    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
+    modules = await get_employee_modules(db, internal_candidate_id)
     return modules
 
 
@@ -113,11 +129,12 @@ async def list_employee_modules(
     response_model=EmployeeOnboardingProgressSummaryResponse,
 )
 async def get_employee_progress_summary(
-    candidate_id: int = Query(..., description="Candidate ID"),
+    candidate_id: str = Query(..., description="Candidate ID"),
     db: AsyncSession = Depends(get_db),
 ):
     """Get aggregated onboarding stats and module list for the candidate dashboard."""
-    return await get_employee_onboarding_progress_summary(db, candidate_id)
+    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
+    return await get_employee_onboarding_progress_summary(db, internal_candidate_id)
 
 
 @router.get(
@@ -126,11 +143,12 @@ async def get_employee_progress_summary(
 )
 async def get_employee_module_detail(
     module_id: int,
-    candidate_id: int = Query(..., description="Candidate ID"),
+    candidate_id: str = Query(..., description="Candidate ID"),
     db: AsyncSession = Depends(get_db),
 ):
     """Get detailed progress for a specific module including video and quiz data."""
-    progress = await get_employee_module_progress(db, candidate_id, module_id)
+    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
+    progress = await get_employee_module_progress(db, internal_candidate_id, module_id)
     
     if not progress:
         raise HTTPException(404, "Module progress not found")
@@ -206,11 +224,12 @@ async def get_module_quiz_attempts(
 async def update_module_video_progress(
     module_id: int,
     payload: VideoProgressUpdateRequest,
-    candidate_id: int = Query(..., description="Candidate ID"),
+    candidate_id: str = Query(..., description="Candidate ID"),
     db: AsyncSession = Depends(get_db),
 ):
     """Update video progress for an employee module."""
-    progress = await get_employee_module_progress(db, candidate_id, module_id)
+    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
+    progress = await get_employee_module_progress(db, internal_candidate_id, module_id)
     if not progress:
         raise HTTPException(404, "Employee progress not found")
 
@@ -241,11 +260,12 @@ async def update_module_video_progress(
 )
 async def read_module_detail(
     module_id: int,
-    candidate_id: int = Query(..., description="Candidate ID"),
+    candidate_id: str = Query(..., description="Candidate ID"),
     db: AsyncSession = Depends(get_db),
 ):
     """Get full module detail including video, key concepts, and quiz questions."""
-    data = await get_module_detail(db, candidate_id, module_id)
+    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
+    data = await get_module_detail(db, internal_candidate_id, module_id)
     
     if not data:
         raise HTTPException(404, "Module not found")
@@ -259,12 +279,13 @@ async def read_module_detail(
 )
 async def submit_module_quiz(
     module_id: int,
-    candidate_id: int = Query(..., description="Candidate ID"),
+    candidate_id: str = Query(..., description="Candidate ID"),
     answers: list[dict] = Body(..., description="List of answers with question_id and answer"),
     db: AsyncSession = Depends(get_db),
 ):
     """Submit quiz answers, grade against correct answers, and return result."""
-    result = await submit_quiz_attempt(db, candidate_id, module_id, answers)
+    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
+    result = await submit_quiz_attempt(db, internal_candidate_id, module_id, answers)
     
     if not result:
         raise HTTPException(404, "Module not found")
@@ -278,10 +299,11 @@ async def submit_module_quiz(
 )
 async def read_action_checklist(
     module_id: int,
-    candidate_id: int = Query(..., description="Candidate ID"),
+    candidate_id: str = Query(..., description="Candidate ID"),
     db: AsyncSession = Depends(get_db),
 ):
     """Get action checklist for a module."""
+    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
     module = await db.get(OnboardingModule, module_id)
     if not module:
         raise HTTPException(404, "Module not found")
@@ -290,7 +312,7 @@ async def read_action_checklist(
 
     checklist_result = await db.execute(
         select(OnboardingModuleCandidateChecklist).where(
-            OnboardingModuleCandidateChecklist.candidate_id == candidate_id,
+            OnboardingModuleCandidateChecklist.candidate_id == internal_candidate_id,
             OnboardingModuleCandidateChecklist.module_id == module_id,
         )
     )
@@ -302,7 +324,7 @@ async def read_action_checklist(
 
     return {
         "id": checklist.id if checklist else 0,
-        "candidate_id": candidate_id,
+        "candidate_id": internal_candidate_id,
         "module_id": module_id,
         "completed_item_ids": checklist.completed_item_ids if checklist else None,
         "all_completed": checklist.all_completed if checklist else False,
@@ -328,12 +350,13 @@ async def read_action_checklist(
 )
 async def save_action_checklist(
     module_id: int,
-    candidate_id: int = Query(..., description="Candidate ID"),
+    candidate_id: str = Query(..., description="Candidate ID"),
     completed_item_ids: list[int] = Body(..., description="List of checked item IDs"),
     db: AsyncSession = Depends(get_db),
 ):
     """Save candidate checklist progress."""
-    result = await save_candidate_checklist(db, candidate_id, module_id, completed_item_ids)
+    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
+    result = await save_candidate_checklist(db, internal_candidate_id, module_id, completed_item_ids)
     
     if not result:
         raise HTTPException(404, "Module not found")
@@ -347,11 +370,12 @@ async def save_action_checklist(
 )
 async def issue_certificate(
     module_id: int,
-    candidate_id: int = Query(..., description="Candidate ID"),
+    candidate_id: str = Query(..., description="Candidate ID"),
     db: AsyncSession = Depends(get_db),
 ):
     """Generate certificate for candidate."""
-    result = await generate_certificate(db, candidate_id, module_id)
+    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
+    result = await generate_certificate(db, internal_candidate_id, module_id)
     
     if not result:
         raise HTTPException(400, "Checklist not completed or certificate already generated")
@@ -364,12 +388,13 @@ async def issue_certificate(
     response_model=CertificateDataResponse,
 )
 async def get_certificate(
-    candidate_id: int,
+    candidate_id: str,
     module_id: int = Query(..., description="Module ID for certificate context"),
     db: AsyncSession = Depends(get_db),
 ):
     """Get certificate data including candidate name and all module scores."""
-    result = await get_certificate_data(db, candidate_id, module_id)
+    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
+    result = await get_certificate_data(db, internal_candidate_id, module_id)
     
     if not result:
         raise HTTPException(404, "Certificate not found")

@@ -27,6 +27,7 @@ const PRIMARY_GRADIENT = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
 const ModuleDetailContainer = () => {
   const { moduleId } = useParams<{ moduleId: string }>();
   const navigate = useNavigate();
+  const candidateId = localStorage.getItem("candidateId") || "";
   const [data, setData] = useState<ModuleDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +73,7 @@ const ModuleDetailContainer = () => {
       const isCompleted = percentage >= 95;
 
       try {
-        const updated = await onboardingModuleService.updateVideoProgress(1, Number(moduleId), {
+        const updated = await onboardingModuleService.updateVideoProgress(candidateId, Number(moduleId), {
           current_duration_seconds: current,
           total_duration_seconds: total,
           completion_percentage: percentage,
@@ -96,7 +97,7 @@ const ModuleDetailContainer = () => {
       if (!data?.module?.id) return;
       const total = Math.floor(video.duration || 0);
       try {
-        const updated = await onboardingModuleService.updateVideoProgress(1, Number(moduleId), {
+        const updated = await onboardingModuleService.updateVideoProgress(candidateId, Number(moduleId), {
           current_duration_seconds: total,
           total_duration_seconds: total,
           completion_percentage: 100,
@@ -159,7 +160,7 @@ const ModuleDetailContainer = () => {
     const fetchData = async () => {
       if (!moduleId) return;
       try {
-        const result = await onboardingModuleService.getModuleDetail(1, Number(moduleId));
+        const result = await onboardingModuleService.getModuleDetail(candidateId, Number(moduleId));
         setData(result);
       } catch (err) {
         if (err instanceof AxiosError) {
@@ -197,7 +198,7 @@ const ModuleDetailContainer = () => {
 
     setIsSubmitting(true);
     try {
-      const result = await onboardingModuleService.submitModuleQuiz(1, Number(data.module.id), answersPayload);
+      const result = await onboardingModuleService.submitModuleQuiz(candidateId, Number(data.module.id), answersPayload);
       setQuizResult(result);
       setSubmitted(true);
     } catch (err) {
@@ -230,7 +231,7 @@ const ModuleDetailContainer = () => {
 
     const fetchChecklist = async () => {
       try {
-        const result = await onboardingModuleService.getActionChecklist(1, Number(data.module.id));
+        const result = await onboardingModuleService.getActionChecklist(candidateId, Number(data.module.id));
         setChecklistItems(result.items);
         const completed = new Set<number>();
         if (result.completed_item_ids) {
@@ -266,7 +267,7 @@ const ModuleDetailContainer = () => {
     setCompletedItemIds(next);
 
     try {
-      const result = await onboardingModuleService.saveActionChecklist(1, Number(data?.module?.id), Array.from(next));
+      const result = await onboardingModuleService.saveActionChecklist(candidateId, Number(data?.module?.id), Array.from(next));
       setChecklistAllCompleted(result.all_completed);
       setCertificateGenerated(result.certificate_generated);
       setCertificateDate(result.certificate_generated_date || result.completed_date || null);
@@ -284,12 +285,12 @@ const ModuleDetailContainer = () => {
 
     setIsGeneratingCertificate(true);
     try {
-      const result = await onboardingModuleService.generateCertificate(1, Number(data.module.id));
+      const result = await onboardingModuleService.generateCertificate(candidateId, Number(data.module.id));
       if (result.certificate_id > 0) {
         setCertificateGenerated(true);
         setCertificateDate(result.generated_at);
         setSubmitted(true);
-        navigate(`/app/certificate/1`);
+        navigate(`/app/certificate/${candidateId}`);
       }
     } catch (err) {
       if (err instanceof AxiosError) {

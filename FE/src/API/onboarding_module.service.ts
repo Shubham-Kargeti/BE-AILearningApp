@@ -20,7 +20,7 @@ export const onboardingModuleService = {
   },
 
   getEmployeeProgressSummary: async (
-    candidateId: number
+    candidateId: string
   ): Promise<EmployeeOnboardingProgressSummaryResponse> => {
     const response = await apiClient.get<EmployeeOnboardingProgressSummaryResponse>(
       "/onboarding-modules/employee-progress-summary",
@@ -30,7 +30,7 @@ export const onboardingModuleService = {
   },
 
   getModuleDetail: async (
-    candidateId: number,
+    candidateId: string,
     moduleId: number
   ): Promise<ModuleDetailResponse> => {
     const response = await apiClient.get<ModuleDetailResponse>(
@@ -41,7 +41,7 @@ export const onboardingModuleService = {
   },
 
   submitModuleQuiz: async (
-    candidateId: number,
+    candidateId: string,
     moduleId: number,
     answers: Array<{ question_id: number; answer: string }>
   ): Promise<QuizSubmitResponse> => {
@@ -53,7 +53,7 @@ export const onboardingModuleService = {
   },
 
   updateVideoProgress: async (
-    candidateId: number,
+    candidateId: string,
     moduleId: number,
     payload: {
       current_duration_seconds: number;
@@ -70,7 +70,7 @@ export const onboardingModuleService = {
   },
 
   getActionChecklist: async (
-    candidateId: number,
+    candidateId: string,
     moduleId: number
   ): Promise<CandidateChecklistResponse> => {
     const response = await apiClient.get<CandidateChecklistResponse>(
@@ -80,7 +80,7 @@ export const onboardingModuleService = {
   },
 
   saveActionChecklist: async (
-    candidateId: number,
+    candidateId: string,
     moduleId: number,
     completedItemIds: number[]
   ): Promise<CandidateChecklistResponse> => {
@@ -92,7 +92,7 @@ export const onboardingModuleService = {
   },
 
   generateCertificate: async (
-    candidateId: number,
+    candidateId: string,
     moduleId: number
   ): Promise<CertificateResponse> => {
     const response = await apiClient.post<CertificateResponse>(
@@ -102,7 +102,7 @@ export const onboardingModuleService = {
   },
 
   getCertificate: async (
-    candidateId: number,
+    candidateId: string,
     moduleId: number
   ): Promise<CertificateDataResponse> => {
     const response = await apiClient.get<CertificateDataResponse>(

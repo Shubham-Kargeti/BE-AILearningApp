@@ -40,7 +40,7 @@ const CertificateContainer = () => {
       if (!candidateId) return;
       try {
         const result = await onboardingModuleService.getCertificate(
-          Number(candidateId),
+          candidateId,
           moduleId
         );
         setData(result);
