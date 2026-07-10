@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 import asyncio
 import json
+import random
 import re
 
 from sqlalchemy import select, func
@@ -19,7 +20,9 @@ from app.db.models import (
     OnboardingModuleActionItem,
     OnboardingModuleCandidateChecklist,
     QuestionType,
+    Candidate,
 )
+from app.core.email import send_email
 from app.utils.generate_questions import _get_llm
 
 
@@ -112,6 +115,29 @@ async def get_onboarding_modules(db: AsyncSession):
 
 
 async def get_onboarding_module_quiz(
+    db: AsyncSession,
+    module_id: int,
+):
+    result = await db.execute(
+        select(OnboardingModuleQuiz)
+        .where(
+            OnboardingModuleQuiz.module_id == module_id,
+            OnboardingModuleQuiz.deleted_date.is_(None),
+        )
+        .order_by(OnboardingModuleQuiz.display_order)
+    )
+
+    all_questions = result.scalars().all()
+    selected_variant = random.choice(["1", "2"])
+    filtered_questions = [
+        q for q in all_questions
+        if q.variant is None or q.variant == selected_variant
+    ]
+
+    return filtered_questions
+
+
+async def get_all_onboarding_module_quiz(
     db: AsyncSession,
     module_id: int,
 ):
@@ -460,7 +486,7 @@ async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: in
         db.add(progress)
         await db.flush()
 
-    quiz_questions = await get_onboarding_module_quiz(db, module_id)
+    quiz_questions = await get_all_onboarding_module_quiz(db, module_id)
     questions_by_id = {q.id: q for q in quiz_questions}
     key_concepts = await get_onboarding_module_key_concepts(db, module_id)
 
@@ -516,7 +542,7 @@ async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: in
     db.add_all(response_models)
     await db.flush()
 
-    total_questions = len(quiz_questions) or len(answers)
+    total_questions = len(answers)
     score = round((correct_count / total_questions) * 100, 2) if total_questions > 0 else 0.0
     passing_status = "PASS" if score >= float(module.passing_criteria) else "FAIL"
 
@@ -616,38 +642,31 @@ async def save_candidate_checklist(db: AsyncSession, candidate_id: int, module_i
 
 
 async def generate_certificate(db: AsyncSession, candidate_id: int, module_id: int):
-    """Generate certificate for candidate after checklist completion."""
-    result = await db.execute(
-        select(OnboardingModuleCandidateChecklist).where(
-            OnboardingModuleCandidateChecklist.candidate_id == candidate_id,
-            OnboardingModuleCandidateChecklist.module_id == module_id,
-        )
-    )
-    checklist = result.scalar_one_or_none()
-
-    if not checklist:
-        return None
-
-    checklist.certificate_generated = True
-    checklist.certificate_generated_date = func.now()
-    checklist.completed_date = func.now()
-    await db.flush()
-    await db.refresh(checklist)
+    """Generate certificate for candidate after passing last module quiz."""
+    from app.db.models import Candidate
 
     progress = await get_employee_module_progress(db, candidate_id, module_id)
-    if progress and progress.status != "COMPLETED":
+    if not progress:
+        return None
+
+    candidate = await db.get(Candidate, candidate_id)
+    candidate_name = candidate.full_name if candidate else None
+
+    if progress.status != "COMPLETED":
         progress.status = "COMPLETED"
         progress.completed_date = func.now()
         await db.flush()
         await db.refresh(progress)
 
+    now = datetime.utcnow()
+
     return {
-        "certificate_id": checklist.id,
-        "candidate_id": checklist.candidate_id,
-        "module_id": checklist.module_id,
-        "generated_at": checklist.certificate_generated_date,
-        "completion_date": checklist.completed_date,
-        "candidate_name": None,
+        "certificate_id": progress.id,
+        "candidate_id": candidate_id,
+        "module_id": module_id,
+        "generated_at": now,
+        "completion_date": progress.completed_date,
+        "candidate_name": candidate_name,
     }
 
 
@@ -686,17 +705,90 @@ async def get_certificate_data(db: AsyncSession, candidate_id: int, module_id: i
 
     modules.sort(key=lambda item: item["rank"])
 
-    checklist_result = await db.execute(
-        select(OnboardingModuleCandidateChecklist).where(
-            OnboardingModuleCandidateChecklist.candidate_id == candidate_id,
-            OnboardingModuleCandidateChecklist.module_id == module_id,
-        )
-    )
-    checklist = checklist_result.scalar_one_or_none()
+    last_progress = await get_employee_module_progress(db, candidate_id, module_id)
 
     return {
         "candidate_name": candidate.full_name,
-        "completed_date": checklist.completed_date if checklist else None,
-        "generated_at": checklist.certificate_generated_date if checklist else None,
+        "completed_date": last_progress.completed_date if last_progress else None,
+        "generated_at": last_progress.completed_date if last_progress else None,
         "modules": modules,
     }
+
+
+async def share_certificate_email(db: AsyncSession, candidate_id: int, module_id: int):
+    """Send certificate data to candidate's email."""
+    certificate_data = await get_certificate_data(db, candidate_id, module_id)
+    if not certificate_data:
+        return None
+
+    candidate = await db.get(Candidate, candidate_id)
+    if not candidate:
+        return None
+
+    modules_html = ""
+    for module in certificate_data["modules"]:
+        score_text = f"{round(module['score'])}%" if module["score"] is not None else "N/A"
+        status_text = module["passing_status"] or module["status"]
+        modules_html += f"""
+        <tr>
+          <td style="padding: 8px; border: 1px solid #ddd;">{module["rank"]}. {module["title"]}</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">{score_text}</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">{status_text}</td>
+        </tr>
+        """
+
+    html_body = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #1976d2;">Congratulations, {certificate_data["candidate_name"]}!</h2>
+        <p>You have successfully completed all onboarding modules. Your Engagement Clearance Certificate is ready.</p>
+        
+        <h3>Module Scores</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background-color: #f5f5f5;">
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Module</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Score</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {modules_html}
+          </tbody>
+        </table>
+        
+        <p style="margin-top: 20px;">
+          <strong>Certificate ID:</strong> CERT-{certificate_data["candidate_name"][:3].upper() if certificate_data["candidate_name"] else "XXX"}-{candidate_id}
+        </p>
+        <p>
+          <strong>Completed Date:</strong> {certificate_data["completed_date"] and datetime.fromisoformat(str(certificate_data["completed_date"]).replace("Z", "+00:00")).strftime("%B %d, %Y") or datetime.now().strftime("%B %d, %Y")}
+        </p>
+        
+        <p>Please find your certificate attached or download it from the onboarding portal.</p>
+      </body>
+    </html>
+    """
+
+    text_body = f"""
+    Congratulations, {certificate_data["candidate_name"]}!
+    
+    You have successfully completed all onboarding modules. Your Engagement Clearance Certificate is ready.
+    
+    Module Scores:
+    """
+
+    for module in certificate_data["modules"]:
+        score_text = f"{round(module['score'])}%" if module["score"] is not None else "N/A"
+        status_text = module["passing_status"] or module["status"]
+        text_body += f"\n{module['rank']}. {module['title']} - {score_text} ({status_text})"
+
+    text_body += f"\n\nCertificate ID: CERT-{certificate_data['candidate_name'][:3].upper() if certificate_data['candidate_name'] else 'XXX'}-{candidate_id}"
+
+    await send_email(
+        to_email=candidate.email,
+        subject="Your Engagement Clearance Certificate",
+        html_body=html_body,
+        text_body=text_body,
+    )
+
+    return {"sent": True, "email": candidate.email}

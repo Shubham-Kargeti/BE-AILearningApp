@@ -1098,6 +1098,8 @@ class OnboardingModuleQuiz(Base):
 
     points = Column(Integer, nullable=False, default=1)
 
+    variant = Column(String(50), nullable=True)
+
     created_date = Column(
         DateTime,
         server_default=func.now(),

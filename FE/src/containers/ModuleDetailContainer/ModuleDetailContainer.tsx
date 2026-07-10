@@ -12,6 +12,17 @@ import {
   TextField,
   LinearProgress,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
 } from "@mui/material";
 import { AxiosError } from "axios";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -19,8 +30,12 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import SendIcon from "@mui/icons-material/Send";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Close";
+import DashboardIcon from "@mui/icons-material/Dashboard";
+import DownloadIcon from "@mui/icons-material/Download";
+import EmailIcon from "@mui/icons-material/Email";
+import html2canvas from "html2canvas";
 import { onboardingModuleService } from "../../API/onboarding_module.service";
-import type { ModuleDetailResponse, QuizSubmitResponse, ActionChecklistItemResponse } from "../../API/onboarding_module.model";
+import type { ModuleDetailResponse, QuizSubmitResponse, CertificateDataResponse } from "../../API/onboarding_module.model";
 import "./ModuleDetailContainer.scss";
 
 const ModuleDetailContainer = () => {
@@ -42,15 +57,10 @@ const ModuleDetailContainer = () => {
   const lastVideoUpdateRef = useRef<number>(0);
   const previousModuleIdRef = useRef(moduleId);
   const isVideoReady = !!data?.video_url;
-
-  const isModule6 = data?.module?.rank === 6 || data?.module?.title === "Onboarding Completion & Next Steps";
-  const [checklistItems, setChecklistItems] = useState<ActionChecklistItemResponse[]>([]);
-  const [completedItemIds, setCompletedItemIds] = useState<Set<number>>(new Set());
-  const completedItemIdsRef = useRef(completedItemIds);
-  completedItemIdsRef.current = completedItemIds;
-  const [certificateGenerated, setCertificateGenerated] = useState(false);
-  const [certificateDate, setCertificateDate] = useState<string | null>(null);
-  const [isGeneratingCertificate, setIsGeneratingCertificate] = useState(false);
+  const [showCongratsDialog, setShowCongratsDialog] = useState(false);
+  const [certificateData, setCertificateData] = useState<CertificateDataResponse | null>(null);
+  const [isSharingEmail, setIsSharingEmail] = useState(false);
+  const certificateRef = useRef<HTMLDivElement | null>(null);
 
 
   useEffect(() => {
@@ -248,6 +258,10 @@ const ModuleDetailContainer = () => {
       const result = await onboardingModuleService.submitModuleQuiz(candidateId, Number(data.module.id), answersPayload);
       setQuizResult(result);
       setSubmitted(result.passing_status === "PASS");
+
+      if (result.passing_status === "PASS" && data.module.rank === 6) {
+        await handleGenerateAndShowCertificate();
+      }
     } catch (err) {
       if (err instanceof AxiosError) {
         setError(err.response?.data?.detail || "Failed to submit quiz");
@@ -256,6 +270,48 @@ const ModuleDetailContainer = () => {
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleGenerateAndShowCertificate = async () => {
+    if (!data) return;
+    try {
+      await onboardingModuleService.generateCertificate(candidateId, Number(data.module.id));
+      const certData = await onboardingModuleService.getCertificate(candidateId, Number(data.module.id));
+      setCertificateData(certData);
+      setShowCongratsDialog(true);
+    } catch (err) {
+      console.error("Failed to generate certificate", err);
+    }
+  };
+
+  const handleDownloadCertificate = async () => {
+    if (!certificateRef.current) return;
+    try {
+      const canvas = await html2canvas(certificateRef.current, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+      });
+      const link = document.createElement("a");
+      link.download = `certificate-${candidateId}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch (err) {
+      console.error("Failed to download certificate", err);
+    }
+  };
+
+  const handleShareCertificateEmail = async () => {
+    if (!data) return;
+    setIsSharingEmail(true);
+    try {
+      await onboardingModuleService.shareCertificateEmail(candidateId, Number(data.module.id));
+      alert("Certificate sent to your email successfully!");
+    } catch (err) {
+      console.error("Failed to share certificate", err);
+      alert("Failed to send certificate email. Please try again.");
+    } finally {
+      setIsSharingEmail(false);
     }
   };
 
@@ -271,81 +327,6 @@ const ModuleDetailContainer = () => {
     if (normalized === "MCQ") return "Multiple Choice";
     if (normalized === "SCENARIO") return "Scenario";
     return "Text Answer";
-  };
-
-  useEffect(() => {
-    if (!isModule6 || !data?.module?.id) return;
-
-    const fetchChecklist = async () => {
-      try {
-        const result = await onboardingModuleService.getActionChecklist(candidateId, Number(data.module.id));
-        setChecklistItems(result.items);
-        const completed = new Set<number>();
-        if (result.completed_item_ids) {
-          const ids = result.completed_item_ids.split(",").filter(Boolean).map(Number);
-          ids.forEach((id) => completed.add(id));
-        }
-        setCompletedItemIds(completed);
-        setCertificateGenerated(result.certificate_generated);
-        setCertificateDate(result.certificate_generated_date || result.completed_date || null);
-      } catch (err) {
-        if (err instanceof AxiosError) {
-          console.error("Failed to load checklist", err.response?.data || err.message);
-        } else {
-          console.error("Failed to load checklist", err);
-        }
-      }
-    };
-
-    fetchChecklist();
-  }, [isModule6, data?.module?.id]);
-
-  const toggleChecklistItem = async (itemId: number, checked: boolean) => {
-    if (isQuizReadOnly || isSubmitting) return;
-
-    const prev = completedItemIdsRef.current;
-    const next = new Set(prev);
-    if (checked) {
-      next.add(itemId);
-    } else {
-      next.delete(itemId);
-    }
-    setCompletedItemIds(next);
-
-    try {
-      const result = await onboardingModuleService.saveActionChecklist(candidateId, Number(data?.module?.id), Array.from(next));
-      setCertificateGenerated(result.certificate_generated);
-      setCertificateDate(result.certificate_generated_date || result.completed_date || null);
-    } catch (err) {
-      if (err instanceof AxiosError) {
-        setError(err.response?.data?.detail || "Failed to save checklist");
-      } else {
-        setError("Failed to save checklist");
-      }
-    }
-  };
-
-  const handleGenerateCertificate = async () => {
-    if (!data || isGeneratingCertificate) return;
-
-    setIsGeneratingCertificate(true);
-    try {
-      const result = await onboardingModuleService.generateCertificate(candidateId, Number(data.module.id));
-      if (result.certificate_id > 0) {
-        setCertificateGenerated(true);
-        setCertificateDate(result.generated_at);
-        setSubmitted(true);
-        navigate(`/app/certificate/${candidateId}`);
-      }
-    } catch (err) {
-      if (err instanceof AxiosError) {
-        setError(err.response?.data?.detail || "Failed to generate certificate");
-      } else {
-        setError("Failed to generate certificate");
-      }
-    } finally {
-      setIsGeneratingCertificate(false);
-    }
   };
 
   if (loading) {
@@ -382,11 +363,16 @@ const ModuleDetailContainer = () => {
       navigate("/app/onboarding-candidate");
     }
   };
+
   return (
-    <main className="module-detail-container">
+    <>
+      <main className="module-detail-container">
       <Box className="module-detail-header">
         <Button className="module-detail-header__back" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>
           Back
+        </Button>
+        <Button className="module-detail-header__dashboard" startIcon={<DashboardIcon />} onClick={() => navigate("/app/onboarding-candidate")}>
+          All Modules
         </Button>
         <Box className="module-detail-header__title-block">
           <Typography component="h1" className="module-detail-header__title">
@@ -399,370 +385,424 @@ const ModuleDetailContainer = () => {
       </Box>
 
       <Box className="module-detail-body">
-        {isModule6 ? (
-          <Box className="module-detail-grid module-detail-grid--checklist">
-            <Card className="module-detail-card module-detail-card--wide">
-              <CardContent>
+        <Box className="module-detail-grid">
+          <Card className="module-detail-card module-detail-card--wide">
+            <CardContent>
+              <Typography component="h2" className="module-detail-card__title">
+                Video
+              </Typography>
+
+              {isVideoAvailable ? (
+                <video
+                  ref={videoRef}
+                  className="module-detail-video"
+                  controls
+                  controlsList="nodownload"
+                  preload="metadata"
+                  src={data.video_url!}
+                >
+                  <track kind="captions" src="" label="English" />
+                  Your browser does not support the video tag.
+                </video>
+              ) : (
+                <Box className="module-detail-video-missing">
+                  <Typography>Video not available for this module.</Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="module-detail-card">
+            <CardContent>
+              <Typography component="h2" className="module-detail-card__title">
+                Key Concepts
+              </Typography>
+
+              {data.key_concepts.length > 0 ? (
+                <Box className="module-detail-concepts-list">
+                  {data.key_concepts.map((concept) => (
+                    <Box key={concept.id} className="module-detail-concept-item">
+                      <Typography component="h3" className="module-detail-concept__title">
+                        {concept.title}
+                      </Typography>
+                      <Typography className="module-detail-concept__description">
+                        {concept.description}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              ) : (
+                <Typography className="module-detail-empty">No key concepts for this module.</Typography>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className={`module-detail-card module-detail-card--wide ${isQuizLocked ? "module-detail-card--locked" : ""}`}>
+            <CardContent>
+              <Box className="module-detail-quiz-header">
                 <Typography component="h2" className="module-detail-card__title">
-                  {data.module.title}
+                  Quiz
                 </Typography>
-                <Typography className="module-detail-card__subtitle">
-                  The final gate. Self-declare each action you've completed. 100% = Engagement Clearance Certificate.
-                </Typography>
+                {(submitted || hasExistingAttempt) && lastAttempt ? (
+                  <Box className="module-detail-quiz-meta">
+                    <Typography className="module-detail-quiz-score">
+                      Score: {Math.round(lastAttempt.score ?? 0)}% &bull; {lastAttempt.passing_status}
+                    </Typography>
+                    <Typography className="module-detail-quiz-progress">
+                      Attempt #{lastAttempt.attempt_number} &bull; {lastAttempt.responses?.length ?? 0} responses
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Typography className="module-detail-quiz-progress">
+                    {answeredCount} / {data.quiz_questions.length} answered
+                  </Typography>
+                )}
+              </Box>
 
-                <Box className="module-detail-checklist-disclaimer">
-                  <Typography className="module-detail-checklist-disclaimer__text">
-                    Self-declaration: By checking each item you confirm you have genuinely completed that action. This checklist is your
-                    professional commitment. Your certificate will carry your name, completion date, and all module scores.
+              {isQuizLocked && (
+                <Box className="module-detail-quiz-lock">
+                  <Typography>
+                    Please complete the video to access the quiz.
                   </Typography>
                 </Box>
+              )}
 
-                <Box className="module-detail-checklist-progress">
-                  <Typography className="module-detail-checklist-progress__label">
-                    {completedItemIds.size} / {checklistItems.length} completed
-                  </Typography>
-                  <LinearProgress
-                    variant="determinate"
-                    value={checklistItems.length > 0 ? (completedItemIds.size / checklistItems.length) * 100 : 0}
-                    className="module-detail-quiz-bar"
-                  />
-                </Box>
+              {quizResult && (
+                <Card className="module-detail-result-card">
+                  <CardContent>
+                    <Box className="module-detail-result-header">
+                      <Box className="module-detail-result-score">
+                        <Typography className="module-detail-result-percentage">
+                          {Math.round(quizResult.score)}%
+                        </Typography>
+                        <Chip
+                          icon={quizResult.passing_status === "PASS" ? <CheckCircleIcon /> : <CancelIcon />}
+                          label={quizResult.passing_status}
+                          className={`module-detail-result-chip module-detail-result-chip--${quizResult.passing_status.toLowerCase()}`}
+                        />
+                      </Box>
+                      <Typography className="module-detail-result-summary">
+                        {quizResult.correct_answers} / {quizResult.total_questions} correct &bull; Passing: {Math.round(quizResult.passing_criteria)}%
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              )}
 
-                <Box className="module-detail-checklist-list">
-                  {checklistItems.map((item) => {
-                    const checked = completedItemIds.has(item.id);
+              <LinearProgress variant="determinate" value={isQuizLocked ? 0 : (quizResult ? Math.round(quizResult.score) : answeredPercentage)} className="module-detail-quiz-bar" />
+
+              {data.quiz_questions.length > 0 ? (
+                <Box className="module-detail-quiz-list">
+                  {data.quiz_questions.map((question, index) => {
+                    const answerValue = getAnswerValue(question.id);
+                    const questionType = (question.question_type || "MCQ").toUpperCase();
+                    const isRadio = questionType === "MCQ";
+                    const displayChoices = question.choices && question.choices.length > 0
+                      ? question.choices.map((choice, i) => ({ id: String(i + 1), text: choice }))
+                      : [];
+
                     return (
-                      <Box key={item.id} className={`module-detail-checklist-item ${checked ? "module-detail-checklist-item--checked" : ""}`}>
-                        <label className="module-detail-checklist-label">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={isGeneratingCertificate || certificateGenerated}
-                            onChange={(e) => toggleChecklistItem(item.id, e.target.checked)}
+                      <Box key={question.id} className={`module-detail-question ${isQuizReadOnly ? "module-detail-question--submitted" : ""}`}>
+                        <Typography className="module-detail-question__header">
+                          <span className="module-detail-question__number">Q{index + 1}</span>
+                          <span className="module-detail-question__badge">{getQuestionTypeLabel(questionType)}</span>
+                          {(quizResult || lastAttempt) && (
+                            <Chip
+                              size="small"
+                              label={(() => {
+                                const source = quizResult || lastAttempt;
+                                const response = source?.responses.find(r => r.question_id === question.id);
+                                const isCorrect = response?.is_correct;
+                                if (isCorrect === true) return "Correct";
+                                if (isCorrect === false) return "Incorrect";
+                                return "";
+                              })()}
+                              className={`module-detail-result-badge module-detail-result-badge--${(() => {
+                                const source = quizResult || lastAttempt;
+                                const response = source?.responses.find(r => r.question_id === question.id);
+                                return response?.is_correct === true ? "correct" : response?.is_correct === false ? "incorrect" : "";
+                              })()}`}
+                            />
+                          )}
+                        </Typography>
+
+                        <Typography className="module-detail-question__text">{question.question_text}</Typography>
+
+                        {isRadio ? (
+                          <RadioGroup
+                            value={answerValue}
+                            onChange={(e) => handleAnswerChange(question.id, e.target.value, questionType)}
+                          >
+                            {displayChoices.map((choice) => {
+                              const isSelected = answerValue === choice.text;
+                              const isCorrectChoice = question.correct_answer === choice.text;
+                              const isWrongSelected = isQuizReadOnly && isSelected && !isCorrectChoice;
+                              const showCorrectAnswer = isQuizReadOnly && isCorrectChoice;
+                              return (
+                                <FormControlLabel
+                                  key={choice.id}
+                                  value={choice.text}
+                                  control={<Radio />}
+                                  label={choice.text}
+                                  className={`module-detail-radio ${isQuizReadOnly ? "module-detail-radio--submitted" : ""} ${isWrongSelected ? "module-detail-radio--wrong" : ""} ${showCorrectAnswer ? "module-detail-radio--correct" : ""}`}
+                                  disabled={isQuizLocked || isQuizReadOnly}
+                                />
+                              );
+                            })}
+                          </RadioGroup>
+                        ) : (
+                          <TextField
+                            multiline
+                            minRows={3}
+                            fullWidth
+                            placeholder="Type your answer here..."
+                            value={answerValue}
+                            onChange={(e) => handleAnswerChange(question.id, e.target.value, questionType)}
+                            className={`module-detail-textarea ${isQuizReadOnly ? "module-detail-textarea--submitted" : ""}`}
+                            disabled={isQuizLocked || isQuizReadOnly}
                           />
-                          <span className="module-detail-checklist-text">{item.item_text}</span>
-                        </label>
+                        )}
+
+                        {isQuizReadOnly && (() => {
+                          const response = quizResult?.responses.find(r => r.question_id === question.id);
+                          const isCorrect = response?.is_correct;
+                          const correctAnswer = response?.correct_answer;
+                          if (isCorrect === false && questionType !== "MCQ" && questionType !== "SCENARIO") {
+                            return (
+                              <Box className="module-detail-correct-answer">
+                                <Typography variant="caption" className="module-detail-correct-answer__label">Correct answer:</Typography>
+                                <Typography variant="body2" className="module-detail-correct-answer__text">{correctAnswer}</Typography>
+                              </Box>
+                            );
+                          }
+                          return null;
+                        })()}
                       </Box>
                     );
                   })}
                 </Box>
+              ) : (
+                <Typography className="module-detail-empty">No quiz questions for this module.</Typography>
+              )}
 
-                <Box className="module-detail-quiz-footer">
+              <Box className="module-detail-quiz-footer">
+                <Box className="module-detail-quiz-footer__actions">
                   <Button
                     variant="contained"
                     size="large"
-                    onClick={handleGenerateCertificate}
-                    disabled={
-                      isGeneratingCertificate ||
-                      !(checklistItems.length > 0 && completedItemIds.size === checklistItems.length)
-                    }
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
                     startIcon={<SendIcon />}
                     className="module-detail-submit-btn"
                   >
-                    {isGeneratingCertificate
-                      ? "Generating..."
-                      : certificateGenerated
-                        ? "Regenerate Certificate"
-                        : "Generate Certificate"}
+                    {isQuizReadOnly
+                      ? "Submitted"
+                      : quizResult?.passing_status === "FAIL"
+                        ? "Retry Quiz"
+                        : hasExistingAttempt && lastAttempt?.passing_status === "FAIL"
+                          ? "Retry Quiz"
+                          : isSubmitting
+                            ? "Submitting..."
+                            : "Answer All Questions"}
                   </Button>
 
-                  {certificateGenerated && (
-                    <Typography className="module-detail-quiz-success">
-                      Certificate generated successfully on {certificateDate ? new Date(certificateDate).toLocaleString() : ""}.
-                    </Typography>
+                  {hasPassedQuiz && nextModuleId && (
+                    <Button
+                      variant="outlined"
+                      size="large"
+                      onClick={handleGoToNextModule}
+                      endIcon={<ArrowForwardIcon />}
+                      className="module-detail-next-btn"
+                    >
+                      Next Module
+                    </Button>
                   )}
                 </Box>
-              </CardContent>
-            </Card>
-          </Box>
-        ) : (
-          <Box className="module-detail-grid">
-            <Card className="module-detail-card module-detail-card--wide">
-              <CardContent>
-                <Typography component="h2" className="module-detail-card__title">
-                  Video
-                </Typography>
-
-                {isVideoAvailable ? (
-                  <video
-                    ref={videoRef}
-                    className="module-detail-video"
-                    controls
-                    controlsList="nodownload"
-                    preload="metadata"
-                    src={data.video_url!}
-                  >
-                    <track kind="captions" src="" label="English" />
-                    Your browser does not support the video tag.
-                  </video>
-                ) : (
-                  <Box className="module-detail-video-missing">
-                    <Typography>Video not available for this module.</Typography>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="module-detail-card">
-              <CardContent>
-                <Typography component="h2" className="module-detail-card__title">
-                  Key Concepts
-                </Typography>
-
-                {data.key_concepts.length > 0 ? (
-                  <Box className="module-detail-concepts-list">
-                    {data.key_concepts.map((concept) => (
-                      <Box key={concept.id} className="module-detail-concept-item">
-                        <Typography component="h3" className="module-detail-concept__title">
-                          {concept.title}
-                        </Typography>
-                        <Typography className="module-detail-concept__description">
-                          {concept.description}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </Box>
-                ) : (
-                  <Typography className="module-detail-empty">No key concepts for this module.</Typography>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className={`module-detail-card module-detail-card--wide ${isQuizLocked ? "module-detail-card--locked" : ""}`}>
-              <CardContent>
-                <Box className="module-detail-quiz-header">
-                  <Typography component="h2" className="module-detail-card__title">
-                    Quiz
-                  </Typography>
-                  {(submitted || hasExistingAttempt) && lastAttempt ? (
-                    <Box className="module-detail-quiz-meta">
-                      <Typography className="module-detail-quiz-score">
-                        Score: {Math.round(lastAttempt.score ?? 0)}% • {lastAttempt.passing_status}
-                      </Typography>
-                      <Typography className="module-detail-quiz-progress">
-                        Attempt #{lastAttempt.attempt_number} • {lastAttempt.responses?.length ?? 0} responses
-                      </Typography>
-                    </Box>
-                  ) : (
-                    <Typography className="module-detail-quiz-progress">
-                      {answeredCount} / {data.quiz_questions.length} answered
-                    </Typography>
-                  )}
-                </Box>
-
-                {isQuizLocked && (
-                  <Box className="module-detail-quiz-lock">
-                    <Typography>
-                      Please complete the video to access the quiz.
-                    </Typography>
-                  </Box>
-                )}
 
                 {quizResult && (
-                  <Card className="module-detail-result-card">
-                    <CardContent>
-                      <Box className="module-detail-result-header">
-                        <Box className="module-detail-result-score">
-                          <Typography className="module-detail-result-percentage">
-                            {Math.round(quizResult.score)}%
-                          </Typography>
-                          <Chip
-                            icon={quizResult.passing_status === "PASS" ? <CheckCircleIcon /> : <CancelIcon />}
-                            label={quizResult.passing_status}
-                            className={`module-detail-result-chip module-detail-result-chip--${quizResult.passing_status.toLowerCase()}`}
-                          />
-                        </Box>
-                        <Typography className="module-detail-result-summary">
-                          {quizResult.correct_answers} / {quizResult.total_questions} correct • Passing: {Math.round(quizResult.passing_criteria)}%
-                        </Typography>
-                      </Box>
-                    </CardContent>
-                  </Card>
+                  <Box className="module-detail-quiz-result-summary">
+                    <Typography className="module-detail-quiz-result-score">
+                      Score: {Math.round(quizResult.score)}%
+                    </Typography>
+                    <Chip
+                      icon={quizResult.passing_status === "PASS" ? <CheckCircleIcon /> : <CancelIcon />}
+                      label={quizResult.passing_status}
+                      className={`module-detail-result-chip module-detail-result-chip--${quizResult.passing_status.toLowerCase()}`}
+                    />
+                  </Box>
                 )}
 
-                <LinearProgress variant="determinate" value={isQuizLocked ? 0 : (quizResult ? Math.round(quizResult.score) : answeredPercentage)} className="module-detail-quiz-bar" />
-
-                {data.quiz_questions.length > 0 ? (
-                  <Box className="module-detail-quiz-list">
-                    {data.quiz_questions.map((question, index) => {
-                      const answerValue = getAnswerValue(question.id);
-                      const questionType = (question.question_type || "MCQ").toUpperCase();
-                      const isRadio = questionType === "MCQ";
-                      const displayChoices = question.choices && question.choices.length > 0
-                        ? question.choices.map((choice, i) => ({ id: String(i + 1), text: choice }))
-                        : [];
-
-                      return (
-                        <Box key={question.id} className={`module-detail-question ${isQuizReadOnly ? "module-detail-question--submitted" : ""}`}>
-                          <Typography className="module-detail-question__header">
-                            <span className="module-detail-question__number">Q{index + 1}</span>
-                            <span className="module-detail-question__badge">{getQuestionTypeLabel(questionType)}</span>
-                            {(quizResult || lastAttempt) && (
-                              <Chip
-                                size="small"
-                                label={(() => {
-                                  const source = quizResult || lastAttempt;
-                                  const response = source?.responses.find(r => r.question_id === question.id);
-                                  const isCorrect = response?.is_correct;
-                                  if (isCorrect === true) return "Correct";
-                                  if (isCorrect === false) return "Incorrect";
-                                  return "";
-                                })()}
-                                className={`module-detail-result-badge module-detail-result-badge--${(() => {
-                                  const source = quizResult || lastAttempt;
-                                  const response = source?.responses.find(r => r.question_id === question.id);
-                                  return response?.is_correct === true ? "correct" : response?.is_correct === false ? "incorrect" : "";
-                                })()}`}
-                              />
-                            )}
-                          </Typography>
-
-                          <Typography className="module-detail-question__text">{question.question_text}</Typography>
-
-                          {isRadio ? (
-                            <RadioGroup
-                              value={answerValue}
-                              onChange={(e) => handleAnswerChange(question.id, e.target.value, questionType)}
-                            >
-                              {displayChoices.map((choice) => {
-                                const isSelected = answerValue === choice.text;
-                                const isCorrectChoice = question.correct_answer === choice.text;
-                                const isWrongSelected = isQuizReadOnly && isSelected && !isCorrectChoice;
-                                const showCorrectAnswer = isQuizReadOnly && isCorrectChoice;
-                                return (
-                                  <FormControlLabel
-                                    key={choice.id}
-                                    value={choice.text}
-                                    control={<Radio />}
-                                    label={choice.text}
-                                    className={`module-detail-radio ${isQuizReadOnly ? "module-detail-radio--submitted" : ""} ${isWrongSelected ? "module-detail-radio--wrong" : ""} ${showCorrectAnswer ? "module-detail-radio--correct" : ""}`}
-                                    disabled={isQuizLocked || isQuizReadOnly}
-                                  />
-                                );
-                              })}
-                            </RadioGroup>
-                          ) : (
-                            <TextField
-                              multiline
-                              minRows={3}
-                              fullWidth
-                              placeholder="Type your answer here..."
-                              value={answerValue}
-                              onChange={(e) => handleAnswerChange(question.id, e.target.value, questionType)}
-                              className={`module-detail-textarea ${isQuizReadOnly ? "module-detail-textarea--submitted" : ""}`}
-                              disabled={isQuizLocked || isQuizReadOnly}
-                            />
-                          )}
-
-                          {isQuizReadOnly && (() => {
-                            const response = quizResult?.responses.find(r => r.question_id === question.id);
-                            const isCorrect = response?.is_correct;
-                            const correctAnswer = response?.correct_answer;
-                            if (isCorrect === false && questionType !== "MCQ" && questionType !== "SCENARIO") {
-                              return (
-                                <Box className="module-detail-correct-answer">
-                                  <Typography variant="caption" className="module-detail-correct-answer__label">Correct answer:</Typography>
-                                  <Typography variant="body2" className="module-detail-correct-answer__text">{correctAnswer}</Typography>
-                                </Box>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </Box>
-                      );
-                    })}
+                {hasExistingAttempt && !quizResult && lastAttempt && (
+                  <Box className="module-detail-quiz-result-summary">
+                    <Typography className="module-detail-quiz-result-score">
+                      Score: {Math.round(lastAttempt.score ?? 0)}%
+                    </Typography>
+                    <Chip
+                      icon={lastAttempt.passing_status === "PASS" ? <CheckCircleIcon /> : <CancelIcon />}
+                      label={lastAttempt.passing_status}
+                      className={`module-detail-result-chip module-detail-result-chip--${lastAttempt.passing_status.toLowerCase()}`}
+                    />
                   </Box>
-                ) : (
-                  <Typography className="module-detail-empty">No quiz questions for this module.</Typography>
                 )}
 
-                <Box className="module-detail-quiz-footer">
-                  <Box className="module-detail-quiz-footer__actions">
-                    <Button
-                      variant="contained"
-                      size="large"
-                      onClick={handleSubmit}
-                      disabled={!canSubmit}
-                      startIcon={<SendIcon />}
-                      className="module-detail-submit-btn"
-                    >
-                      {isQuizReadOnly
-                        ? "Submitted"
-                        : quizResult?.passing_status === "FAIL"
-                          ? "Retry Quiz"
-                          : hasExistingAttempt && lastAttempt?.passing_status === "FAIL"
-                            ? "Retry Quiz"
-                            : isSubmitting
-                              ? "Submitting..."
-                              : "Answer All Questions"}
-                    </Button>
-
-                    {hasPassedQuiz && nextModuleId && (
-                      <Button
-                        variant="outlined"
-                        size="large"
-                        onClick={handleGoToNextModule}
-                        endIcon={<ArrowForwardIcon />}
-                        className="module-detail-next-btn"
-                      >
-                        Next Module
-                      </Button>
-                    )}
-                  </Box>
-
-                  {quizResult && (
-                    <Box className="module-detail-quiz-result-summary">
-                      <Typography className="module-detail-quiz-result-score">
-                        Score: {Math.round(quizResult.score)}%
-                      </Typography>
-                      <Chip
-                        icon={quizResult.passing_status === "PASS" ? <CheckCircleIcon /> : <CancelIcon />}
-                        label={quizResult.passing_status}
-                        className={`module-detail-result-chip module-detail-result-chip--${quizResult.passing_status.toLowerCase()}`}
-                      />
-                    </Box>
-                  )}
-
-                  {hasExistingAttempt && !quizResult && lastAttempt && (
-                    <Box className="module-detail-quiz-result-summary">
-                      <Typography className="module-detail-quiz-result-score">
-                        Score: {Math.round(lastAttempt.score ?? 0)}%
-                      </Typography>
-                      <Chip
-                        icon={lastAttempt.passing_status === "PASS" ? <CheckCircleIcon /> : <CancelIcon />}
-                        label={lastAttempt.passing_status}
-                        className={`module-detail-result-chip module-detail-result-chip--${lastAttempt.passing_status.toLowerCase()}`}
-                      />
-                    </Box>
-                  )}
-
-                  {quizResult?.passing_status === "PASS" && (
-                    <Typography className="module-detail-quiz-success">
-                      Your answers have been submitted successfully.
-                    </Typography>
-                  )}
-                  {quizResult?.passing_status === "FAIL" && (
-                    <Typography className="module-detail-quiz-fail">
-                      You did not pass this time. Review the material and try again.
-                    </Typography>
-                  )}
-                  {hasExistingAttempt && !quizResult && lastAttempt?.passing_status === "FAIL" && (
-                    <Typography className="module-detail-quiz-fail">
-                      Previous attempt: {Math.round(lastAttempt.score ?? 0)}% (FAIL). Please try again.
-                    </Typography>
-                  )}
-                  {hasExistingAttempt && !quizResult && lastAttempt?.passing_status === "PASS" && (
-                    <Typography className="module-detail-quiz-success">
-                      You already submitted this quiz on {new Date(lastAttempt.attempted_date).toLocaleString()}.
-                    </Typography>
-                  )}
-                </Box>
-              </CardContent>
-            </Card>
-          </Box>
-        )}
+                {quizResult?.passing_status === "PASS" && (
+                  <Typography className="module-detail-quiz-success">
+                    Your answers have been submitted successfully.
+                  </Typography>
+                )}
+                {quizResult?.passing_status === "FAIL" && (
+                  <Typography className="module-detail-quiz-fail">
+                    You did not pass this time. Review the material and try again.
+                  </Typography>
+                )}
+                {hasExistingAttempt && !quizResult && lastAttempt?.passing_status === "FAIL" && (
+                  <Typography className="module-detail-quiz-fail">
+                    Previous attempt: {Math.round(lastAttempt.score ?? 0)}% (FAIL). Please try again.
+                  </Typography>
+                )}
+                {hasExistingAttempt && !quizResult && lastAttempt?.passing_status === "PASS" && (
+                  <Typography className="module-detail-quiz-success">
+                    You already submitted this quiz on {new Date(lastAttempt.attempted_date).toLocaleString()}.
+                  </Typography>
+                )}
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
       </Box>
     </main>
+    <Dialog open={showCongratsDialog} onClose={() => setShowCongratsDialog(false)} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ textAlign: "center", fontSize: "1.8rem", fontWeight: 700 }}>
+        🎉 Congratulations!
+      </DialogTitle>
+      <DialogContent>
+        {certificateData && (
+          <Box ref={certificateRef} sx={{ background: "#fff", p: 3, borderRadius: 2 }}>
+            <Box sx={{ textAlign: "center", mb: 3 }}>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: "#1976d2" }}>
+                Certificate of Completion
+              </Typography>
+              <Typography variant="body1" sx={{ mt: 1 }}>
+                This is to certify that
+              </Typography>
+              <Typography variant="h3" sx={{ fontWeight: 700, mt: 1 }}>
+                {certificateData.candidate_name}
+              </Typography>
+              <Typography variant="body1" sx={{ mt: 1 }}>
+                has successfully completed all onboarding modules and is hereby awarded the{" "}
+                <strong>Engagement Clearance Certificate</strong>.
+              </Typography>
+            </Box>
+
+            <Box sx={{ display: "flex", justifyContent: "center", gap: 4, mb: 3 }}>
+              <Box sx={{ textAlign: "center" }}>
+                <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                  {certificateData.modules.length}
+                </Typography>
+                <Typography variant="body2">Modules</Typography>
+              </Box>
+              <Box sx={{ textAlign: "center" }}>
+                <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                  {certificateData.modules.filter((m) => m.passing_status === "PASS").length}
+                </Typography>
+                <Typography variant="body2">Passed</Typography>
+              </Box>
+              <Box sx={{ textAlign: "center" }}>
+                <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                  {(() => {
+                    const scoredModules = certificateData.modules.filter((m) => m.score !== null && m.score !== undefined);
+                    const avg = scoredModules.length > 0 ? scoredModules.reduce((sum, m) => sum + (m.score || 0), 0) / scoredModules.length : 0;
+                    return Math.round(avg) || 0;
+                  })()}%
+                </Typography>
+                <Typography variant="body2">Avg Score</Typography>
+              </Box>
+            </Box>
+
+            <TableContainer component={Paper} sx={{ mb: 3 }}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Module</TableCell>
+                    <TableCell align="center">Score</TableCell>
+                    <TableCell align="center">Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {certificateData.modules.map((module) => (
+                    <TableRow key={module.module_id}>
+                      <TableCell>
+                        <Typography fontWeight={700}>
+                          {module.rank}. {module.title}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography fontWeight={700}>
+                          {module.score !== null && module.score !== undefined
+                            ? `${Math.round(module.score)}%`
+                            : "N/A"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          label={module.passing_status || module.status}
+                          color={module.passing_status === "PASS" ? "success" : "default"}
+                          size="small"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            <Box sx={{ textAlign: "center", mt: 2 }}>
+              <Typography variant="caption" color="text.secondary">
+                Certificate ID: CERT-{(certificateData.candidate_name || "XXX").slice(0, 3).toUpperCase()}-{candidateId}
+              </Typography>
+              <br />
+              <Typography variant="caption" color="text.secondary">
+                Completed Date:{" "}
+                {certificateData.completed_date
+                  ? new Date(certificateData.completed_date).toLocaleDateString()
+                  : new Date().toLocaleDateString()}
+              </Typography>
+            </Box>
+          </Box>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ justifyContent: "center", gap: 2, pb: 3 }}>
+        <Button
+          variant="contained"
+          startIcon={<DownloadIcon />}
+          onClick={handleDownloadCertificate}
+          className="certificate-action-btn"
+        >
+          Download PNG
+        </Button>
+        <Button
+          variant="contained"
+          startIcon={<EmailIcon />}
+          onClick={handleShareCertificateEmail}
+          disabled={isSharingEmail}
+          className="certificate-action-btn"
+        >
+          {isSharingEmail ? "Sending..." : "Share via Email"}
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={<DashboardIcon />}
+          onClick={() => {
+            setShowCongratsDialog(false);
+            navigate("/app/onboarding-candidate");
+          }}
+          className="certificate-action-btn"
+        >
+          Go to Dashboard
+        </Button>
+      </DialogActions>
+    </Dialog>
+    </>
   );
 };
 

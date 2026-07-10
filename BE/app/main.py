@@ -42,10 +42,10 @@ from app.db.session import async_session_maker
 from app.scripts.seed_onboarding_modules import (
     seed_onboarding_modules,
     seed_candidate_journey,
-    seed_module_quiz,
     seed_module_key_concepts,
     seed_module_action_items,
 )
+from app.scripts.seed_module_quiz_from_excel import seed_module_quiz_from_excel
 from app.api.onboarding_modules import router as onboarding_modules_router
 
 # Import for recommended courses if it exists
@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI):
         
         # Seed module quiz and key concepts (separate session)
         async with async_session_maker() as db:
-            await seed_module_quiz(db)
+            await seed_module_quiz_from_excel(db)
             await seed_module_key_concepts(db)
             await seed_module_action_items(db)
             logger.info("module_quiz_concepts_and_action_items_seeded")
