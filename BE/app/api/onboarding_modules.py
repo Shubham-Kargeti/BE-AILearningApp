@@ -46,6 +46,7 @@ from app.services.onboarding_module_service import (
     save_candidate_checklist,
     generate_certificate,
     get_certificate_data,
+    share_certificate_email,
 )
 
 
@@ -378,7 +379,7 @@ async def issue_certificate(
     result = await generate_certificate(db, internal_candidate_id, module_id)
     
     if not result:
-        raise HTTPException(400, "Checklist not completed or certificate already generated")
+        raise HTTPException(400, "Module progress not found")
     
     return result
 
@@ -395,8 +396,26 @@ async def get_certificate(
     """Get certificate data including candidate name and all module scores."""
     internal_candidate_id = await resolve_candidate_id(db, candidate_id)
     result = await get_certificate_data(db, internal_candidate_id, module_id)
-    
+
     if not result:
         raise HTTPException(404, "Certificate not found")
-    
+
     return result
+
+
+@router.post(
+    "/certificate/{candidate_id}/share",
+)
+async def share_certificate(
+    candidate_id: str,
+    module_id: int = Query(..., description="Module ID for certificate context"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Send certificate to candidate's email."""
+    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
+    result = await share_certificate_email(db, internal_candidate_id, module_id)
+
+    if not result:
+        raise HTTPException(404, "Certificate not found or candidate email missing")
+
+    return {"message": "Certificate sent successfully", "email": result["email"]}

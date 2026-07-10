@@ -109,4 +109,14 @@ export const onboardingModuleService = {
     );
     return response.data;
   },
+
+  shareCertificateEmail: async (
+    candidateId: string,
+    moduleId: number
+  ): Promise<{ message: string; email: string }> => {
+    const response = await apiClient.post<{ message: string; email: string }>(
+      `/onboarding-modules/certificate/${candidateId}/share?module_id=${moduleId}`
+    );
+    return response.data;
+  },
 };
