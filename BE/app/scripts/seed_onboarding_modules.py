@@ -885,38 +885,24 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
     # Per-module journey definition
     journey = {
         "Engagement Context & Structure": {
-            "status": "COMPLETED",
-            "started_date": now - timedelta(days=5),
-            "video_completed_date": now - timedelta(days=4),
-            "completed_date": now - timedelta(days=3),
-            "video": {"current": 1425, "total": 1425, "pct": 100.0, "completed": True,
-                      "completed_date": now - timedelta(days=4)},
-            "quiz": {
-                "attempts": [
-                    {
-                        "score": 50.0, "passing_status": "FAIL", "attempt_number": 1,
-                        "time_spent_seconds": 600, "attempted_date": now - timedelta(days=3, hours=2),
-                        "passed": False,
-                    },
-                    {
-                        "score": 90.0, "passing_status": "PASS", "attempt_number": 2,
-                        "time_spent_seconds": 700, "attempted_date": now - timedelta(days=3),
-                        "passed": True,
-                    },
-                ]
-            },
+            "status": "NOT_STARTED",
+            "started_date": now - timedelta(days=1),
+            "video_completed_date": None,
+            "completed_date": None,
+            "video": {"current": 0, "total": 1425, "pct": 0.0, "completed": False,
+                      "completed_date": None},
+            "quiz": {"attempts": []},
         },
         "Legal, Compliance & Data Security": {
-            "status": "VIDEO_COMPLETED",
-            "started_date": now - timedelta(days=2),
-            "video_completed_date": now - timedelta(days=1),
+            "status": "LOCKED",
+            "started_date": None,
+            "video_completed_date": None,
             "completed_date": None,
-            "video": {"current": 980, "total": 980, "pct": 100.0, "completed": True,
-                      "completed_date": now - timedelta(days=1)},
+            "video": None,
             "quiz": {"attempts": []},
         },
         "Ways of Working & Tools": {
-            "status": "NOT_STARTED",
+            "status": "LOCKED",
             "started_date": None,
             "video_completed_date": None,
             "completed_date": None,
@@ -924,7 +910,7 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
             "quiz": {"attempts": []},
         },
         "Engagement & Delivery Excellence": {
-            "status": "NOT_STARTED",
+            "status": "LOCKED",
             "started_date": None,
             "video_completed_date": None,
             "completed_date": None,

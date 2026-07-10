@@ -553,7 +553,10 @@ async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: in
     if passing_status == "PASS":
         progress.status = "COMPLETED"
         progress.completed_date = func.now()
-        await db.flush()
+    else:
+        progress.status = "QUIZ_IN_PROGRESS"
+        progress.completed_date = None
+    await db.flush()
 
     return {
         "attempt_id": quiz_attempt.id,
