@@ -6,7 +6,6 @@ import {
   Card,
   CardContent,
   Typography,
-  LinearProgress,
   Chip,
   Table,
   TableBody,
@@ -16,7 +15,7 @@ import {
   TableRow,
   Paper,
 } from "@mui/material";
-import type { AxiosError } from "axios";
+import { AxiosError } from "axios";
 import DownloadIcon from "@mui/icons-material/Download";
 import PrintIcon from "@mui/icons-material/Print";
 import DashboardIcon from "@mui/icons-material/Dashboard";

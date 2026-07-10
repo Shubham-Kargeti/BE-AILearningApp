@@ -15,14 +15,13 @@ import {
 } from "@mui/material";
 import { AxiosError } from "axios";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import SendIcon from "@mui/icons-material/Send";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Close";
 import { onboardingModuleService } from "../../API/onboarding_module.service";
-import type { ModuleDetailResponse, QuizSubmitResponse, ActionChecklistItemResponse, CandidateChecklistResponse } from "../../API/onboarding_module.model";
+import type { ModuleDetailResponse, QuizSubmitResponse, ActionChecklistItemResponse } from "../../API/onboarding_module.model";
 import "./ModuleDetailContainer.scss";
-
-const PRIMARY_GRADIENT = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
 
 const ModuleDetailContainer = () => {
   const { moduleId } = useParams<{ moduleId: string }>();
@@ -37,6 +36,8 @@ const ModuleDetailContainer = () => {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [quizResult, setQuizResult] = useState<QuizSubmitResponse | null>(null);
+  const [nextModuleId, setNextModuleId] = useState<number | null>(null);
+  const [isLoadingNextModule, setIsLoadingNextModule] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoCompleted, setVideoCompleted] = useState(false);
   const lastVideoUpdateRef = useRef<number>(0);
@@ -47,11 +48,10 @@ const ModuleDetailContainer = () => {
   const [completedItemIds, setCompletedItemIds] = useState<Set<number>>(new Set());
   const completedItemIdsRef = useRef(completedItemIds);
   completedItemIdsRef.current = completedItemIds;
-  const [checklistAllCompleted, setChecklistAllCompleted] = useState(false);
   const [certificateGenerated, setCertificateGenerated] = useState(false);
   const [certificateDate, setCertificateDate] = useState<string | null>(null);
-  const [isSavingChecklist, setIsSavingChecklist] = useState(false);
   const [isGeneratingCertificate, setIsGeneratingCertificate] = useState(false);
+
 
   useEffect(() => {
     if (!isVideoReady || !videoRef.current) return;
@@ -126,6 +126,8 @@ const ModuleDetailContainer = () => {
 
   const hasExistingAttempt = !!data?.quiz_attempts?.length;
   const lastAttempt = hasExistingAttempt ? data.quiz_attempts[0] : null;
+  const hasPassedQuiz = (quizResult?.passing_status === "PASS") ||
+                        (hasExistingAttempt && lastAttempt?.passing_status === "PASS");
   const isQuizReadOnly = (quizResult?.passing_status === "PASS") ||
                          (hasExistingAttempt && lastAttempt?.passing_status === "PASS");
 
@@ -147,6 +149,37 @@ const ModuleDetailContainer = () => {
     setSubmitted(false);
     setQuizResult(null);
   }, [data?.quiz_attempts, data?.quiz_questions]);
+
+  useEffect(() => {
+    if (!data?.module?.rank || !hasPassedQuiz) {
+      setNextModuleId(null);
+      return;
+    }
+
+    const fetchNextModule = async () => {
+      setIsLoadingNextModule(true);
+      try {
+        const summary = await onboardingModuleService.getEmployeeProgressSummary(candidateId);
+        const nextModule = summary.modules
+          .filter((module) => module.rank > data.module.rank)
+          .sort((a, b) => a.rank - b.rank)
+          .find((module) => module.is_unlocked);
+
+        setNextModuleId(nextModule?.module_id ?? null);
+      } catch (err) {
+        if (err instanceof AxiosError) {
+          console.error("Failed to load next module", err.response?.data || err.message);
+        } else {
+          console.error("Failed to load next module", err);
+        }
+        setNextModuleId(null);
+      } finally {
+        setIsLoadingNextModule(false);
+      }
+    };
+
+    fetchNextModule();
+  }, [candidateId, data?.module?.rank, hasPassedQuiz]);
 
   useEffect(() => {
     if (!isVideoReady || !videoRef.current) return;
@@ -185,7 +218,7 @@ const ModuleDetailContainer = () => {
   };
 
   const handleSubmit = async () => {
-    if (!data || isSubmitting || submitted) return;
+    if (!data || isSubmitting || isQuizReadOnly) return;
 
     const answersPayload = Object.entries(answers)
       .filter(([, value]) => value && ("selected" in value ? value.selected.trim() !== "" : value.text.trim() !== ""))
@@ -197,10 +230,11 @@ const ModuleDetailContainer = () => {
     if (!answersPayload.length) return;
 
     setIsSubmitting(true);
+    setError(null);
     try {
       const result = await onboardingModuleService.submitModuleQuiz(candidateId, Number(data.module.id), answersPayload);
       setQuizResult(result);
-      setSubmitted(true);
+      setSubmitted(result.passing_status === "PASS");
     } catch (err) {
       if (err instanceof AxiosError) {
         setError(err.response?.data?.detail || "Failed to submit quiz");
@@ -239,7 +273,6 @@ const ModuleDetailContainer = () => {
           ids.forEach((id) => completed.add(id));
         }
         setCompletedItemIds(completed);
-        setChecklistAllCompleted(result.all_completed);
         setCertificateGenerated(result.certificate_generated);
         setCertificateDate(result.certificate_generated_date || result.completed_date || null);
       } catch (err) {
@@ -268,7 +301,6 @@ const ModuleDetailContainer = () => {
 
     try {
       const result = await onboardingModuleService.saveActionChecklist(candidateId, Number(data?.module?.id), Array.from(next));
-      setChecklistAllCompleted(result.all_completed);
       setCertificateGenerated(result.certificate_generated);
       setCertificateDate(result.certificate_generated_date || result.completed_date || null);
     } catch (err) {
@@ -330,7 +362,13 @@ const ModuleDetailContainer = () => {
   const answeredCount = data.quiz_questions.filter((q) => getAnswerValue(q.id).trim() !== "").length;
   const answeredPercentage = data.quiz_questions.length > 0 ? Math.round((answeredCount / data.quiz_questions.length) * 100) : 0;
   const canSubmit = !isQuizLocked && !isQuizReadOnly && !isSubmitting && allQuestionsAnswered;
-
+  const handleGoToNextModule = () => {
+    if (nextModuleId) {
+      navigate(`/app/module-detail/${nextModuleId}`);
+    } else {
+      navigate("/app/onboarding-candidate");
+    }
+  };
   return (
     <main className="module-detail-container">
       <Box className="module-detail-header">
@@ -604,7 +642,6 @@ const ModuleDetailContainer = () => {
                           {isQuizReadOnly && (() => {
                             const response = quizResult?.responses.find(r => r.question_id === question.id);
                             const isCorrect = response?.is_correct;
-                            const userAnswer = response?.employee_answer;
                             const correctAnswer = response?.correct_answer;
                             if (isCorrect === false && questionType !== "MCQ" && questionType !== "SCENARIO") {
                               return (
@@ -663,6 +700,23 @@ const ModuleDetailContainer = () => {
                     <Typography className="module-detail-quiz-success">
                       You already submitted this quiz on {new Date(lastAttempt.attempted_date).toLocaleString()}.
                     </Typography>
+                  )}
+
+                  {hasPassedQuiz && (
+                    <Button
+                      variant="outlined"
+                      size="large"
+                      onClick={handleGoToNextModule}
+                      disabled={isLoadingNextModule}
+                      endIcon={<ArrowForwardIcon />}
+                      className="module-detail-next-btn"
+                    >
+                      {isLoadingNextModule
+                        ? "Finding Next Module..."
+                        : nextModuleId
+                          ? "Move to Next Module"
+                          : "Back to Modules"}
+                    </Button>
                   )}
                 </Box>
               </CardContent>

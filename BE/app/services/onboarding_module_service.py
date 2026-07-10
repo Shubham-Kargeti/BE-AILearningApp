@@ -1,5 +1,8 @@
 from datetime import datetime
 from typing import Optional
+import asyncio
+import json
+import re
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +20,82 @@ from app.db.models import (
     OnboardingModuleCandidateChecklist,
     QuestionType,
 )
+from app.utils.generate_questions import _get_llm
+
+
+SCENARIO_PASSING_SCORE = 80
+
+
+def _parse_json_object(content: str) -> dict:
+    cleaned = str(content or "").strip()
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned, flags=re.IGNORECASE | re.DOTALL).strip()
+
+    try:
+        parsed = json.loads(cleaned)
+    except Exception:
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start == -1 or end == -1 or end < start:
+            raise
+        parsed = json.loads(cleaned[start:end + 1])
+
+    if not isinstance(parsed, dict):
+        raise ValueError("LLM output must be a JSON object")
+    return parsed
+
+
+def _format_key_concepts_for_prompt(key_concepts: list[OnboardingModuleKeyConcept]) -> str:
+    if not key_concepts:
+        return "No key concepts were provided for this module."
+
+    return "\n".join(
+        f"- {concept.title}: {concept.description or ''}".strip()
+        for concept in key_concepts
+    )
+
+
+async def _evaluate_scenario_answer_with_llm(
+    question_text: str,
+    candidate_answer: str,
+    key_concepts: list[OnboardingModuleKeyConcept],
+) -> int:
+    prompt = f"""
+You are evaluating a candidate's answer to an onboarding scenario question.
+
+Grade only against the provided module key concepts and the question. Award a score from 0 to 100.
+
+Scoring guidance:
+- 90-100: Complete, practical, and aligned with the key concepts.
+- 80-89: Mostly correct with only minor omissions.
+- 60-79: Partially correct but missing important details or judgment.
+- 1-59: Weak, vague, risky, or mostly misaligned.
+- 0: Empty, irrelevant, or unsafe answer.
+
+Return ONLY valid JSON in this exact shape:
+{{"score": 0}}
+
+Module key concepts:
+{_format_key_concepts_for_prompt(key_concepts)}
+
+Question:
+{question_text}
+
+Candidate answer:
+{candidate_answer}
+""".strip()
+
+    llm = _get_llm()
+    response = await asyncio.to_thread(
+        llm.invoke,
+        [
+            {"role": "system", "content": "You are a strict, fair onboarding quiz evaluator."},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    content = response.content if hasattr(response, "content") else str(response)
+    parsed = _parse_json_object(content)
+    score = int(round(float(parsed.get("score", 0))))
+    return max(0, min(100, score))
 
 
 async def get_onboarding_modules(db: AsyncSession):
@@ -379,6 +458,7 @@ async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: in
 
     quiz_questions = await get_onboarding_module_quiz(db, module_id)
     questions_by_id = {q.id: q for q in quiz_questions}
+    key_concepts = await get_onboarding_module_key_concepts(db, module_id)
 
     last_attempt = await get_employee_quiz_attempts(db, progress.id)
     attempt_number = (last_attempt[0].attempt_number + 1) if last_attempt else 1
@@ -393,32 +473,41 @@ async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: in
     await db.flush()
 
     response_models = []
+    response_results = []
     correct_count = 0
     for answer in answers:
         question = questions_by_id.get(answer["question_id"])
         correct_answer = question.correct_answer if question else None
+        candidate_answer = answer.get("answer")
+        llm_score = None
         is_correct = False
-        if correct_answer is not None and answer["answer"] is not None:
-            is_correct = str(answer["answer"]).strip().lower() == str(correct_answer).strip().lower()
-
-        # Scenario-based questions have no predefined correct answer; consider any
-        # non-empty candidate answer as correct for now.
-        if question and question.question_type == QuestionType.SCENARIO and answer["answer"]:
-            is_correct = True
+        if question and question.question_type == QuestionType.SCENARIO:
+            if candidate_answer:
+                llm_score = await _evaluate_scenario_answer_with_llm(
+                    question_text=question.question_text,
+                    candidate_answer=str(candidate_answer),
+                    key_concepts=key_concepts,
+                )
+                is_correct = llm_score >= SCENARIO_PASSING_SCORE
+        elif correct_answer is not None and candidate_answer is not None:
+            is_correct = str(candidate_answer).strip().lower() == str(correct_answer).strip().lower()
 
         if is_correct:
             correct_count += 1
 
-        response_models.append(
-            OnboardingModuleQuizResponseModel(
-                quiz_attempt_id=quiz_attempt.id,
-                question_id=answer["question_id"],
-                question_text=question.question_text if question else None,
-                employee_answer=answer["answer"],
-                correct_answer=correct_answer,
-                is_correct=is_correct,
-            )
+        response_model = OnboardingModuleQuizResponseModel(
+            quiz_attempt_id=quiz_attempt.id,
+            question_id=answer["question_id"],
+            question_text=question.question_text if question else None,
+            employee_answer=candidate_answer,
+            correct_answer=correct_answer,
+            is_correct=is_correct,
         )
+        response_models.append(response_model)
+        response_results.append({
+            "model": response_model,
+            "llm_score": llm_score,
+        })
 
     db.add_all(response_models)
     await db.flush()
@@ -447,13 +536,14 @@ async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: in
         "passing_criteria": float(module.passing_criteria),
         "responses": [
             {
-                "question_id": r.question_id,
-                "question_text": r.question_text,
-                "employee_answer": r.employee_answer,
-                "correct_answer": r.correct_answer,
-                "is_correct": r.is_correct,
+                "question_id": item["model"].question_id,
+                "question_text": item["model"].question_text,
+                "employee_answer": item["model"].employee_answer,
+                "correct_answer": item["model"].correct_answer,
+                "is_correct": item["model"].is_correct,
+                "llm_score": item["llm_score"],
             }
-            for r in response_models
+            for item in response_results
         ],
     }
 
