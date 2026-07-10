@@ -102,9 +102,9 @@ const CertificateContainer = () => {
     );
   }
 
-  // The Action Checklist module has no quiz, so exclude it from the
+  // The Onboarding Completion & Next Steps module has no quiz, so exclude it from the
   // certificate scorecard (Modules / Passed / Avg Score) calculation.
-  const quizModules = data.modules.filter((m) => m.title !== "Action Checklist");
+  const quizModules = data.modules.filter((m) => m.title !== "Onboarding Completion & Next Steps");
 
   const passingModules = quizModules.filter((m) => m.passing_status === "PASS").length;
   const totalModules = quizModules.length;

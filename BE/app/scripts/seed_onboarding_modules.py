@@ -17,43 +17,43 @@ from app.db.models import (
 
 ONBOARDING_MODULES = [
     {
-        "title": "Welcome & Project Overview",
-        "description": "Understanding BCG, the engagement model, dual-laptop policy, and your office setup",
+        "title": "Engagement Context & Structure",
+        "description": "BCG engagement overview, team structure, and key support contacts",
         "rank": 1,
         "passing_criteria": 80,
         "icon": "project_overview",
     },
     {
-        "title": "Who's Who & Org Structure",
-        "description": "Nagarro & BCG hierarchy, escalation paths, roles and responsibilities",
+        "title": "Legal, Compliance & Data Security",
+        "description": "Compliance requirements, access setup, data security, and approved AI usage",
         "rank": 2,
         "passing_criteria": 80,
         "icon": "org_structure",
     },
     {
         "title": "Ways of Working & Tools",
-        "description": "Agile rituals, Slack, Jira, Confluence, timesheet rules, leave culture, and feedback norms",
+        "description": "Timesheets, leave planning, communication norms, and daily collaboration tools",
         "rank": 3,
         "passing_criteria": 80,
         "icon": "working_ways",
     },
     {
-        "title": "Compliance, Security & Assets",
-        "description": "Data security, NDA obligations, BCG laptop rules, VDI setup, and compliance training deadlines",
+        "title": "Engagement & Delivery Excellence",
+        "description": "Scope clarity, stakeholder visibility, meeting conduct, GenAI usage, and quality standards",
         "rank": 4,
         "passing_criteria": 80,
         "icon": "compliance_secure",
     },
     {
-        "title": "Leave, Reimbursements & Essentials",
-        "description": "Leave approval chain, holiday calendar, SAP Concur, Work Package IDs, and Ginger commands",
+        "title": "Admin Essentials: Reimbursements",
+        "description": "SAP Concur process, required approvals, documentation, and claim submission rules",
         "rank": 5,
         "passing_criteria": 80,
         "icon": "leave_approval",
     },
     {
-        "title": "Action Checklist",
-        "description": "The final gate. Self-declare each action you've completed. 100% = Engagement Clearance Certificate.",
+        "title": "Onboarding Completion & Next Steps",
+        "description": "Peer connects, ramp-up planning, squad alignment, and final readiness actions",
         "rank": 6,
         "passing_criteria": 80,
         "icon": "action_checklist",
@@ -62,16 +62,18 @@ ONBOARDING_MODULES = [
 
 
 async def seed_onboarding_modules(db: AsyncSession) -> None:
-    result = await db.execute(
-        select(OnboardingModule).limit(1)
-    )
+    modules_result = await db.execute(select(OnboardingModule))
+    existing_by_rank = {m.rank: m for m in modules_result.scalars().all()}
 
-    if result.scalar_one_or_none():
-        return
-
-    db.add_all(
-        [OnboardingModule(**module) for module in ONBOARDING_MODULES]
-    )
+    for module_data in ONBOARDING_MODULES:
+        existing = existing_by_rank.get(module_data["rank"])
+        if existing:
+            existing.title = module_data["title"]
+            existing.description = module_data["description"]
+            existing.passing_criteria = module_data["passing_criteria"]
+            existing.icon = module_data["icon"]
+        else:
+            db.add(OnboardingModule(**module_data))
 
     await db.commit()
 
@@ -79,14 +81,14 @@ async def seed_onboarding_modules(db: AsyncSession) -> None:
 async def seed_employee_onboarding_progress(db: AsyncSession, candidate_id: int = 1) -> None:
     """
     Seed employee onboarding progress with dummy data for testing.
-    Shows candidate_id passing "Welcome & Project Overview" module with completed video and quiz attempts.
+    Shows candidate_id passing "Engagement Context & Structure" module with completed video and quiz attempts.
     
     Can be toggled on/off as needed by including/excluding this function call.
     """
-    # Find the "Welcome & Project Overview" module
+    # Find the "Engagement Context & Structure" module
     module_result = await db.execute(
         select(OnboardingModule).where(
-            OnboardingModule.title == "Welcome & Project Overview"
+            OnboardingModule.title == "Engagement Context & Structure"
         )
     )
     module = module_result.scalar_one_or_none()
@@ -123,7 +125,7 @@ async def seed_employee_onboarding_progress(db: AsyncSession, candidate_id: int 
     # Create video progress record
     video_progress = OnboardingModuleVideoProgress(
         employee_progress_id=progress.id,
-        video_url="https://puneetbanga15.github.io/bcg-onboarding/videos/step1.mp4",
+        video_url="/videos/module-1.mp4",
         current_duration_seconds=1425,
         total_duration_seconds=1425,
         completion_percentage=100.0,
@@ -199,7 +201,7 @@ async def seed_module_quiz(db: AsyncSession) -> None:
     """
     modules_to_seed = [
         {
-            "title": "Welcome & Project Overview",
+            "title": "Engagement Context & Structure",
             "quiz_data": [
                 {
                     "question_text": "What is the dual-laptop policy at BCG Nagarro?",
@@ -256,7 +258,7 @@ async def seed_module_quiz(db: AsyncSession) -> None:
             ],
         },
         {
-            "title": "Who's Who & Org Structure",
+            "title": "Legal, Compliance & Data Security",
             "quiz_data": [
                 {
                     "question_text": "What best describes BCG Nagarro's leadership structure?",
@@ -360,7 +362,7 @@ async def seed_module_quiz(db: AsyncSession) -> None:
             ],
         },
         {
-            "title": "Compliance, Security & Assets",
+            "title": "Engagement & Delivery Excellence",
             "quiz_data": [
                 {
                     "question_text": "Which action is safest when you receive an external email with an unexpected attachment?",
@@ -417,7 +419,7 @@ async def seed_module_quiz(db: AsyncSession) -> None:
             ],
         },
         {
-            "title": "Leave, Reimbursements & Essentials",
+            "title": "Admin Essentials: Reimbursements",
             "quiz_data": [
                 {
                     "question_text": "Which platform is typically used for travel and expense reimbursements?",
@@ -474,7 +476,7 @@ async def seed_module_quiz(db: AsyncSession) -> None:
             ],
         },
         {
-            "title": "Action Checklist",
+            "title": "Onboarding Completion & Next Steps",
             "quiz_data": [],
             "action_items": [
                 {
@@ -541,7 +543,7 @@ async def seed_module_key_concepts(db: AsyncSession) -> None:
     """
     modules_to_seed = [
         {
-            "title": "Welcome & Project Overview",
+            "title": "Engagement Context & Structure",
             "concepts": [
                 {
                     "title": "Dual-Laptop Policy",
@@ -576,7 +578,7 @@ async def seed_module_key_concepts(db: AsyncSession) -> None:
             ],
         },
         {
-            "title": "Who's Who & Org Structure",
+            "title": "Legal, Compliance & Data Security",
             "concepts": [
                 {
                     "title": "BCG-Nagarro Operating Model",
@@ -636,7 +638,7 @@ async def seed_module_key_concepts(db: AsyncSession) -> None:
             ],
         },
         {
-            "title": "Compliance, Security & Assets",
+            "title": "Engagement & Delivery Excellence",
             "concepts": [
                 {
                     "title": "Data Classification",
@@ -666,7 +668,7 @@ async def seed_module_key_concepts(db: AsyncSession) -> None:
             ],
         },
         {
-            "title": "Leave, Reimbursements & Essentials",
+            "title": "Admin Essentials: Reimbursements",
             "concepts": [
                 {
                     "title": "Leave Workflow",
@@ -696,7 +698,7 @@ async def seed_module_key_concepts(db: AsyncSession) -> None:
             ],
         },
         {
-            "title": "Action Checklist",
+            "title": "Onboarding Completion & Next Steps",
             "concepts": [
                 {
                     "title": "Completion Criteria",
@@ -751,7 +753,7 @@ async def seed_module_action_items(db: AsyncSession) -> None:
     """Seed action checklist items for module 6."""
     modules_to_seed = [
         {
-            "title": "Action Checklist",
+            "title": "Onboarding Completion & Next Steps",
             "action_items": [
                 {"item_text": "I have completed all mandatory onboarding training modules.", "display_order": 1},
                 {"item_text": "I have set up my dual-laptop configuration as per policy.", "display_order": 2},
@@ -792,16 +794,16 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
     Seed a complete, meaningful onboarding journey for a candidate (default candidate_id=1).
 
     Mirrors the UI gating flow:
-      - Module 1 "Welcome & Project Overview": COMPLETED
+      - Module 1 "Engagement Context & Structure": COMPLETED
             video watched to 100%, quiz attempted (failed once, then passed) -> unlocks Module 2.
-      - Module 2 "Who's Who & Org Structure": VIDEO_COMPLETED
+      - Module 2 "Legal, Compliance & Data Security": VIDEO_COMPLETED
             video watched to 100%, quiz not yet attempted (quiz shown but pending) -> unlocks Module 3.
       - Module 3 "Ways of Working & Tools": VIDEO_IN_PROGRESS
             video partially watched (~45%), quiz still LOCKED until video finishes.
-      - Module 4 "Compliance, Security & Assets": NOT_STARTED
+      - Module 4 "Engagement & Delivery Excellence": NOT_STARTED
             module unlocked, available to start, nothing done yet.
-      - Module 5 "Leave, Reimbursements & Essentials": LOCKED (no progress row).
-      - Module 6 "Action Checklist": LOCKED (no progress row).
+      - Module 5 "Admin Essentials: Reimbursements": LOCKED (no progress row).
+      - Module 6 "Onboarding Completion & Next Steps": LOCKED (no progress row).
 
     Can be toggled on/off by including/excluding this function call.
     """
@@ -872,17 +874,17 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
         return responses
 
     VIDEO_URLS = {
-        "Welcome & Project Overview": "https://puneetbanga15.github.io/bcg-onboarding/videos/step1.mp4",
-        "Who's Who & Org Structure": "https://puneetbanga15.github.io/bcg-onboarding/videos/step2.mp4",
-        "Ways of Working & Tools": "https://puneetbanga15.github.io/bcg-onboarding/videos/step3.mp4",
-        "Compliance, Security & Assets": "https://puneetbanga15.github.io/bcg-onboarding/videos/step4.mp4",
-        "Leave, Reimbursements & Essentials": "https://puneetbanga15.github.io/bcg-onboarding/videos/step5.mp4",
-        "Action Checklist": "https://puneetbanga15.github.io/bcg-onboarding/videos/step6.mp4",
+        "Engagement Context & Structure": "/videos/module-1.mp4",
+        "Legal, Compliance & Data Security": "/videos/module-2.mp4",
+        "Ways of Working & Tools": "/videos/module-3.mp4",
+        "Engagement & Delivery Excellence": "/videos/module-4.mp4",
+        "Admin Essentials: Reimbursements": "/videos/module-5.mp4",
+        "Onboarding Completion & Next Steps": "/videos/module-6.mp4",
     }
 
     # Per-module journey definition
     journey = {
-        "Welcome & Project Overview": {
+        "Engagement Context & Structure": {
             "status": "COMPLETED",
             "started_date": now - timedelta(days=5),
             "video_completed_date": now - timedelta(days=4),
@@ -904,7 +906,7 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
                 ]
             },
         },
-        "Who's Who & Org Structure": {
+        "Legal, Compliance & Data Security": {
             "status": "VIDEO_COMPLETED",
             "started_date": now - timedelta(days=2),
             "video_completed_date": now - timedelta(days=1),
@@ -921,7 +923,7 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
             "video": None,
             "quiz": {"attempts": []},
         },
-        "Compliance, Security & Assets": {
+        "Engagement & Delivery Excellence": {
             "status": "NOT_STARTED",
             "started_date": None,
             "video_completed_date": None,
@@ -929,7 +931,7 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
             "video": None,
             "quiz": {"attempts": []},
         },
-        "Leave, Reimbursements & Essentials": {
+        "Admin Essentials: Reimbursements": {
             "status": "LOCKED",
             "started_date": None,
             "video_completed_date": None,
@@ -937,7 +939,7 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
             "video": None,
             "quiz": {"attempts": []},
         },
-        "Action Checklist": {
+        "Onboarding Completion & Next Steps": {
             "status": "LOCKED",
             "started_date": None,
             "video_completed_date": None,
@@ -947,10 +949,10 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
         },
     }
 
-    # Reset any persisted Action Checklist for the candidate so the action list
+    # Reset any persisted Onboarding Completion & Next Steps for the candidate so the action list
     # starts unchecked on reseed (otherwise a previously saved/completed checklist
     # would make every item appear checked).
-    action_module = module_by_title.get("Action Checklist")
+    action_module = module_by_title.get("Onboarding Completion & Next Steps")
     if action_module:
         existing_checklists = await db.execute(
             select(OnboardingModuleCandidateChecklist).where(
