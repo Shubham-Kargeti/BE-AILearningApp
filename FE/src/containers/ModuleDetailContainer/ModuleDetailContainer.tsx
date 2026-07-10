@@ -322,13 +322,6 @@ const ModuleDetailContainer = () => {
     return answer.text;
   };
 
-  const getQuestionTypeLabel = (type: string): string => {
-    const normalized = type.toUpperCase();
-    if (normalized === "MCQ") return "Multiple Choice";
-    if (normalized === "SCENARIO") return "Scenario";
-    return "Text Answer";
-  };
-
   if (loading) {
     return (
       <Box className="module-detail-container" sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
@@ -502,10 +495,16 @@ const ModuleDetailContainer = () => {
                       : [];
 
                     return (
-                      <Box key={question.id} className={`module-detail-question ${isQuizReadOnly ? "module-detail-question--submitted" : ""}`}>
+                      <Box
+                        key={question.id}
+                        className={`module-detail-question ${isQuizReadOnly ? "module-detail-question--submitted" : ""} ${(() => {
+                          const source = quizResult || lastAttempt;
+                          const response = source?.responses.find(r => r.question_id === question.id);
+                          return response?.is_correct === false ? "module-detail-question--incorrect" : "";
+                        })()}`}
+                      >
                         <Typography className="module-detail-question__header">
                           <span className="module-detail-question__number">Q{index + 1}</span>
-                          <span className="module-detail-question__badge">{getQuestionTypeLabel(questionType)}</span>
                           {(quizResult || lastAttempt) && (
                             <Chip
                               size="small"
