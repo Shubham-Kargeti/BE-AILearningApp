@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Box,
@@ -37,13 +37,13 @@ const ModuleDetailContainer = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [quizResult, setQuizResult] = useState<QuizSubmitResponse | null>(null);
   const [nextModuleId, setNextModuleId] = useState<number | null>(null);
-  const [isLoadingNextModule, setIsLoadingNextModule] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoCompleted, setVideoCompleted] = useState(false);
   const lastVideoUpdateRef = useRef<number>(0);
+  const previousModuleIdRef = useRef(moduleId);
   const isVideoReady = !!data?.video_url;
 
-  const isModule6 = data?.module?.rank === 6 || data?.module?.title === "Action Checklist";
+  const isModule6 = data?.module?.rank === 6 || data?.module?.title === "Onboarding Completion & Next Steps";
   const [checklistItems, setChecklistItems] = useState<ActionChecklistItemResponse[]>([]);
   const [completedItemIds, setCompletedItemIds] = useState<Set<number>>(new Set());
   const completedItemIdsRef = useRef(completedItemIds);
@@ -52,6 +52,15 @@ const ModuleDetailContainer = () => {
   const [certificateDate, setCertificateDate] = useState<string | null>(null);
   const [isGeneratingCertificate, setIsGeneratingCertificate] = useState(false);
 
+
+  useEffect(() => {
+    setQuizResult(null);
+    setSubmitted(false);
+    setAnswers({});
+    setIsSubmitting(false);
+    setNextModuleId(null);
+    setVideoCompleted(false);
+  }, [moduleId]);
 
   useEffect(() => {
     if (!isVideoReady || !videoRef.current) return;
@@ -157,7 +166,6 @@ const ModuleDetailContainer = () => {
     }
 
     const fetchNextModule = async () => {
-      setIsLoadingNextModule(true);
       try {
         const summary = await onboardingModuleService.getEmployeeProgressSummary(candidateId);
         const nextModule = summary.modules
@@ -173,8 +181,6 @@ const ModuleDetailContainer = () => {
           console.error("Failed to load next module", err);
         }
         setNextModuleId(null);
-      } finally {
-        setIsLoadingNextModule(false);
       }
     };
 
@@ -208,6 +214,13 @@ const ModuleDetailContainer = () => {
 
     fetchData();
   }, [moduleId]);
+
+  useLayoutEffect(() => {
+    if (previousModuleIdRef.current !== moduleId && !loading) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      previousModuleIdRef.current = moduleId;
+    }
+  }, [moduleId, loading]);
 
   const handleAnswerChange = (questionId: number, value: string, type: string) => {
     if (type === "MCQ" || type === "SCENARIO") {
@@ -584,18 +597,20 @@ const ModuleDetailContainer = () => {
                           <Typography className="module-detail-question__header">
                             <span className="module-detail-question__number">Q{index + 1}</span>
                             <span className="module-detail-question__badge">{getQuestionTypeLabel(questionType)}</span>
-                            {isQuizReadOnly && (
+                            {(quizResult || lastAttempt) && (
                               <Chip
                                 size="small"
                                 label={(() => {
-                                  const response = quizResult?.responses.find(r => r.question_id === question.id);
+                                  const source = quizResult || lastAttempt;
+                                  const response = source?.responses.find(r => r.question_id === question.id);
                                   const isCorrect = response?.is_correct;
                                   if (isCorrect === true) return "Correct";
                                   if (isCorrect === false) return "Incorrect";
                                   return "";
                                 })()}
                                 className={`module-detail-result-badge module-detail-result-badge--${(() => {
-                                  const response = quizResult?.responses.find(r => r.question_id === question.id);
+                                  const source = quizResult || lastAttempt;
+                                  const response = source?.responses.find(r => r.question_id === question.id);
                                   return response?.is_correct === true ? "correct" : response?.is_correct === false ? "incorrect" : "";
                                 })()}`}
                               />
@@ -662,24 +677,64 @@ const ModuleDetailContainer = () => {
                 )}
 
                 <Box className="module-detail-quiz-footer">
-                  <Button
-                    variant="contained"
-                    size="large"
-                    onClick={handleSubmit}
-                    disabled={!canSubmit}
-                    startIcon={<SendIcon />}
-                    className="module-detail-submit-btn"
-                  >
-                    {isQuizReadOnly
-                      ? "Submitted"
-                      : quizResult?.passing_status === "FAIL"
-                        ? "Retry Quiz"
-                        : hasExistingAttempt && lastAttempt?.passing_status === "FAIL"
+                  <Box className="module-detail-quiz-footer__actions">
+                    <Button
+                      variant="contained"
+                      size="large"
+                      onClick={handleSubmit}
+                      disabled={!canSubmit}
+                      startIcon={<SendIcon />}
+                      className="module-detail-submit-btn"
+                    >
+                      {isQuizReadOnly
+                        ? "Submitted"
+                        : quizResult?.passing_status === "FAIL"
                           ? "Retry Quiz"
-                          : isSubmitting
-                            ? "Submitting..."
-                            : "Answer All Questions"}
-                  </Button>
+                          : hasExistingAttempt && lastAttempt?.passing_status === "FAIL"
+                            ? "Retry Quiz"
+                            : isSubmitting
+                              ? "Submitting..."
+                              : "Answer All Questions"}
+                    </Button>
+
+                    {hasPassedQuiz && nextModuleId && (
+                      <Button
+                        variant="outlined"
+                        size="large"
+                        onClick={handleGoToNextModule}
+                        endIcon={<ArrowForwardIcon />}
+                        className="module-detail-next-btn"
+                      >
+                        Next Module
+                      </Button>
+                    )}
+                  </Box>
+
+                  {quizResult && (
+                    <Box className="module-detail-quiz-result-summary">
+                      <Typography className="module-detail-quiz-result-score">
+                        Score: {Math.round(quizResult.score)}%
+                      </Typography>
+                      <Chip
+                        icon={quizResult.passing_status === "PASS" ? <CheckCircleIcon /> : <CancelIcon />}
+                        label={quizResult.passing_status}
+                        className={`module-detail-result-chip module-detail-result-chip--${quizResult.passing_status.toLowerCase()}`}
+                      />
+                    </Box>
+                  )}
+
+                  {hasExistingAttempt && !quizResult && lastAttempt && (
+                    <Box className="module-detail-quiz-result-summary">
+                      <Typography className="module-detail-quiz-result-score">
+                        Score: {Math.round(lastAttempt.score ?? 0)}%
+                      </Typography>
+                      <Chip
+                        icon={lastAttempt.passing_status === "PASS" ? <CheckCircleIcon /> : <CancelIcon />}
+                        label={lastAttempt.passing_status}
+                        className={`module-detail-result-chip module-detail-result-chip--${lastAttempt.passing_status.toLowerCase()}`}
+                      />
+                    </Box>
+                  )}
 
                   {quizResult?.passing_status === "PASS" && (
                     <Typography className="module-detail-quiz-success">
@@ -700,23 +755,6 @@ const ModuleDetailContainer = () => {
                     <Typography className="module-detail-quiz-success">
                       You already submitted this quiz on {new Date(lastAttempt.attempted_date).toLocaleString()}.
                     </Typography>
-                  )}
-
-                  {hasPassedQuiz && (
-                    <Button
-                      variant="outlined"
-                      size="large"
-                      onClick={handleGoToNextModule}
-                      disabled={isLoadingNextModule}
-                      endIcon={<ArrowForwardIcon />}
-                      className="module-detail-next-btn"
-                    >
-                      {isLoadingNextModule
-                        ? "Finding Next Module..."
-                        : nextModuleId
-                          ? "Move to Next Module"
-                          : "Back to Modules"}
-                    </Button>
                   )}
                 </Box>
               </CardContent>
