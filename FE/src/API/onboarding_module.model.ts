@@ -53,7 +53,7 @@ export interface ModuleDetailResponse {
     employee_progress_id: number;
     quiz_id: number | null;
     score: number | null;
-    passing_status: string | null;
+    passing_status: string | "fail" | "pass";
     attempt_number: number;
     time_spent_seconds: number | null;
     attempted_date: string;
