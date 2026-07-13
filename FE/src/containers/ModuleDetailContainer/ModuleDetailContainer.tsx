@@ -672,7 +672,6 @@ const ModuleDetailContainer = () => {
     </main>
     <Dialog open={showCongratsDialog} onClose={() => setShowCongratsDialog(false)} maxWidth="md" fullWidth>
       <DialogTitle sx={{ textAlign: "center", fontSize: "1.8rem", fontWeight: 700 }}>
-        🎉 Congratulations!
       </DialogTitle>
       <DialogContent>
         {certificateData && (
@@ -789,7 +788,7 @@ const ModuleDetailContainer = () => {
           {isSharingEmail ? "Sending..." : "Share via Email"}
         </Button>
         <Button
-          variant="outlined"
+          variant="contained"
           startIcon={<DashboardIcon />}
           onClick={() => {
             setShowCongratsDialog(false);
