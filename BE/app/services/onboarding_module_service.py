@@ -62,7 +62,6 @@ async def _evaluate_scenario_answer_with_llm(
     candidate_answer: str,
     key_concepts: list[OnboardingModuleKeyConcept],
 ) -> int:
-
     prompt = f"""
 You are evaluating a candidate's answer to an onboarding scenario question.
 
