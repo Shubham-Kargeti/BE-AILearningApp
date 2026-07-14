@@ -51,6 +51,22 @@ export const onboardingModuleService = {
     return response.data;
   },
 
+  getRetryQuiz: async (
+    candidateId: string,
+    moduleId: number,
+    excludeIds: number[] = []
+  ): Promise<ModuleDetailResponse["quiz_questions"]> => {
+    const params: Record<string, string> = { candidate_id: candidateId };
+    if (excludeIds.length) {
+      params.exclude_ids = excludeIds.join(",");
+    }
+    const response = await apiClient.get<ModuleDetailResponse["quiz_questions"]>(
+      `/onboarding-modules/module-detail/${moduleId}/retry-quiz`,
+      { params }
+    );
+    return response.data;
+  },
+
   updateVideoProgress: async (
     candidateId: string,
     moduleId: number,

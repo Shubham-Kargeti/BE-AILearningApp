@@ -47,6 +47,7 @@ from app.scripts.seed_onboarding_modules import (
 )
 from app.scripts.seed_module_quiz_from_excel import seed_module_quiz_from_excel
 from app.api.onboarding_modules import router as onboarding_modules_router
+from app.services.onboarding_module_service import sync_video_urls
 
 # Import for recommended courses if it exists
 try:
@@ -99,6 +100,11 @@ async def lifespan(app: FastAPI):
         async with async_session_maker() as db:
             await seed_candidate_journey(db)
             logger.info("employee_onboarding_progress_seeded")
+        
+        # Sync video URLs on every startup
+        async with async_session_maker() as db:
+            await sync_video_urls(db)
+            logger.info("video_urls_synced")
     except Exception as e:
         logger.error("database_initialization_failed", error=str(e))
     

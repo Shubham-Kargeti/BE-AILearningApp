@@ -47,6 +47,7 @@ from app.services.onboarding_module_service import (
     generate_certificate,
     get_certificate_data,
     share_certificate_email,
+    get_retry_quiz,
 )
 
 
@@ -272,6 +273,23 @@ async def read_module_detail(
         raise HTTPException(404, "Module not found")
     
     return data
+
+
+@router.get(
+    "/module-detail/{module_id}/retry-quiz",
+    response_model=list[OnboardingModuleQuizResponse],
+)
+async def retry_module_quiz(
+    module_id: int,
+    candidate_id: str = Query(..., description="Candidate ID"),
+    exclude_ids: str = Query(default="", description="Comma-separated IDs of currently shown questions to avoid on retry"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return a reshuffled quiz set with new question variants for a retry attempt."""
+    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
+    parsed_ids = [int(x) for x in exclude_ids.split(",") if x.strip()]
+    questions = await get_retry_quiz(db, module_id, parsed_ids)
+    return questions
 
 
 @router.post(
