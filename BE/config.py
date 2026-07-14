@@ -175,6 +175,11 @@ class Settings(BaseSettings):
     ADMIN_EMAILS: list[str] = [
         "admin@nagarro.com",
     ]
+
+    # Onboarding Success Mail
+    ONBOARDING_EMAILS: list[str] = [
+        "test.user@test.com",
+    ]
     
     # Logging
     LOG_LEVEL: str = "INFO"

@@ -423,17 +423,18 @@ async def get_certificate(
 
 @router.post(
     "/certificate/{candidate_id}/share",
+    response_model=dict,
 )
 async def share_certificate(
     candidate_id: str,
     module_id: int = Query(..., description="Module ID for certificate context"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Send certificate to candidate's email."""
+    """Return a mailto URL for the candidate to send the onboarding completion email manually."""
     internal_candidate_id = await resolve_candidate_id(db, candidate_id)
     result = await share_certificate_email(db, internal_candidate_id, module_id)
 
     if not result:
         raise HTTPException(404, "Certificate not found or candidate email missing")
 
-    return {"message": "Certificate sent successfully", "email": result["email"]}
+    return result
