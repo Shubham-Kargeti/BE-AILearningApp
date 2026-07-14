@@ -31,9 +31,7 @@ import SendIcon from "@mui/icons-material/Send";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Close";
 import DashboardIcon from "@mui/icons-material/Dashboard";
-import DownloadIcon from "@mui/icons-material/Download";
 import EmailIcon from "@mui/icons-material/Email";
-import html2canvas from "html2canvas";
 import { onboardingModuleService } from "../../API/onboarding_module.service";
 import type { ModuleDetailResponse, QuizSubmitResponse, CertificateDataResponse } from "../../API/onboarding_module.model";
 import "./ModuleDetailContainer.scss";
@@ -58,10 +56,11 @@ const ModuleDetailContainer = () => {
   const lastVideoUpdateRef = useRef<number>(0);
   const previousModuleIdRef = useRef(moduleId);
   const isVideoReady = !!data?.video_url;
+  const isVideoAvailable = !!data?.video_url;
   const [showCongratsDialog, setShowCongratsDialog] = useState(false);
   const [certificateData, setCertificateData] = useState<CertificateDataResponse | null>(null);
-  const [isSharingEmail, setIsSharingEmail] = useState(false);
-  const certificateRef = useRef<HTMLDivElement | null>(null);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
 
   useEffect(() => {
@@ -317,75 +316,29 @@ const ModuleDetailContainer = () => {
       const certData = await onboardingModuleService.getCertificate(candidateId, Number(data.module.id));
       setCertificateData(certData);
       setShowCongratsDialog(true);
+      setEmailSent(false);
     } catch (err) {
       console.error("Failed to generate certificate", err);
     }
   };
 
-  const handleDownloadCertificate = async () => {
-    if (!certificateRef.current) return;
+  const handleSendEmail = async () => {
+    if (!data || isSendingEmail) return;
+    setIsSendingEmail(true);
+    setEmailSent(false);
     try {
-      const canvas = await html2canvas(certificateRef.current, {
-        scale: 2,
-        backgroundColor: "#ffffff",
-      });
-      const link = document.createElement("a");
-      link.download = `certificate-${candidateId}.png`;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
+      const result = await onboardingModuleService.shareCertificateEmail(candidateId, Number(data.module.id));
+      if (result?.mailto_url) {
+        window.location.href = result.mailto_url;
+      }
+      setEmailSent(true);
     } catch (err) {
-      console.error("Failed to download certificate", err);
-    }
-  };
-
-  const handleShareCertificateEmail = async () => {
-    if (!data) return;
-    setIsSharingEmail(true);
-    try {
-      await onboardingModuleService.shareCertificateEmail(candidateId, Number(data.module.id));
-      alert("Certificate sent to your email successfully!");
-    } catch (err) {
-      console.error("Failed to share certificate", err);
-      alert("Failed to send certificate email. Please try again.");
+      console.error("Failed to prepare email", err);
     } finally {
-      setIsSharingEmail(false);
+      setIsSendingEmail(false);
     }
   };
 
-  const getAnswerValue = (questionId: number): string => {
-    const answer = answers[questionId];
-    if (!answer) return "";
-    if ("selected" in answer) return answer.selected;
-    return answer.text;
-  };
-
-  if (loading) {
-    return (
-      <Box className="module-detail-container" sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
-        <Typography sx={{ color: "#fff" }}>Loading module...</Typography>
-      </Box>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <Box className="module-detail-container" sx={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", minHeight: "60vh", gap: 2 }}>
-        <Typography variant="h5" sx={{ color: "#fff", fontWeight: 700 }}>
-          {error || "Module not found"}
-        </Typography>
-        <Button variant="contained" onClick={() => navigate(-1)}>
-          Go Back
-        </Button>
-      </Box>
-    );
-  }
-
-  const isVideoAvailable = !!data.video_url;
-  const isQuizLocked = !data.video_completed && !hasExistingAttempt && !videoCompleted;
-  const allQuestionsAnswered = data.quiz_questions.every((q) => getAnswerValue(q.id).trim() !== "");
-  const answeredCount = data.quiz_questions.filter((q) => getAnswerValue(q.id).trim() !== "").length;
-  const answeredPercentage = data.quiz_questions.length > 0 ? Math.round((answeredCount / data.quiz_questions.length) * 100) : 0;
-  const canSubmit = !isQuizLocked && !isQuizReadOnly && !isSubmitting && allQuestionsAnswered;
   const handleGoToNextModule = () => {
     if (nextModuleId) {
       navigate(`/app/module-detail/${nextModuleId}`);
@@ -393,6 +346,28 @@ const ModuleDetailContainer = () => {
       navigate("/app/onboarding-candidate");
     }
   };
+
+  if (!data) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+        <Typography>Loading module...</Typography>
+      </Box>
+    );
+  }
+
+  const getAnswerValue = (questionId: number): string => {
+    const value = answers[questionId];
+    if (!value) return "";
+    return "selected" in value ? value.selected : value.text;
+  };
+
+  const isQuizLocked = !data.video_completed && !hasExistingAttempt && !videoCompleted;
+  const allQuestionsAnswered = data.quiz_questions.every((q) => getAnswerValue(q.id).trim() !== "");
+  const answeredCount = data.quiz_questions.filter((q) => getAnswerValue(q.id).trim() !== "").length;
+  const answeredPercentage = data.quiz_questions.length > 0
+    ? Math.round((answeredCount / data.quiz_questions.length) * 100)
+    : 0;
+  const canSubmit = !isQuizLocked && !isQuizReadOnly && !isSubmitting && allQuestionsAnswered;
 
   return (
     <>
@@ -718,53 +693,13 @@ const ModuleDetailContainer = () => {
       </Box>
     </main>
     <Dialog open={showCongratsDialog} onClose={() => setShowCongratsDialog(false)} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ textAlign: "center", fontSize: "1.8rem", fontWeight: 700 }}>
+      <DialogTitle sx={{ textAlign: "center", fontSize: "1.4rem", fontWeight: 700 }}>
+        Onboarding Completion Summary
       </DialogTitle>
       <DialogContent>
         {certificateData && (
-          <Box ref={certificateRef} sx={{ background: "#fff", p: 3, borderRadius: 2 }}>
-            <Box sx={{ textAlign: "center", mb: 3 }}>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: "#1976d2" }}>
-                Certificate of Completion
-              </Typography>
-              <Typography variant="body1" sx={{ mt: 1 }}>
-                This is to certify that
-              </Typography>
-              <Typography variant="h3" sx={{ fontWeight: 700, mt: 1 }}>
-                {certificateData.candidate_name}
-              </Typography>
-              <Typography variant="body1" sx={{ mt: 1 }}>
-                has successfully completed all onboarding modules and is hereby awarded the{" "}
-                <strong>Engagement Clearance Certificate</strong>.
-              </Typography>
-            </Box>
-
-            <Box sx={{ display: "flex", justifyContent: "center", gap: 4, mb: 3 }}>
-              <Box sx={{ textAlign: "center" }}>
-                <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                  {certificateData.modules.length}
-                </Typography>
-                <Typography variant="body2">Modules</Typography>
-              </Box>
-              <Box sx={{ textAlign: "center" }}>
-                <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                  {certificateData.modules.filter((m) => m.passing_status === "PASS").length}
-                </Typography>
-                <Typography variant="body2">Passed</Typography>
-              </Box>
-              <Box sx={{ textAlign: "center" }}>
-                <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                  {(() => {
-                    const scoredModules = certificateData.modules.filter((m) => m.score !== null && m.score !== undefined);
-                    const avg = scoredModules.length > 0 ? scoredModules.reduce((sum, m) => sum + (m.score || 0), 0) / scoredModules.length : 0;
-                    return Math.round(avg) || 0;
-                  })()}%
-                </Typography>
-                <Typography variant="body2">Avg Score</Typography>
-              </Box>
-            </Box>
-
-            <TableContainer component={Paper} sx={{ mb: 3 }}>
+          <Box sx={{ background: "#fff", p: 2, borderRadius: 2 }}>
+            <TableContainer component={Paper} sx={{ mb: 2 }}>
               <Table>
                 <TableHead>
                   <TableRow>
@@ -800,39 +735,18 @@ const ModuleDetailContainer = () => {
                 </TableBody>
               </Table>
             </TableContainer>
-
-            <Box sx={{ textAlign: "center", mt: 2 }}>
-              <Typography variant="caption" color="text.secondary">
-                Certificate ID: CERT-{(certificateData.candidate_name || "XXX").slice(0, 3).toUpperCase()}-{candidateId}
-              </Typography>
-              <br />
-              <Typography variant="caption" color="text.secondary">
-                Completed Date:{" "}
-                {certificateData.completed_date
-                  ? new Date(certificateData.completed_date).toLocaleDateString()
-                  : new Date().toLocaleDateString()}
-              </Typography>
-            </Box>
           </Box>
         )}
       </DialogContent>
       <DialogActions sx={{ justifyContent: "center", gap: 2, pb: 3 }}>
         <Button
           variant="contained"
-          startIcon={<DownloadIcon />}
-          onClick={handleDownloadCertificate}
-          className="certificate-action-btn"
-        >
-          Download PNG
-        </Button>
-        <Button
-          variant="contained"
           startIcon={<EmailIcon />}
-          onClick={handleShareCertificateEmail}
-          disabled={isSharingEmail}
+          onClick={handleSendEmail}
+          disabled={isSendingEmail || emailSent}
           className="certificate-action-btn"
         >
-          {isSharingEmail ? "Sending..." : "Share via Email"}
+          {isSendingEmail ? "Sending..." : emailSent ? "Email Sent" : "Send via Email"}
         </Button>
         <Button
           variant="contained"

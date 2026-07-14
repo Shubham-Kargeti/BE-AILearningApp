@@ -4,6 +4,7 @@ import asyncio
 import json
 import random
 import re
+from urllib.parse import quote
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +24,8 @@ from app.db.models import (
     Candidate,
 )
 from app.core.email import send_email
+from config import get_settings
+settings = get_settings()
 from app.utils.generate_questions import _get_llm
 
 
@@ -788,7 +791,7 @@ async def get_certificate_data(db: AsyncSession, candidate_id: int, module_id: i
 
 
 async def share_certificate_email(db: AsyncSession, candidate_id: int, module_id: int):
-    """Send certificate data to candidate's email."""
+    """Prepare certificate email and return a mailto URL for the candidate to send manually."""
     certificate_data = await get_certificate_data(db, candidate_id, module_id)
     if not certificate_data:
         return None
@@ -797,70 +800,27 @@ async def share_certificate_email(db: AsyncSession, candidate_id: int, module_id
     if not candidate:
         return None
 
-    modules_html = ""
-    for module in certificate_data["modules"]:
-        score_text = f"{round(module['score'])}%" if module["score"] is not None else "N/A"
-        status_text = module["passing_status"] or module["status"]
-        modules_html += f"""
-        <tr>
-          <td style="padding: 8px; border: 1px solid #ddd;">{module["rank"]}. {module["title"]}</td>
-          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">{score_text}</td>
-          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">{status_text}</td>
-        </tr>
-        """
+    completion_date = certificate_data["completed_date"]
+    if completion_date:
+        completion_date_str = datetime.fromisoformat(str(completion_date).replace("Z", "+00:00")).strftime("%B %d, %Y")
+    else:
+        completion_date_str = datetime.now().strftime("%B %d, %Y")
 
-    html_body = f"""
-    <html>
-      <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1976d2;">Congratulations, {certificate_data["candidate_name"]}!</h2>
-        <p>You have successfully completed all onboarding modules. Your Engagement Clearance Certificate is ready.</p>
-        
-        <h3>Module Scores</h3>
-        <table style="width: 100%; border-collapse: collapse;">
-          <thead>
-            <tr style="background-color: #f5f5f5;">
-              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Module</th>
-              <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Score</th>
-              <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {modules_html}
-          </tbody>
-        </table>
-        
-        <p style="margin-top: 20px;">
-          <strong>Certificate ID:</strong> CERT-{certificate_data["candidate_name"][:3].upper() if certificate_data["candidate_name"] else "XXX"}-{candidate_id}
-        </p>
-        <p>
-          <strong>Completed Date:</strong> {certificate_data["completed_date"] and datetime.fromisoformat(str(certificate_data["completed_date"]).replace("Z", "+00:00")).strftime("%B %d, %Y") or datetime.now().strftime("%B %d, %Y")}
-        </p>
-        
-        <p>Please find your certificate attached or download it from the onboarding portal.</p>
-      </body>
-    </html>
-    """
+    subject = "Onboarding Completion Confirmation"
+    text_body = f"""Hello Everyone,
 
-    text_body = f"""
-    Congratulations, {certificate_data["candidate_name"]}!
-    
-    You have successfully completed all onboarding modules. Your Engagement Clearance Certificate is ready.
-    
-    Module Scores:
-    """
+I am pleased to inform you that I have successfully completed all required onboarding modules and passed the associated assessments.
 
-    for module in certificate_data["modules"]:
-        score_text = f"{round(module['score'])}%" if module["score"] is not None else "N/A"
-        status_text = module["passing_status"] or module["status"]
-        text_body += f"\n{module['rank']}. {module['title']} - {score_text} ({status_text})"
+Candidate Details
 
-    text_body += f"\n\nCertificate ID: CERT-{certificate_data['candidate_name'][:3].upper() if certificate_data['candidate_name'] else 'XXX'}-{candidate_id}"
+* Name: {certificate_data["candidate_name"] or "N/A"}
+* Email: {candidate.email}
+* Completion Date: {completion_date_str}
+* Certificate Status: Issued
 
-    await send_email(
-        to_email=candidate.email,
-        subject="Your Engagement Clearance Certificate",
-        html_body=html_body,
-        text_body=text_body,
-    )
+Please find this email as confirmation of my onboarding completion. I look forward to the next steps in the onboarding process.""".strip()
 
-    return {"sent": True, "email": candidate.email}
+    to_emails = ",".join(settings.ONBOARDING_EMAILS)
+    mailto_url = f"mailto:{to_emails}?subject={quote(subject)}&body={quote(text_body)}"
+
+    return {"mailto_url": mailto_url}

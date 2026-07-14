@@ -129,8 +129,8 @@ export const onboardingModuleService = {
   shareCertificateEmail: async (
     candidateId: string,
     moduleId: number
-  ): Promise<{ message: string; email: string }> => {
-    const response = await apiClient.post<{ message: string; email: string }>(
+  ): Promise<{ mailto_url: string }> => {
+    const response = await apiClient.post<{ mailto_url: string }>(
       `/onboarding-modules/certificate/${candidateId}/share?module_id=${moduleId}`
     );
     return response.data;
