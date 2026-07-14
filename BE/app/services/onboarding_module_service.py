@@ -149,6 +149,53 @@ async def get_all_onboarding_module_quiz(
     return result.scalars().all()
 
 
+async def get_retry_quiz(
+    db: AsyncSession,
+    module_id: int,
+    exclude_ids: list[int] | None = None,
+):
+    """
+    Build a fresh quiz set for a retry attempt:
+    - use a single variant only (never mix variants across questions),
+    - prefer the variant different from the one currently shown,
+    - shuffle the MCQ questions while keeping the scenario (text-area)
+      question fixed at the end, then reassign display_order (rank).
+    """
+    all_questions = await get_all_onboarding_module_quiz(db, module_id)
+
+    # Determine the variant currently shown (from the excluded ids) so we can
+    # switch to the other variant for this retry.
+    current_variant = None
+    if exclude_ids:
+        shown = [q for q in all_questions if q.id in set(exclude_ids)]
+        variants = {q.variant for q in shown if q.variant is not None}
+        if len(variants) == 1:
+            current_variant = next(iter(variants))
+
+    if current_variant in ("1", "2"):
+        selected_variant = "2" if current_variant == "1" else "1"
+    else:
+        selected_variant = random.choice(["1", "2"])
+
+    # Single-variant filter (variant None questions are always included),
+    # matching the logic used for the initial quiz load.
+    questions = [
+        q for q in all_questions
+        if q.variant is None or q.variant == selected_variant
+    ]
+
+    scenario = [q for q in questions if (q.question_type or "").upper() == "SCENARIO"]
+    mcq = [q for q in questions if (q.question_type or "").upper() != "SCENARIO"]
+
+    random.shuffle(mcq)
+
+    ordered = mcq + scenario
+    for index, q in enumerate(ordered, start=1):
+        q.display_order = index
+
+    return ordered
+
+
 async def get_onboarding_module_key_concepts(
     db: AsyncSession,
     module_id: int,
@@ -408,6 +455,32 @@ VIDEO_URL_MAP = {
     "Admin Essentials: Reimbursements": "/videos/module-5.mp4",
     "Onboarding Completion & Next Steps": "/videos/module-6.mp4",
 }
+
+
+async def sync_video_urls(db: AsyncSession) -> None:
+    """Sync video URLs for all existing video progress records with the current VIDEO_URL_MAP."""
+    result = await db.execute(
+        select(OnboardingModuleVideoProgress, OnboardingModuleEmployeeProgress, OnboardingModule)
+        .join(
+            OnboardingModuleEmployeeProgress,
+            OnboardingModuleVideoProgress.employee_progress_id == OnboardingModuleEmployeeProgress.id,
+        )
+        .join(
+            OnboardingModule,
+            OnboardingModuleEmployeeProgress.module_id == OnboardingModule.id,
+        )
+    )
+    rows = result.all()
+
+    updated = False
+    for vp, _emp, module in rows:
+        new_url = VIDEO_URL_MAP.get(module.title)
+        if new_url and vp.video_url != new_url:
+            vp.video_url = new_url
+            updated = True
+
+    if updated:
+        await db.commit()
 
 
 async def get_module_detail(db: AsyncSession, candidate_id: int, module_id: int):

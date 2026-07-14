@@ -50,6 +50,7 @@ const ModuleDetailContainer = () => {
   const [answers, setAnswers] = useState<Record<number, AnswerValue>>({});
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [quizResult, setQuizResult] = useState<QuizSubmitResponse | null>(null);
   const [nextModuleId, setNextModuleId] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -149,6 +150,9 @@ const ModuleDetailContainer = () => {
                         (hasExistingAttempt && lastAttempt?.passing_status === "PASS");
   const isQuizReadOnly = (quizResult?.passing_status === "PASS") ||
                          (hasExistingAttempt && lastAttempt?.passing_status === "PASS");
+  const isRetryMode =
+    quizResult?.passing_status === "FAIL" ||
+    (hasExistingAttempt && lastAttempt?.passing_status === "FAIL");
 
   useEffect(() => {
     if (!data?.quiz_attempts?.length) return;
@@ -273,6 +277,39 @@ const ModuleDetailContainer = () => {
     }
   };
 
+  const handleRetry = async () => {
+    if (!data || isRetrying) return;
+
+    setIsRetrying(true);
+    setError(null);
+    try {
+      const currentIds = data.quiz_questions.map((q) => q.id);
+      const questions = await onboardingModuleService.getRetryQuiz(
+        candidateId,
+        Number(data.module.id),
+        currentIds
+      );
+
+      // Replace questions with a reshuffled set (new variants, new rank),
+      // drop the prior attempt locally so previous selections / correct-incorrect
+      // tags are cleared and the quiz becomes editable again.
+      setData((prev) =>
+        prev ? { ...prev, quiz_questions: questions, quiz_attempts: [] } : prev
+      );
+      setAnswers({});
+      setQuizResult(null);
+      setSubmitted(false);
+    } catch (err) {
+      if (err instanceof AxiosError) {
+        setError(err.response?.data?.detail || "Failed to load retry quiz");
+      } else {
+        setError("Failed to load retry quiz");
+      }
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
   const handleGenerateAndShowCertificate = async () => {
     if (!data) return;
     try {
@@ -385,23 +422,33 @@ const ModuleDetailContainer = () => {
                 Video
               </Typography>
 
-              {isVideoAvailable ? (
-                <video
-                  ref={videoRef}
-                  className="module-detail-video"
-                  controls
-                  controlsList="nodownload"
-                  preload="metadata"
-                  src={data.video_url!}
-                >
-                  <track kind="captions" src="" label="English" />
-                  Your browser does not support the video tag.
-                </video>
-              ) : (
-                <Box className="module-detail-video-missing">
-                  <Typography>Video not available for this module.</Typography>
-                </Box>
-              )}
+               {isVideoAvailable ? (
+                  data.video_url.startsWith("http") ? (
+                    <iframe
+                      src={data.video_url}
+                      className="module-detail-video module-detail-video--iframe"
+                      allow="autoplay; fullscreen"
+                      allowFullScreen
+                      title="Module video"
+                    />
+                  ) : (
+                    <video
+                      ref={videoRef}
+                      className="module-detail-video"
+                      controls
+                      controlsList="nodownload"
+                      preload="metadata"
+                      src={data.video_url}
+                    >
+                      <track kind="captions" src="" label="English" />
+                      Your browser does not support the video tag.
+                    </video>
+                  )
+                ) : (
+                 <Box className="module-detail-video-missing">
+                   <Typography>Video not available for this module.</Typography>
+                 </Box>
+               )}
             </CardContent>
           </Card>
 
@@ -589,16 +636,16 @@ const ModuleDetailContainer = () => {
                   <Button
                     variant="contained"
                     size="large"
-                    onClick={handleSubmit}
-                    disabled={!canSubmit}
+                    onClick={isRetryMode ? handleRetry : handleSubmit}
+                    disabled={isRetryMode ? isRetrying : !canSubmit}
                     startIcon={<SendIcon />}
                     className="module-detail-submit-btn"
                   >
-                    {isQuizReadOnly
-                      ? "Submitted"
-                      : quizResult?.passing_status === "FAIL"
-                        ? "Retry Quiz"
-                        : hasExistingAttempt && lastAttempt?.passing_status === "FAIL"
+                    {isRetrying
+                      ? "Preparing..."
+                      : isQuizReadOnly
+                        ? "Submitted"
+                        : isRetryMode
                           ? "Retry Quiz"
                           : isSubmitting
                             ? "Submitting..."
