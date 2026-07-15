@@ -45,11 +45,11 @@ jobs:
           # Activate virtual environment
           source venv/bin/activate
           
-          # Run database migrations first
-          alembic upgrade head
-          
           # Install/update dependencies
           pip install --no-cache-dir -r requirements-minimal.txt
+          
+          # Run database migrations first
+          alembic upgrade head
           
           # Restart application with PM2
           pm2 restart ai-learning-backend || pm2 start ecosystem.config.js
