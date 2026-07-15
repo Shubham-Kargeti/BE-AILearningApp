@@ -23,6 +23,7 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Alert
 } from "@mui/material";
 import { AxiosError } from "axios";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -374,6 +375,11 @@ const ModuleDetailContainer = () => {
     <>
       <main className="module-detail-container">
       <Box className="module-detail-header">
+        {error && (
+         <Alert severity="error" sx={{ mb: 2 }}>
+           {error}
+          </Alert>
+        )}
         <Button className="module-detail-header__back" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>
           Back
         </Button>
