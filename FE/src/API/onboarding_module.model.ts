@@ -31,7 +31,7 @@ export interface EmployeeOnboardingProgressSummaryResponse {
 
 export interface ModuleDetailResponse {
   module: OnboardingModule;
-  video_url: string | null;
+  video_url: string;
   video_completed: boolean;
   key_concepts: Array<{
     id: number;
