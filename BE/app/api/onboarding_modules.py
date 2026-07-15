@@ -243,6 +243,7 @@ async def update_module_video_progress(
         payload.total_duration_seconds,
         payload.completion_percentage,
         payload.is_completed,
+        module_id=module_id,
     )
 
     if payload.is_completed:

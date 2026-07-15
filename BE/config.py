@@ -69,8 +69,9 @@ class Settings(BaseSettings):
     
     # S3/MinIO
     S3_ENDPOINT_URL: Optional[str] = "http://localhost:9000"
-    S3_ACCESS_KEY: str = "minioadmin"
-    S3_SECRET_KEY: str = "minioadmin"
+    S3_ACCESS_KEY_ID: str = "minioadmin"
+    S3_ACCESS_KEY_SECRET: str = "minioadmin"
+    S3_SESSION_TOKEN: Optional[str] = None
     S3_BUCKET_NAME: str = "learning-app-docs"
     S3_REGION: str = "us-east-1"
     S3_USE_SSL: bool = False

@@ -57,6 +57,7 @@ const ModuleDetailContainer = () => {
   const previousModuleIdRef = useRef(moduleId);
   const isVideoReady = !!data?.video_url;
   const isVideoAvailable = !!data?.video_url;
+  const isDirectMedia = !!data?.video_url?.match(/\.(mp4|webm|ogg|ogv|mov|m4v|m3u8)(\?|#|$)/i);
   const [showCongratsDialog, setShowCongratsDialog] = useState(false);
   const [certificateData, setCertificateData] = useState<CertificateDataResponse | null>(null);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
@@ -398,15 +399,7 @@ const ModuleDetailContainer = () => {
               </Typography>
 
                {isVideoAvailable ? (
-                  data.video_url.startsWith("http") ? (
-                    <iframe
-                      src={data.video_url}
-                      className="module-detail-video module-detail-video--iframe"
-                      allow="autoplay; fullscreen"
-                      allowFullScreen
-                      title="Module video"
-                    />
-                  ) : (
+                  isDirectMedia ? (
                     <video
                       ref={videoRef}
                       className="module-detail-video"
@@ -418,6 +411,14 @@ const ModuleDetailContainer = () => {
                       <track kind="captions" src="" label="English" />
                       Your browser does not support the video tag.
                     </video>
+                  ) : (
+                    <iframe
+                      src={data.video_url}
+                      className="module-detail-video module-detail-video--iframe"
+                      allow="autoplay; fullscreen"
+                      allowFullScreen
+                      title="Module video"
+                    />
                   )
                 ) : (
                  <Box className="module-detail-video-missing">

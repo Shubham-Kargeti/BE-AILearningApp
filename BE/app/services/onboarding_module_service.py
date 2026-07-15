@@ -24,6 +24,7 @@ from app.db.models import (
     Candidate,
 )
 from app.core.email import send_email
+from app.core.storage import get_s3_service
 from config import get_settings
 settings = get_settings()
 from app.utils.generate_questions import _get_llm
@@ -267,6 +268,7 @@ async def update_employee_video_progress(
     total_duration_seconds: int,
     completion_percentage: float,
     is_completed: bool,
+    module_id: Optional[int] = None,
 ):
     """Create or update video progress for an employee module."""
 
@@ -287,7 +289,13 @@ async def update_employee_video_progress(
         if is_completed and not video_progress.completed_date:
             video_progress.completed_date = func.now()
     else:
-        final_video_url = video_url or "/videos/unknown.mp4"
+        final_video_url = video_url
+        if not final_video_url and module_id:
+            module = await db.get(OnboardingModule, module_id)
+            if module:
+                final_video_url = VIDEO_URL_MAP.get(module.title, "")
+        if not final_video_url:
+            final_video_url = ""
         video_progress = OnboardingModuleVideoProgress(
             employee_progress_id=employee_progress_id,
             video_url=final_video_url,
@@ -451,13 +459,23 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
 
 
 VIDEO_URL_MAP = {
-    "Engagement Context & Structure": "/videos/module-1.mp4",
-    "Legal, Compliance & Data Security": "/videos/module-2.mp4",
-    "Ways of Working & Tools": "/videos/module-3.mp4",
-    "Engagement & Delivery Excellence": "/videos/module-4.mp4",
-    "Admin Essentials: Reimbursements": "/videos/module-5.mp4",
-    "Onboarding Completion & Next Steps": "/videos/module-6.mp4",
+    "Engagement Context & Structure": "onboarding-module/module-1.mp4",
+    "Legal, Compliance & Data Security": "onboarding-module/module-2.mp4",
+    "Ways of Working & Tools": "onboarding-module/module-3.mp4",
+    "Engagement & Delivery Excellence": "onboarding-module/module-4.mp4",
+    "Admin Essentials: Reimbursements": "onboarding-module/module-5.mp4",
+    "Onboarding Completion & Next Steps": "onboarding-module/module-6.mp4",
 }
+
+
+def _get_video_presigned_url(s3_key: str, expiration: int = 3600) -> str:
+    """Generate a presigned URL for an onboarding video S3 key."""
+    try:
+        s3_service = get_s3_service()
+        return s3_service.generate_presigned_url(s3_key, expiration=expiration, http_method="GET")
+    except Exception as exc:
+        print(f"Failed to generate presigned URL for {s3_key}: {exc}")
+        return s3_key
 
 
 async def sync_video_urls(db: AsyncSession) -> None:
@@ -520,6 +538,9 @@ async def get_module_detail(db: AsyncSession, candidate_id: int, module_id: int)
             )
             db.add(video_progress)
             await db.flush()
+
+    if video_url and not video_url.startswith("http"):
+        video_url = _get_video_presigned_url(video_url)
 
     key_concepts = await get_onboarding_module_key_concepts(db, module.id)
     quiz_questions = await get_onboarding_module_quiz(db, module.id)

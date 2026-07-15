@@ -125,7 +125,7 @@ async def seed_employee_onboarding_progress(db: AsyncSession, candidate_id: int 
     # Create video progress record
     video_progress = OnboardingModuleVideoProgress(
         employee_progress_id=progress.id,
-        video_url="/videos/module-1.mp4",
+        video_url="onboarding-module/module-1.mp4",
         current_duration_seconds=1425,
         total_duration_seconds=1425,
         completion_percentage=100.0,
@@ -874,12 +874,12 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
         return responses
 
     VIDEO_URLS = {
-        "Engagement Context & Structure": "/videos/module-1.mp4",
-        "Legal, Compliance & Data Security": "/videos/module-2.mp4",
-        "Ways of Working & Tools": "/videos/module-3.mp4",
-        "Engagement & Delivery Excellence": "/videos/module-4.mp4",
-        "Admin Essentials: Reimbursements": "/videos/module-5.mp4",
-        "Onboarding Completion & Next Steps": "/videos/module-6.mp4",
+        "Engagement Context & Structure": "onboarding-module/module-1.mp4",
+        "Legal, Compliance & Data Security": "onboarding-module/module-2.mp4",
+        "Ways of Working & Tools": "onboarding-module/module-3.mp4",
+        "Engagement & Delivery Excellence": "onboarding-module/module-4.mp4",
+        "Admin Essentials: Reimbursements": "onboarding-module/module-5.mp4",
+        "Onboarding Completion & Next Steps": "onboarding-module/module-6.mp4",
     }
 
     # Per-module journey definition
