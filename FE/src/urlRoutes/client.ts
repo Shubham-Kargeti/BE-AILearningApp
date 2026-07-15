@@ -8,4 +8,7 @@ export const client = {
   QUIZ: "quiz",
   STREAK: "streak",
   ASSESSMENTS: "assessments",
+  ONBOARDING_CANDIDATE: "onboarding-candidate",
+  MODULE_DETAIL: "module-detail/:moduleId",
+  CERTIFICATE: "certificate/:candidateId",
 };

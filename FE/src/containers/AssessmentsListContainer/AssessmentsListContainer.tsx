@@ -74,6 +74,7 @@ interface CandidateAssessmentResult {
   score_percentage: number | null;
   is_completed: boolean;
   overall_feedback?: string | null;
+  overall_feedback?: string | null;
   skill: string | null;
   level: string | null;
   questions: ResultQuestion[];

@@ -1,0 +1,305 @@
+.onboarding-candidate-container {
+  min-height: 100vh;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.onboarding-shell {
+  width: min(1264px, calc(100% - 48px));
+  margin: 0 auto;
+}
+
+.onboarding-hero {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  padding: 3.25rem 0 3.5rem;
+
+  .onboarding-hero__title {
+    font-size: 2.25rem;
+    font-weight: 800;
+    line-height: 1.15;
+    margin-bottom: 1rem;
+  }
+
+  .onboarding-hero__subtitle {
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.9);
+    max-width: 760px;
+    line-height: 1.6;
+  }
+}
+
+.onboarding-content {
+  padding: 4.75rem 0 3.5rem;
+}
+
+.onboarding-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+.onboarding-stat-card,
+.onboarding-progress-card,
+.onboarding-module-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08) !important;
+}
+
+.onboarding-stat-card {
+  .MuiCardContent-root {
+    min-height: 108px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.75rem !important;
+  }
+
+  strong {
+    color: #4f46e5;
+    font-size: 2.3rem;
+    line-height: 1;
+    font-weight: 900;
+  }
+
+  span {
+    color: #64748b;
+    font-size: 0.96rem;
+  }
+}
+
+.onboarding-progress-card {
+  margin-bottom: 2rem;
+
+  .MuiCardContent-root {
+    padding: 1.5rem 1.75rem !important;
+  }
+
+  .MuiLinearProgress-root {
+    height: 10px;
+    border-radius: 999px;
+    background-color: #e5e7eb;
+  }
+
+  .MuiLinearProgress-bar {
+    border-radius: 999px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+}
+
+.onboarding-progress-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+
+  p {
+    color: #475569;
+    font-weight: 800;
+  }
+
+  span {
+    color: #64748b;
+    font-weight: 600;
+  }
+}
+
+.onboarding-section-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 2rem 0 1.5rem;
+
+  h2 {
+    font-size: 1.35rem;
+    font-weight: 900;
+    color: #0f172a;
+    white-space: nowrap;
+  }
+
+  span {
+    height: 1px;
+    flex: 1;
+    background: #d8dee8;
+  }
+}
+
+.onboarding-module-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.onboarding-module-card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    border-color: #c7d2fe;
+    box-shadow: 0 12px 28px rgba(79, 70, 229, 0.14) !important;
+  }
+
+  .MuiCardContent-root {
+    min-height: 276px;
+    display: flex;
+    flex-direction: column;
+    padding: 1.75rem !important;
+  }
+}
+
+.onboarding-module-card--locked {
+  opacity: 0.62;
+
+  &:hover {
+    transform: none;
+    border-color: #e2e8f0;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08) !important;
+  }
+}
+
+.onboarding-module-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+
+  span {
+    color: #4f46e5;
+    font-size: 0.82rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  img {
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+  }
+}
+
+.onboarding-module-card__title {
+  color: #0f172a;
+  font-size: 1.15rem !important;
+  font-weight: 900 !important;
+  line-height: 1.4 !important;
+  margin-bottom: 0.85rem !important;
+}
+
+.onboarding-module-card__description {
+  color: #64748b;
+  font-size: 0.95rem !important;
+  line-height: 1.6 !important;
+  min-height: 74px;
+}
+
+.onboarding-module-card__criteria {
+  color: #64748b;
+  font-size: 0.82rem;
+  padding-top: 1rem;
+  margin-top: auto;
+  border-top: 1px solid #eef2f7;
+
+  strong {
+    color: #334155;
+  }
+}
+
+.onboarding-module-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+
+  > span {
+    color: #64748b;
+    font-size: 0.86rem;
+    white-space: nowrap;
+  }
+}
+
+.onboarding-status {
+  height: 32px !important;
+  border-radius: 999px !important;
+  font-weight: 800 !important;
+
+  .MuiChip-icon {
+    font-size: 1rem !important;
+  }
+}
+
+.onboarding-status--completed {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+
+.onboarding-status--in_progress {
+  background: #fef3c7 !important;
+  color: #d97706 !important;
+}
+
+.onboarding-status--unlocked {
+  background: #e0e7ff !important;
+  color: #3730a3 !important;
+}
+
+.onboarding-status--locked {
+  background: #f1f5f9 !important;
+  color: #94a3b8 !important;
+}
+
+.onboarding-module-card__action {
+  margin-top: 1rem !important;
+  border-radius: 8px !important;
+  text-transform: none !important;
+  font-weight: 800 !important;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  box-shadow: 0 8px 18px rgba(102, 126, 234, 0.24) !important;
+
+  &.Mui-disabled {
+    background: #e2e8f0 !important;
+    color: #94a3b8 !important;
+    box-shadow: none !important;
+  }
+}
+
+@media (max-width: 1100px) {
+  .onboarding-module-grid,
+  .onboarding-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .onboarding-shell {
+    width: min(100% - 32px, 1264px);
+  }
+
+  .onboarding-hero {
+    padding: 2.5rem 0;
+
+    .onboarding-hero__title {
+      font-size: 1.9rem;
+    }
+  }
+
+  .onboarding-content {
+    padding-top: 2rem;
+  }
+
+  .onboarding-module-grid,
+  .onboarding-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .onboarding-progress-card__header,
+  .onboarding-module-card__footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -25,6 +25,7 @@ import {
   LocalFireDepartment,
   Assessment,
   School,
+  AssignmentTurnedIn,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 import "./Sidebar.scss";
@@ -41,6 +42,7 @@ const Sidebar = () => {
   const menuItems = [
     { text: "Dashboard", icon: <Dashboard />, path: "/app/dashboard", gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" },
     { text: "My Assessments", icon: <Assessment />, path: "/app/assessments", gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)" },
+    { text: "Onboarding", icon: <AssignmentTurnedIn />, path: "/app/onboarding-candidate", gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" },
     { text: "Learning Path", icon: <School />, path: "/app/learning-paths", gradient: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)" },
     { text: "Self Assessment", icon: <Person />, path: "/app/profile-setup", gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)" },
     { text: "Settings", icon: <Settings />, path: "/app/settings", gradient: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)" },

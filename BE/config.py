@@ -3,6 +3,7 @@ from functools import lru_cache
 from typing import Optional
 import os
 from pydantic import field_validator
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -69,8 +70,9 @@ class Settings(BaseSettings):
     
     # S3/MinIO
     S3_ENDPOINT_URL: Optional[str] = "http://localhost:9000"
-    S3_ACCESS_KEY: str = "minioadmin"
-    S3_SECRET_KEY: str = "minioadmin"
+    S3_ACCESS_KEY_ID: str = "minioadmin"
+    S3_ACCESS_KEY_SECRET: str = "minioadmin"
+    S3_SESSION_TOKEN: Optional[str] = None
     S3_BUCKET_NAME: str = "learning-app-docs"
     S3_REGION: str = "us-east-1"
     S3_USE_SSL: bool = False
@@ -174,6 +176,11 @@ class Settings(BaseSettings):
     # Admin Users (email-based for MVP)
     ADMIN_EMAILS: list[str] = [
         "admin@nagarro.com",
+    ]
+
+    # Onboarding Success Mail
+    ONBOARDING_EMAILS: list[str] = [
+        "test.user@test.com",
     ]
     
     # Logging

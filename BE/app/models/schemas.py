@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict, AliasChoices
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime,date
 
 # ============ VALIDATION ERROR SCHEMAS ============
 
@@ -480,3 +480,279 @@ class AdminBulkSkillExtractionResponse(BaseModel):
     )
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
+class OnboardingModuleResponse(BaseModel):
+    id: int
+    title: str
+    description: str | None
+    rank: int
+    passing_criteria: float
+    icon: str | None
+    date: date | None
+
+    class Config:
+        from_attributes = True
+
+class QuizChoiceResponse(BaseModel):
+    id: str
+    text: str
+
+
+class OnboardingModuleQuizResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    question_text: str
+    question_type: str
+    choices: Optional[List[str]] = None
+    correct_answer: Optional[str] = None
+    display_order: int
+    points: int
+
+class OnboardingModuleKeyConceptResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: str
+    icon: Optional[str] = None
+    display_order: int
+
+class OnboardingModuleDetailResponse(BaseModel):
+    """Response schema for onboarding module details."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: Optional[str] = None
+    rank: int
+    passing_criteria: float
+    icon: Optional[str] = None
+    date: Optional[date] = None
+
+    quizzes: List[OnboardingModuleQuizResponse]
+    key_concepts: List[OnboardingModuleKeyConceptResponse]
+
+
+# Employee Onboarding Module Tracking Schemas
+
+class EmployeeModuleVideoProgressResponse(BaseModel):
+    """Response schema for employee video progress."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    employee_progress_id: int
+    video_url: str
+    current_duration_seconds: int
+    total_duration_seconds: Optional[int] = None
+    completion_percentage: float
+    is_completed: bool
+    completed_date: Optional[datetime] = None
+
+
+class EmployeeQuizResponseItemResponse(BaseModel):
+    """Response schema for individual quiz response."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    question_id: int
+    question_text: Optional[str] = None
+    employee_answer: Optional[str] = None
+    correct_answer: Optional[str] = None
+    is_correct: Optional[bool] = None
+    time_spent_seconds: Optional[int] = None
+
+
+class EmployeeQuizAttemptResponse(BaseModel):
+    """Response schema for employee quiz attempt."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    employee_progress_id: int
+    quiz_id: Optional[int] = None
+    score: Optional[float] = None
+    passing_status: Optional[str] = None  # PASS / FAIL
+    attempt_number: int
+    time_spent_seconds: Optional[int] = None
+    attempted_date: datetime
+    responses: Optional[List[EmployeeQuizResponseItemResponse]] = []
+
+
+class EmployeeModuleProgressResponse(BaseModel):
+    """Response schema for employee module progress."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    candidate_id: int
+    module_id: int
+    status: str  # LOCKED, NOT_STARTED, VIDEO_IN_PROGRESS, VIDEO_COMPLETED, QUIZ_IN_PROGRESS, COMPLETED
+    started_date: Optional[datetime] = None
+    video_completed_date: Optional[datetime] = None
+    completed_date: Optional[datetime] = None
+    created_date: datetime
+
+
+class EmployeeModuleProgressDetailResponse(BaseModel):
+    """Detailed response schema for employee module with video and quiz data."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    candidate_id: int
+    module_id: int
+    status: str
+    started_date: Optional[datetime] = None
+    video_completed_date: Optional[datetime] = None
+    completed_date: Optional[datetime] = None
+    
+    module: OnboardingModuleResponse
+    video_progress: Optional[EmployeeModuleVideoProgressResponse] = None
+    quiz_attempts: List[EmployeeQuizAttemptResponse] = []
+
+
+class EmployeeModuleProgressSummaryItem(BaseModel):
+    """Lightweight module summary for onboarding dashboard."""
+    model_config = ConfigDict(from_attributes=True)
+
+    module_id: int
+    title: str
+    description: Optional[str] = None
+    rank: int
+    passing_criteria: float
+    status: str
+    is_unlocked: bool
+    started_date: Optional[datetime] = None
+    video_completed_date: Optional[datetime] = None
+    completed_date: Optional[datetime] = None
+
+
+class EmployeeOnboardingProgressSummaryResponse(BaseModel):
+    """Aggregated onboarding progress summary for a candidate."""
+    model_config = ConfigDict(from_attributes=True)
+
+    total_modules: int
+    completed_modules: int
+    remaining_modules: int
+    overall_progress_percentage: float
+    modules: List[EmployeeModuleProgressSummaryItem]
+
+
+class ModuleDetailResponse(BaseModel):
+    """Full module detail for employee module view."""
+    model_config = ConfigDict(from_attributes=True)
+
+    module: OnboardingModuleResponse
+    video_url: Optional[str] = None
+    video_completed: bool = False
+    key_concepts: List[OnboardingModuleKeyConceptResponse] = []
+    quiz_questions: List[OnboardingModuleQuizResponse] = []
+    quiz_attempts: List[EmployeeQuizAttemptResponse] = []
+
+
+class QuizQuestionResultItem(BaseModel):
+    """Question-level result for a submitted quiz."""
+    model_config = ConfigDict(from_attributes=True)
+
+    question_id: int
+    question_text: Optional[str] = None
+    employee_answer: Optional[str] = None
+    correct_answer: Optional[str] = None
+    is_correct: Optional[bool] = None
+    llm_score: Optional[int] = None
+
+
+class QuizSubmitResponse(BaseModel):
+    """Response schema for submitted quiz."""
+    model_config = ConfigDict(from_attributes=True)
+
+    attempt_id: int
+    module_id: int
+    attempt_number: int
+    total_questions: int
+    correct_answers: int
+    score: float
+    passing_status: str
+    passing_criteria: float
+    responses: List[QuizQuestionResultItem]
+
+
+class VideoProgressUpdateRequest(BaseModel):
+    """Request schema for updating video progress."""
+    current_duration_seconds: int
+    total_duration_seconds: int
+    completion_percentage: float
+    is_completed: bool
+
+
+class VideoProgressResponse(BaseModel):
+    """Response schema for video progress."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    employee_progress_id: int
+    video_url: Optional[str] = None
+    current_duration_seconds: int
+    total_duration_seconds: Optional[int] = None
+    completion_percentage: float
+    is_completed: bool
+    completed_date: Optional[datetime] = None
+    created_date: Optional[datetime] = None
+    modified_date: Optional[datetime] = None
+
+
+class ActionChecklistItemResponse(BaseModel):
+    """Action checklist item schema."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    module_id: int
+    item_text: str
+    display_order: int
+    is_active: bool
+
+
+class CandidateChecklistResponse(BaseModel):
+    """Candidate checklist state schema."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    candidate_id: int
+    module_id: int
+    completed_item_ids: Optional[str] = None
+    all_completed: bool = False
+    certificate_generated: bool = False
+    certificate_generated_date: Optional[datetime] = None
+    completed_date: Optional[datetime] = None
+    items: List[ActionChecklistItemResponse] = []
+
+
+class CertificateResponse(BaseModel):
+    """Certificate generation response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
+    certificate_id: int
+    candidate_id: int
+    module_id: int
+    generated_at: datetime
+    completion_date: Optional[datetime] = None
+    candidate_name: Optional[str] = None
+
+
+class CertificateModuleItem(BaseModel):
+    """Module score item for certificate."""
+    model_config = ConfigDict(from_attributes=True)
+
+    module_id: int
+    title: str
+    rank: int
+    score: Optional[float] = None
+    passing_status: Optional[str] = None
+    status: str
+
+
+class CertificateDataResponse(BaseModel):
+    """Full certificate data for rendering."""
+    model_config = ConfigDict(from_attributes=True)
+
+    candidate_name: Optional[str] = None
+    completed_date: Optional[datetime] = None
+    generated_at: Optional[datetime] = None
+    modules: List[CertificateModuleItem] = []
