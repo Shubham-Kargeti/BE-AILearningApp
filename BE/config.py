@@ -182,6 +182,11 @@ class Settings(BaseSettings):
     ONBOARDING_EMAILS: list[str] = [
         "test.user@test.com",
     ]
+
+    # Onboarding Videos
+    # When False, video URLs are served from the static GitHub-hosted list
+    # instead of fetching/generating presigned URLs from S3.
+    FETCH_VIDEOS_FROM_S3: bool = False
     
     # Logging
     LOG_LEVEL: str = "INFO"

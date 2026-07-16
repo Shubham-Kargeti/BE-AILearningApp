@@ -2,6 +2,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta
 
+from config import get_settings
+settings = get_settings()
 from app.db.models import (
     OnboardingModule,
     OnboardingModuleEmployeeProgress,
@@ -660,7 +662,7 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
             })
         return responses
 
-    VIDEO_URLS = {
+    VIDEO_S3_URLS = {
         "Engagement Context & Structure": "onboarding-module/module-1.mp4",
         "Legal, Compliance & Data Security": "onboarding-module/module-2.mp4",
         "Ways of Working & Tools": "onboarding-module/module-3.mp4",
@@ -668,6 +670,17 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
         "Admin Essentials: Reimbursements": "onboarding-module/module-5.mp4",
         "Onboarding Completion & Next Steps": "onboarding-module/module-6.mp4",
     }
+
+    VIDEO_STATIC_URLS = {
+        "Engagement Context & Structure": "https://harshit-nagarro-git.github.io/onboarding-module-videos/module-videos/module-1.mp4",
+        "Legal, Compliance & Data Security": "https://harshit-nagarro-git.github.io/onboarding-module-videos/module-videos/module-2.mp4",
+        "Ways of Working & Tools": "https://harshit-nagarro-git.github.io/onboarding-module-videos/module-videos/module-3.mp4",
+        "Engagement & Delivery Excellence": "https://harshit-nagarro-git.github.io/onboarding-module-videos/module-videos/module-4.mp4",
+        "Admin Essentials: Reimbursements": "https://harshit-nagarro-git.github.io/onboarding-module-videos/module-videos/module-5.mp4",
+        "Onboarding Completion & Next Steps": "https://harshit-nagarro-git.github.io/onboarding-module-videos/module-videos/module-6.mp4",
+    }
+
+    VIDEO_URLS = VIDEO_S3_URLS if settings.FETCH_VIDEOS_FROM_S3 else VIDEO_STATIC_URLS
 
     # Per-module journey definition
     journey = {

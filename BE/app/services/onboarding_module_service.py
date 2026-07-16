@@ -293,7 +293,7 @@ async def update_employee_video_progress(
         if not final_video_url and module_id:
             module = await db.get(OnboardingModule, module_id)
             if module:
-                final_video_url = VIDEO_URL_MAP.get(module.title, "")
+                final_video_url = _get_module_video_url(module.title)
         if not final_video_url:
             final_video_url = ""
         video_progress = OnboardingModuleVideoProgress(
@@ -467,6 +467,27 @@ VIDEO_URL_MAP = {
     "Onboarding Completion & Next Steps": "onboarding-module/module-6.mp4",
 }
 
+STATIC_VIDEO_URL_MAP = {
+    "Engagement Context & Structure": "https://harshit-nagarro-git.github.io/onboarding-module-videos/module-videos/module-1.mp4",
+    "Legal, Compliance & Data Security": "https://harshit-nagarro-git.github.io/onboarding-module-videos/module-videos/module-2.mp4",
+    "Ways of Working & Tools": "https://harshit-nagarro-git.github.io/onboarding-module-videos/module-videos/module-3.mp4",
+    "Engagement & Delivery Excellence": "https://harshit-nagarro-git.github.io/onboarding-module-videos/module-videos/module-4.mp4",
+    "Admin Essentials: Reimbursements": "https://harshit-nagarro-git.github.io/onboarding-module-videos/module-videos/module-5.mp4",
+    "Onboarding Completion & Next Steps": "https://harshit-nagarro-git.github.io/onboarding-module-videos/module-videos/module-6.mp4",
+}
+
+
+def _get_module_video_url(module_title: str) -> str:
+    """Resolve the onboarding video URL for a module.
+
+    When FETCH_VIDEOS_FROM_S3 is True, returns the S3 object key (which is
+    later turned into a presigned URL). When False, returns the static
+    GitHub-hosted URL directly.
+    """
+    if settings.FETCH_VIDEOS_FROM_S3:
+        return VIDEO_URL_MAP.get(module_title, "")
+    return STATIC_VIDEO_URL_MAP.get(module_title, "")
+
 
 def _get_video_presigned_url(s3_key: str, expiration: int = 3600) -> str:
     """Generate a presigned URL for an onboarding video S3 key."""
@@ -495,7 +516,7 @@ async def sync_video_urls(db: AsyncSession) -> None:
 
     updated = False
     for vp, _emp, module in rows:
-        new_url = VIDEO_URL_MAP.get(module.title)
+        new_url = _get_module_video_url(module.title)
         if new_url and vp.video_url != new_url:
             vp.video_url = new_url
             updated = True
@@ -525,7 +546,7 @@ async def get_module_detail(db: AsyncSession, candidate_id: int, module_id: int)
     video_url = video_progress.video_url if video_progress else None
 
     if not video_progress:
-        video_url = VIDEO_URL_MAP.get(module.title)
+        video_url = _get_module_video_url(module.title)
         if video_url:
             video_progress = OnboardingModuleVideoProgress(
                 employee_progress_id=progress.id,
