@@ -247,12 +247,25 @@ async def update_module_video_progress(
     )
 
     if payload.is_completed:
-        await update_employee_module_progress_status(
-            db,
-            progress.id,
-            "VIDEO_COMPLETED",
-            video_completed_date=datetime.utcnow(),
-        )
+        # A completed video must never downgrade a module that is already
+        # COMPLETED (quiz passed). Only advance the status to VIDEO_COMPLETED
+        # when the module has not yet been completed; otherwise keep COMPLETED
+        # and just stamp the video completion date if it is missing.
+        if progress.status == "COMPLETED":
+            if not progress.video_completed_date:
+                await update_employee_module_progress_status(
+                    db,
+                    progress.id,
+                    "COMPLETED",
+                    video_completed_date=datetime.utcnow(),
+                )
+        else:
+            await update_employee_module_progress_status(
+                db,
+                progress.id,
+                "VIDEO_COMPLETED",
+                video_completed_date=datetime.utcnow(),
+            )
 
     return video_progress
 

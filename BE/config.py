@@ -180,7 +180,7 @@ class Settings(BaseSettings):
 
     # Onboarding Success Mail
     ONBOARDING_EMAILS: list[str] = [
-        "test.user@test.com",
+        "user1@test.com","user2@test.com",
     ]
 
     # Onboarding Videos

@@ -54,6 +54,7 @@ const ModuleDetailContainer = () => {
   const [quizResult, setQuizResult] = useState<QuizSubmitResponse | null>(null);
   const [nextModuleId, setNextModuleId] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const containerRef = useRef<HTMLElement | null>(null);
   const [videoCompleted, setVideoCompleted] = useState(false);
   const lastVideoUpdateRef = useRef<number>(0);
   const previousModuleIdRef = useRef(moduleId);
@@ -215,6 +216,7 @@ const ModuleDetailContainer = () => {
   useEffect(() => {
     const fetchData = async () => {
       if (!moduleId) return;
+      setLoading(true);
       try {
         const [result, summary] = await Promise.all([
           onboardingModuleService.getModuleDetail(candidateId, Number(moduleId)),
@@ -245,11 +247,19 @@ const ModuleDetailContainer = () => {
   }, [moduleId]);
 
   useLayoutEffect(() => {
-    if (previousModuleIdRef.current !== moduleId && !loading) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
+    if (previousModuleIdRef.current !== moduleId && !loading && data) {
       previousModuleIdRef.current = moduleId;
+      const scrollToTop = () => {
+        const target = containerRef.current;
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        } else {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      };
+      requestAnimationFrame(() => requestAnimationFrame(scrollToTop));
     }
-  }, [moduleId, loading]);
+  }, [moduleId, loading, data]);
 
   const handleAnswerChange = (questionId: number, value: string, type: string) => {
     if (type === "MCQ" || type === "SCENARIO") {
@@ -387,7 +397,7 @@ const ModuleDetailContainer = () => {
 
   return (
     <>
-      <main className="module-detail-container">
+      <main className="module-detail-container" ref={containerRef}>
       <Box className="module-detail-header">
         {error && (
          <Alert severity="error" sx={{ mb: 2 }}>
@@ -655,7 +665,7 @@ const ModuleDetailContainer = () => {
                           ? "Retry Quiz"
                           : isSubmitting
                             ? "Submitting..."
-                            : "Answer All Questions"}
+                            : "Submit Quiz"}
                   </Button>
 
                   {hasPassedQuiz && nextModuleId && (
