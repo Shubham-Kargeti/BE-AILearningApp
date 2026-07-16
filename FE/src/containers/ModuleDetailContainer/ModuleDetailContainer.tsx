@@ -44,6 +44,7 @@ const ModuleDetailContainer = () => {
   const [data, setData] = useState<ModuleDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLocked, setIsLocked] = useState(false);
 
   type AnswerValue = { selected: string } | { text: string };
   const [answers, setAnswers] = useState<Record<number, AnswerValue>>({});
@@ -72,6 +73,7 @@ const ModuleDetailContainer = () => {
     setIsSubmitting(false);
     setNextModuleId(null);
     setVideoCompleted(false);
+    setIsLocked(false);
   }, [moduleId]);
 
   useEffect(() => {
@@ -214,8 +216,20 @@ const ModuleDetailContainer = () => {
     const fetchData = async () => {
       if (!moduleId) return;
       try {
-        const result = await onboardingModuleService.getModuleDetail(candidateId, Number(moduleId));
+        const [result, summary] = await Promise.all([
+          onboardingModuleService.getModuleDetail(candidateId, Number(moduleId)),
+          onboardingModuleService.getEmployeeProgressSummary(candidateId),
+        ]);
         setData(result);
+
+        const moduleSummary = summary.modules.find(
+          (m) => m.module_id === Number(moduleId)
+        );
+        if (moduleSummary && !moduleSummary.is_unlocked) {
+          setIsLocked(true);
+          navigate("/app/onboarding-candidate");
+          return;
+        }
       } catch (err) {
         if (err instanceof AxiosError) {
           setError(err.response?.data?.detail || "Failed to load module detail");
