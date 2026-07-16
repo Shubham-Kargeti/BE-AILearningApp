@@ -37,6 +37,7 @@ export interface ModuleDetailResponse {
     id: number;
     title: string;
     description: string;
+    link_url: string | null;
     display_order: number;
   }>;
   quiz_questions: Array<{

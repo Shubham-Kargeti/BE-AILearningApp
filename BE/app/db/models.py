@@ -1120,6 +1120,11 @@ class OnboardingModuleKeyConcept(Base):
         nullable=True,
     )
 
+    link_url = Column(
+        String(1000),
+        nullable=True,
+    )
+
     display_order = Column(
         Integer,
         nullable=False,

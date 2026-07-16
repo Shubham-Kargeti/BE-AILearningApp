@@ -23,11 +23,22 @@ class S3Service:
             aws_secret_access_key=settings.S3_ACCESS_KEY_SECRET,
             aws_session_token=settings.S3_SESSION_TOKEN,
             region_name=settings.S3_REGION,
-            config=Config(signature_version='s3v4'),
+            config=Config(
+                signature_version='s3v4',
+                # Fail fast when the endpoint is unreachable (e.g. MinIO not running)
+                # instead of blocking requests for the default 60s connect timeout
+                # multiplied by boto3's retry attempts.
+                connect_timeout=5,
+                read_timeout=5,
+                retries={'max_attempts': 1, 'mode': 'standard'},
+            ),
             use_ssl=settings.S3_USE_SSL,
         )
         self.bucket_name = settings.S3_BUCKET_NAME
-        self._ensure_bucket_exists()
+        try:
+            self._ensure_bucket_exists()
+        except Exception as e:
+            print(f"S3 bucket check failed (continuing with client init): {e}")
     
     def _ensure_bucket_exists(self) -> None:
         """Ensure the S3 bucket exists, create if not."""

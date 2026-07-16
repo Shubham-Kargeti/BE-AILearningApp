@@ -442,7 +442,7 @@ const ModuleDetailContainer = () => {
 
               {data.key_concepts.length > 0 ? (
                 <Box className="module-detail-concepts-list">
-                  {data.key_concepts.map((concept) => (
+                   {data.key_concepts.map((concept) => (
                     <Box key={concept.id} className="module-detail-concept-item">
                       <Typography component="h3" className="module-detail-concept__title">
                         {concept.title}
@@ -450,6 +450,16 @@ const ModuleDetailContainer = () => {
                       <Typography className="module-detail-concept__description">
                         {concept.description}
                       </Typography>
+                      {concept.link_url && (
+                        <a
+                          className="module-detail-concept__link"
+                          href={concept.link_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          View Resource
+                        </a>
+                      )}
                     </Box>
                   ))}
                 </Box>

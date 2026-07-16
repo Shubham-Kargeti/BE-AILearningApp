@@ -540,7 +540,9 @@ async def get_module_detail(db: AsyncSession, candidate_id: int, module_id: int)
             await db.flush()
 
     if video_url and not video_url.startswith("http"):
-        video_url = _get_video_presigned_url(video_url)
+        # Run the blocking boto3 call in a worker thread so it never
+        # freezes the asyncio event loop (e.g. when S3 is slow/unreachable).
+        video_url = await asyncio.to_thread(_get_video_presigned_url, video_url)
 
     key_concepts = await get_onboarding_module_key_concepts(db, module.id)
     quiz_questions = await get_onboarding_module_quiz(db, module.id)

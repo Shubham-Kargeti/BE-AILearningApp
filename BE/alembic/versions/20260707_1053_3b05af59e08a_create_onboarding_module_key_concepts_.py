@@ -47,12 +47,6 @@ def upgrade() -> None:
         sa.Column(
             "description",
             sa.Text(),
-            nullable=False,
-        ),
-
-        sa.Column(
-            "icon",
-            sa.String(),
             nullable=True,
         ),
 

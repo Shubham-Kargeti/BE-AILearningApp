@@ -515,6 +515,7 @@ class OnboardingModuleKeyConceptResponse(BaseModel):
     title: str
     description: str
     icon: Optional[str] = None
+    link_url: Optional[str] = None
     display_order: int
 
 class OnboardingModuleDetailResponse(BaseModel):
