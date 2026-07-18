@@ -111,6 +111,7 @@ Interactive API documentation available at:
 - `POST /api/v1/auth/request-otp` - Request OTP for email
 - `POST /api/v1/auth/verify-otp` - Verify OTP and get tokens
 - `POST /api/v1/auth/login` - Simple login (testing/development)
+- `POST /api/v1/auth/sso/azure/exchange` - Exchange a validated MSAL ID token for application JWTs
 - `GET /api/v1/auth/sso/azure/login` - **Azure AD SSO login** (production)
 - `GET /api/v1/auth/sso/azure/callback` - Azure AD callback (internal)
 - `POST /api/v1/auth/refresh` - Refresh access token
@@ -246,6 +247,53 @@ On CI, set `COURSES_MASTER_URL` as a GitHub secret pointing to a downloadable fi
 
 
 ### Azure AD SSO Configuration
+
+#### MSAL frontend token exchange (current flow)
+
+The React application signs in with MSAL, then exchanges its Microsoft ID token for
+the application's existing access/refresh JWT pair:
+
+```http
+POST /api/v1/auth/sso/azure/exchange
+Content-Type: application/json
+
+{
+  "id_token": "<MSAL authentication result idToken>"
+}
+```
+
+The response intentionally matches `/api/v1/auth/login`, including `role` and
+`candidate_id`, so existing API authorization continues to use the application JWT:
+
+```json
+{
+  "access_token": "<application JWT>",
+  "refresh_token": "<application refresh JWT>",
+  "token_type": "bearer",
+  "role": "candidate",
+  "candidate_id": "cand_..."
+}
+```
+
+Required backend environment values:
+
+```env
+# Must be the same IDs used by VITE_CLIENT_ID and VITE_TENANT_ID in the SPA.
+AZURE_CLIENT_ID=00000000-0000-0000-0000-000000000000
+AZURE_TENANT_ID=00000000-0000-0000-0000-000000000000
+
+# Pydantic list syntax; change this only when another workforce domain is approved.
+AZURE_ALLOWED_EMAIL_DOMAINS=["nagarro.com"]
+
+# Create a minimal candidate profile when an allowed employee signs in for the first time.
+AZURE_AUTO_PROVISION_CANDIDATES=true
+AZURE_JWKS_CACHE_TTL_SECONDS=3600
+AZURE_HTTP_TIMEOUT_SECONDS=5
+```
+
+`AZURE_CLIENT_SECRET` is not required by the MSAL token-exchange endpoint. It is only
+used by the older server-initiated callback flow. Run `alembic upgrade head` before
+deploying so users can be bound to their immutable Azure tenant/object IDs.
 
 For production with Azure AD SSO (Nagarro emails):
 

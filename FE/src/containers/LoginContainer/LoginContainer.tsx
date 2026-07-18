@@ -1,131 +1,64 @@
-import React, { useEffect, useState } from "react";
-import { Box, TextField, Button, Typography, Alert } from "@mui/material";
+import { useEffect, useState } from "react";
+import { InteractionStatus } from "@azure/msal-browser";
+import { useIsAuthenticated, useMsal } from "@azure/msal-react";
+import { Box, Button, Typography, Alert } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import "./LoginContainer.scss";
 import Loader from "../../components/Loader";
-import { authService } from "../../API/services";
-import { isAdmin } from "../../utils/adminUsers";
+import { loginRequest } from "../../auth/authConfig";
 
 const LoginContainer = () => {
   const navigate = useNavigate();
-  const [values, setValues] = useState({ email: "", password: "" });
+  const { instance, inProgress } = useMsal();
+  const isAuthenticated = useIsAuthenticated();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setValues((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-    setError("");
-  };
-
   useEffect(() => {
-    const token = localStorage.getItem("authToken");
-    const userEmail = localStorage.getItem("loggedInUser") || "";
-    const profileCompleted = localStorage.getItem("profileCompleted") === "true";
-
-    if (token) {
-      navigate(isAdmin(userEmail) ? "/admin/dashboard" : profileCompleted ? "/app/dashboard" : "/app/profile-setup");
+    // MsalProvider restores cached accounts and redirect results automatically.
+    if (isAuthenticated && inProgress === InteractionStatus.None) {
+      navigate("/app/dashboard", { replace: true });
     }
-  }, [navigate]);
+  }, [inProgress, isAuthenticated, navigate]);
 
-  const generateAuthToken = async () => {
+  const handleMicrosoftLogin = async () => {
+    if (inProgress !== InteractionStatus.None) return;
+
     try {
       setLoading(true);
       setError("");
-      const response = await authService.login(values.email.trim(), values.password);
-      const { access_token, refresh_token, role, candidate_id } = response;
-
-      if (access_token) {
-        localStorage.setItem("authToken", access_token);
-      }
-
-      if (refresh_token) {
-        localStorage.setItem("refreshToken", refresh_token);
-      }
-
-      if (role) {
-        localStorage.setItem("userRole", role);
-      }
-
-      if (candidate_id) {
-        localStorage.setItem("candidateId", candidate_id);
-      }
-
-      setLoading(false);
-      return response;
-    } catch (err: any) {
-      const message =
-        err?.response?.data?.detail ||
-        err?.response?.data?.error ||
-        "Invalid email or password.";
-      setError(message);
+      await instance.loginRedirect({
+        ...loginRequest,
+        redirectStartPage: `${window.location.origin}/app/dashboard`,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Please try again.";
+      setError(`Microsoft sign-in failed: ${message}`);
       setLoading(false);
     }
   };
 
-  const handleSubmit = async () => {
-    if (!values.email || !values.password) {
-      setError("Please enter both email and password.");
-      return;
-    }
-
-    const response = await generateAuthToken();
-    if (!response?.access_token) return;
-
-    const email = values.email.trim().toLowerCase();
-    localStorage.setItem("loggedInUser", email);
-
-    if (response.role === "admin" || isAdmin(email)) {
-      navigate("/admin/dashboard");
-    } else {
-      navigate("/app/profile-setup");
-    }
-  };
-
-  if (loading) return <Loader fullscreen message="Loading App..." />;
+  if (loading || inProgress !== InteractionStatus.None) {
+    return <Loader fullscreen message="Redirecting to Microsoft sign-in..." />;
+  }
 
   return (
     <Box className="login-page">
       <Box className="login-card">
         <Typography className="title">Welcome Back</Typography>
         <Typography className="subtitle">
-          Sign in to continue your journey
+          Sign in with your Nagarro Microsoft account to continue your journey
         </Typography>
-
-        <TextField
-          label="Email"
-          name="email"
-          variant="outlined"
-          fullWidth
-          value={values.email}
-          onChange={handleChange}
-          className="input"
-        />
-
-        <TextField
-          label="Password"
-          name="password"
-          type="password"
-          variant="outlined"
-          fullWidth
-          value={values.password}
-          onChange={handleChange}
-          className="input"
-        />
 
         {error && <Alert severity="error">{error}</Alert>}
 
         <Button
           variant="contained"
           className="primary-btn"
-          onClick={handleSubmit}
+          onClick={handleMicrosoftLogin}
         >
-          Sign In
+          Login with Nagarro
         </Button>
-
-        <Typography className="switch">
-          Don't have an account?{" "}
-          <span onClick={() => navigate("/signup")}>Sign Up</span>
-        </Typography>
       </Box>
     </Box>
   );

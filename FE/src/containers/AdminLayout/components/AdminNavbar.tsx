@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { FaBell, FaUserCircle } from "react-icons/fa";
 import "./AdminNavbar.scss";
-import { Menu, MenuItem, Dialog, DialogTitle, DialogActions, Button } from "@mui/material";
-import { useNavigate } from "react-router-dom";
+import { Alert, Box, Menu, MenuItem, Dialog, DialogTitle, DialogActions, Button } from "@mui/material";
+import { useMsal } from "@azure/msal-react";
+import UserProfile from "../../../auth/UserProfile";
+import { clearApplicationSession } from "../../../auth/appSession";
 
 const AdminNavbar = () => {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
-  const navigate = useNavigate();
+  const [logoutError, setLogoutError] = useState("");
+  const { instance } = useMsal();
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLDivElement>) => {
     setMenuAnchor(event.currentTarget);
@@ -22,9 +25,18 @@ const AdminNavbar = () => {
     handleMenuClose();
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate("/");
+  const handleLogout = async () => {
+    try {
+      setLogoutError("");
+      clearApplicationSession();
+      await instance.logoutRedirect({
+        account: instance.getActiveAccount() ?? undefined,
+        postLogoutRedirectUri: `${window.location.origin}/login`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Please try again.";
+      setLogoutError(`Microsoft sign-out failed: ${message}`);
+    }
   };
 
   return (
@@ -49,7 +61,9 @@ const AdminNavbar = () => {
         onClose={handleMenuClose}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
-        
+        <Box sx={{ px: 2, py: 1, maxWidth: 320 }}>
+          <UserProfile />
+        </Box>
 
         <MenuItem onClick={openLogoutDialog} sx={{ color: "red" }}>
           Logout
@@ -59,6 +73,7 @@ const AdminNavbar = () => {
       {/* CONFIRM LOGOUT POPUP */}
       <Dialog open={showLogoutDialog} onClose={() => setShowLogoutDialog(false)}>
         <DialogTitle>Are you sure you want to logout?</DialogTitle>
+        {logoutError && <Alert severity="error" sx={{ mx: 3 }}>{logoutError}</Alert>}
         <DialogActions>
           <Button onClick={() => setShowLogoutDialog(false)}>Cancel</Button>
           <Button color="error" variant="contained" onClick={handleLogout}>

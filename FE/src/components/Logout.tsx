@@ -1,15 +1,21 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMsal } from "@azure/msal-react";
+import { clearApplicationSession } from "../auth/appSession";
+import Loader from "./Loader";
 
 const Logout = () => {
-  const navigate = useNavigate();
+  const { instance } = useMsal();
 
   useEffect(() => {
-    localStorage.clear();
-    navigate("/", { replace: true });
-  }, [navigate]);
+    // Clear the backend JWT first, then let MSAL clear its Microsoft account cache.
+    clearApplicationSession();
+    void instance.logoutRedirect({
+      account: instance.getActiveAccount() ?? undefined,
+      postLogoutRedirectUri: `${window.location.origin}/login`,
+    });
+  }, [instance]);
 
-  return null;
+  return <Loader fullscreen message="Signing out of Microsoft..." />;
 };
 
 export default Logout;

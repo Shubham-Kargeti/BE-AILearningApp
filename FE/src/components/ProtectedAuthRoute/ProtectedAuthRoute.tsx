@@ -1,22 +1,24 @@
 import { Navigate } from "react-router-dom";
 import React from "react";
-import { isAdmin } from "../../utils/adminUsers";
+import { InteractionStatus } from "@azure/msal-browser";
+import { useIsAuthenticated, useMsal } from "@azure/msal-react";
+import Loader from "../Loader";
 
 interface ProtectedAuthRouteProps {
   children: React.ReactNode;
 }
 
 const ProtectedAuthRoute = ({ children }: ProtectedAuthRouteProps) => {
-  const token = localStorage.getItem("authToken");
-  const userEmail = localStorage.getItem("loggedInUser") || "";
-  const profileCompleted = localStorage.getItem("profileCompleted") === "true";
+  const isAuthenticated = useIsAuthenticated();
+  const { inProgress } = useMsal();
 
-  if (token) {
-    if (isAdmin(userEmail)) {
-      return <Navigate to="/admin/dashboard" replace />;
-    }
+  // Wait for redirect processing before deciding whether the login page is needed.
+  if (inProgress !== InteractionStatus.None) {
+    return <Loader fullscreen message="Completing Microsoft sign-in..." />;
+  }
 
-    return <Navigate to={profileCompleted ? "/app/dashboard" : "/app/profile-setup"} replace />;
+  if (isAuthenticated) {
+    return <Navigate to="/app/dashboard" replace />;
   }
 
   return children;

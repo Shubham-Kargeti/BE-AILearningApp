@@ -50,6 +50,10 @@ class User(Base, TimestampMixin):
     last_login: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Immutable Microsoft Entra identifiers used to keep SSO identity binding stable
+    # even if the employee's email address or display name changes later.
+    azure_oid: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    azure_tenant_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
 
     # Streak tracking
     login_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -70,6 +74,14 @@ class User(Base, TimestampMixin):
     )
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
         "RefreshToken", back_populates="user", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "azure_tenant_id",
+            "azure_oid",
+            name="uq_users_azure_tenant_oid",
+        ),
     )
 
     def __repr__(self) -> str:

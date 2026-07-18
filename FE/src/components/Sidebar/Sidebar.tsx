@@ -13,8 +13,8 @@ import {
   Button,
   Box,
   Typography,
-  Avatar,
   Chip,
+  Alert,
 } from "@mui/material";
 import {
   Menu as MenuIcon,
@@ -28,16 +28,18 @@ import {
   AssignmentTurnedIn,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useMsal } from "@azure/msal-react";
+import UserProfile from "../../auth/UserProfile";
+import { clearApplicationSession } from "../../auth/appSession";
 import "./Sidebar.scss";
 
 const Sidebar = () => {
   const [open, setOpen] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+  const { instance } = useMsal();
   const navigate = useNavigate();
   const location = useLocation();
-
-  const userName = localStorage.getItem("userName") || "User";
-  const userEmail = localStorage.getItem("userEmail") || "";
 
   const menuItems = [
     { text: "Dashboard", icon: <Dashboard />, path: "/app/dashboard", gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" },
@@ -48,9 +50,18 @@ const Sidebar = () => {
     { text: "Settings", icon: <Settings />, path: "/app/settings", gradient: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)" },
   ];
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate("/");
+  const handleLogout = async () => {
+    try {
+      setLogoutError("");
+      clearApplicationSession();
+      await instance.logoutRedirect({
+        account: instance.getActiveAccount() ?? undefined,
+        postLogoutRedirectUri: `${window.location.origin}/login`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Please try again.";
+      setLogoutError(`Microsoft sign-out failed: ${message}`);
+    }
   };
 
   return (
@@ -129,44 +140,8 @@ const Sidebar = () => {
               padding: '1.5rem 1rem',
               borderBottom: '1px solid rgba(255,255,255,0.1)'
             }}>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '1rem',
-                marginBottom: '0.75rem'
-              }}>
-                <Avatar sx={{ 
-                  width: 48, 
-                  height: 48,
-                  background: 'linear-gradient(135deg, #fff 0%, #f0f0f0 100%)',
-                  color: '#667eea',
-                  fontWeight: 700,
-                  fontSize: '1.25rem',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-                }}>
-                  {userName.charAt(0).toUpperCase()}
-                </Avatar>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ 
-                    fontWeight: 700, 
-                    color: 'white',
-                    fontSize: '0.9375rem',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}>
-                    {userName}
-                  </Typography>
-                  <Typography sx={{ 
-                    fontSize: '0.75rem', 
-                    color: 'rgba(255,255,255,0.7)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}>
-                    {userEmail}
-                  </Typography>
-                </Box>
+              <Box sx={{ color: "white", mb: 1.25 }}>
+                <UserProfile />
               </Box>
               <Box sx={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <Chip 
@@ -357,6 +332,7 @@ const Sidebar = () => {
           <Typography sx={{ textAlign: 'center', color: '#64748b', fontSize: '0.9375rem' }}>
             Are you sure you want to logout? You'll need to sign in again to access your dashboard.
           </Typography>
+          {logoutError && <Alert severity="error" sx={{ mt: 2 }}>{logoutError}</Alert>}
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'center', gap: '0.75rem', padding: '0 1.5rem 1.5rem' }}>
           <Button 

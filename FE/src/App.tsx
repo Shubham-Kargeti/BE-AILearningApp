@@ -1,13 +1,12 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import LoginContainer from "./containers/LoginContainer/LoginContainer";
-import SignUpContainer from "./containers/SignUpContainer/SignUpContainer";
 import ProfileSetupContainer from "./containers/ProfileSetupContainer/ProfileSetupContainer";
 import AppLandingContainer from "./containers/AppLandingContainer/AppLandingContainer";
 import DashboardContainer from "./containers/DashboardContainer/DashboardContainer";
 import LandingPage from "./containers/LandingPage/LandingPage";
 import QuizContainer from "./containers/QuizContainer/QuizContainer";
 import { client } from "./urlRoutes/client";
-import ProtectedRoute from "./components/ProtectedRoute";
+import ProtectedRoute from "./auth/ProtectedRoute";
 import ProtectedProfileQuizRoute from "./components/ProtectedProfileQuizRoute";
 import ProtectedAuthRoute from "./components/ProtectedAuthRoute";
 import StreakContainer from "./containers/StreakContainer";
@@ -53,11 +52,7 @@ function App() {
 
         <Route
           path={client.SIGNUP}
-          element={
-            <ProtectedAuthRoute>
-              <SignUpContainer />
-            </ProtectedAuthRoute>
-          }
+          element={<Navigate to="/login" replace />}
         />
 
         <Route
@@ -84,18 +79,22 @@ function App() {
         <Route
           path={client.QUIZ}
           element={
-            <ProtectedProfileQuizRoute>
-              <QuizContainer />
-            </ProtectedProfileQuizRoute>
+            <ProtectedRoute>
+              <ProtectedProfileQuizRoute>
+                <QuizContainer />
+              </ProtectedProfileQuizRoute>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/admin"
           element={
-            <AdminProtectedRoute>
-              <AdminLayout />
-            </AdminProtectedRoute>
+            <ProtectedRoute>
+              <AdminProtectedRoute>
+                <AdminLayout />
+              </AdminProtectedRoute>
+            </ProtectedRoute>
           }
         >
           <Route path="dashboard" element={<AdminDashboard />} />

@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import HTTPBearer
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from authlib.integrations.starlette_client import OAuth
@@ -13,17 +13,33 @@ import secrets
 
 from app.db.session import get_db
 from app.db.models import User, RefreshToken, Candidate
-from app.core.security import create_token_pair, decode_token, verify_password
+from app.core.security import (
+    create_token_pair,
+    decode_token,
+    is_admin_user,
+    verify_password,
+)
 # from app.core.redis import RedisService, get_redis  # DISABLED - Redis not in use
 from app.core.tasks.email_tasks import send_otp_email, generate_otp
 from app.core.dependencies import verify_refresh_token
 from app.core.metrics import otp_requests_total, auth_attempts_total
 from app.utils.streak_manager import update_login_streak
+from app.services.azure_identity import (
+    AzureIdTokenValidator,
+    AzureIdentityConfigurationError,
+    AzureTokenValidationError,
+)
 from config import get_settings
 
 settings = get_settings()
 router = APIRouter()
 security = HTTPBearer()
+azure_id_token_validator = AzureIdTokenValidator(
+    client_id=settings.AZURE_CLIENT_ID,
+    tenant_id=settings.AZURE_TENANT_ID,
+    cache_ttl_seconds=settings.AZURE_JWKS_CACHE_TTL_SECONDS,
+    http_timeout_seconds=settings.AZURE_HTTP_TIMEOUT_SECONDS,
+)
 
 DEFAULT_ADMIN_EMAIL = "admin@nagarro.com"
 DEFAULT_ADMIN_PASSWORD = "Admin@123"
@@ -72,6 +88,12 @@ class TokenResponse(BaseModel):
 class RefreshTokenRequest(BaseModel):
     """Refresh token request."""
     refresh_token: str
+
+
+class AzureTokenExchangeRequest(BaseModel):
+    """MSAL ID token exchanged for the application's existing JWT pair."""
+
+    id_token: str = Field(min_length=100, max_length=20_000)
 
 
 async def get_or_create_user(
@@ -155,6 +177,212 @@ async def issue_token_response(
         "role": role,
         "candidate_id": candidate_id,
     }
+
+
+def get_azure_email(claims: dict) -> str:
+    """Read and normalize a usable email address from validated Azure claims."""
+
+    raw_email = claims.get("email") or claims.get("preferred_username")
+    try:
+        return str(TypeAdapter(EmailStr).validate_python(raw_email)).lower().strip()
+    except ValidationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Microsoft account did not provide a valid email address",
+        ) from error
+
+
+def ensure_allowed_azure_domain(email: str) -> None:
+    """Restrict token exchange to configured workforce email domains."""
+
+    allowed_domains = {
+        domain.lower().lstrip("@")
+        for domain in settings.AZURE_ALLOWED_EMAIL_DOMAINS
+        if domain.strip()
+    }
+    if not allowed_domains:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Azure login domain policy is not configured",
+        )
+
+    email_domain = email.rsplit("@", 1)[1]
+    if email_domain not in allowed_domains:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This Microsoft account is not allowed to access the application",
+        )
+
+
+async def get_or_create_azure_user(
+    db: AsyncSession,
+    *,
+    email: str,
+    full_name: str,
+    azure_oid: str,
+    azure_tenant_id: str,
+) -> User:
+    """Bind a verified Azure identity to one local user without trusting email alone."""
+
+    azure_result = await db.execute(
+        select(User).where(
+            User.azure_tenant_id == azure_tenant_id,
+            User.azure_oid == azure_oid,
+        )
+    )
+    azure_user = azure_result.scalar_one_or_none()
+
+    email_result = await db.execute(
+        select(User).where(func.lower(User.email) == email)
+    )
+    email_user = email_result.scalar_one_or_none()
+
+    if azure_user and email_user and azure_user.id != email_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Azure identity conflicts with an existing local account",
+        )
+
+    user = azure_user or email_user
+    if user is None:
+        user = User(
+            email=email,
+            full_name=full_name,
+            is_active=True,
+            is_verified=True,
+            azure_oid=azure_oid,
+            azure_tenant_id=azure_tenant_id,
+        )
+        db.add(user)
+    else:
+        if user.azure_oid and (
+            user.azure_oid != azure_oid
+            or user.azure_tenant_id != azure_tenant_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Local account is linked to a different Azure identity",
+            )
+
+        user.email = email
+        user.full_name = full_name
+        user.is_verified = True
+        user.azure_oid = azure_oid
+        user.azure_tenant_id = azure_tenant_id
+
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def get_or_create_azure_candidate(
+    db: AsyncSession,
+    *,
+    user: User,
+    email: str,
+    full_name: str,
+) -> Candidate:
+    """Resolve the local candidate required by current onboarding API responses."""
+
+    candidate_result = await db.execute(
+        select(Candidate).where(
+            Candidate.user_id == user.id,
+            Candidate.is_active == True,
+        )
+    )
+    candidate = candidate_result.scalars().first()
+
+    if candidate is None:
+        candidate_result = await db.execute(
+            select(Candidate).where(
+                func.lower(Candidate.email) == email,
+                Candidate.is_active == True,
+            )
+        )
+        candidate = candidate_result.scalars().first()
+
+    if candidate is None and not settings.AZURE_AUTO_PROVISION_CANDIDATES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No active candidate profile exists for this Microsoft account",
+        )
+
+    if candidate is None:
+        candidate = Candidate(
+            user_id=user.id,
+            full_name=full_name,
+            email=email,
+            experience_level="not_specified",
+            skills={},
+            is_active=True,
+        )
+        db.add(candidate)
+    else:
+        candidate.user_id = user.id
+        candidate.email = email
+        candidate.full_name = full_name
+
+    await db.commit()
+    await db.refresh(candidate)
+    return candidate
+
+
+@router.post(
+    "/auth/sso/azure/exchange",
+    response_model=TokenResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def exchange_azure_token(
+    request: AzureTokenExchangeRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Validate an MSAL ID token and issue the application's normal JWT pair."""
+
+    try:
+        claims = await azure_id_token_validator.validate(request.id_token)
+    except AzureIdentityConfigurationError as error:
+        auth_attempts_total.labels(status="azure_exchange_unavailable").inc()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
+    except AzureTokenValidationError as error:
+        auth_attempts_total.labels(status="azure_exchange_failed").inc()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(error),
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from error
+
+    email = get_azure_email(claims)
+    ensure_allowed_azure_domain(email)
+
+    full_name = str(claims.get("name") or "").strip() or email.split("@", 1)[0]
+    user = await get_or_create_azure_user(
+        db,
+        email=email,
+        full_name=full_name,
+        azure_oid=str(claims["oid"]),
+        azure_tenant_id=str(claims["tid"]),
+    )
+
+    if is_admin_user(email):
+        payload = await issue_token_response(user, db, role="admin")
+    else:
+        candidate = await get_or_create_azure_candidate(
+            db,
+            user=user,
+            email=email,
+            full_name=full_name,
+        )
+        payload = await issue_token_response(
+            user,
+            db,
+            role="candidate",
+            candidate_id=candidate.candidate_id,
+        )
+
+    return TokenResponse(**payload)
 
 
 @router.post("/auth/login", status_code=status.HTTP_200_OK)

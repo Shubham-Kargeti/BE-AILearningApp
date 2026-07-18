@@ -1,5 +1,6 @@
 import axios from "axios";
 import type { AxiosError, AxiosResponse, AxiosRequestConfig } from "axios";
+import { clearApplicationSession } from "../auth/appSession";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/";
 const API_V1 = `${API_BASE_URL}api/v1`;
@@ -82,8 +83,14 @@ apiClient.interceptors.response.use(
   },
   (error: AxiosError) => {
     const requestUrl = error.config?.url || "";
-    if (error.response?.status === 401 && !requestUrl.includes("/auth/login")) {
-      localStorage.clear();
+    const isLoginRequest =
+      requestUrl.includes("/auth/login") ||
+      requestUrl.includes("/auth/sso/azure/exchange");
+
+    if (error.response?.status === 401 && !isLoginRequest) {
+      // Remove only application state. MSAL must retain its account so startup can
+      // silently obtain a fresh Microsoft ID token and rebuild the backend session.
+      clearApplicationSession();
       window.location.href = "/login";
     }
     return Promise.reject(error);
@@ -483,6 +490,13 @@ export const authService = {
     return response.data;
   },
 
+  exchangeAzureToken: async (idToken: string): Promise<TokenResponse> => {
+    const response = await apiClient.post<TokenResponse>("/auth/sso/azure/exchange", {
+      id_token: idToken,
+    });
+    return response.data;
+  },
+
   refreshToken: async (refreshToken: string): Promise<TokenResponse> => {
     const response = await apiClient.post<TokenResponse>("/auth/refresh", {
       refresh_token: refreshToken,
@@ -491,10 +505,7 @@ export const authService = {
   },
 
   logout: (): void => {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("loggedInUser");
-    localStorage.removeItem("profileCompleted");
-    localStorage.removeItem("userProfile");
+    clearApplicationSession();
   },
 };
 

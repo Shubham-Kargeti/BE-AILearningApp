@@ -1,13 +1,14 @@
 import { Box, Button, Typography } from "@mui/material";
+import { useIsAuthenticated, useMsal } from "@azure/msal-react";
 import { useNavigate } from "react-router-dom";
 import "./Navbar.scss";
 import { isAdmin } from "../../../utils/adminUsers";
 
 const Navbar = () => {
   const navigate = useNavigate();
-
-  const token = localStorage.getItem("authToken");
-  const loggedUser = localStorage.getItem("loggedInUser");
+  const isAuthenticated = useIsAuthenticated();
+  const { instance, accounts } = useMsal();
+  const loggedUser = (instance.getActiveAccount() ?? accounts[0])?.username ?? "";
 
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
@@ -48,9 +49,9 @@ const Navbar = () => {
         <Button
           variant="contained"
           className="navbar-btn"
-          onClick={() => navigate(token ? "/app/profile-setup" : "/login")}
+          onClick={() => navigate(isAuthenticated ? "/app/dashboard" : "/login")}
         >
-          {token ? "Explore App" : "Login"}
+          {isAuthenticated ? "Explore App" : "Login"}
         </Button>
       </Box>
     </Box>

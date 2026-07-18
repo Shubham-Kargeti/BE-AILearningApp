@@ -1,12 +1,14 @@
 import { Navigate } from "react-router-dom";
+import { useMsal } from "@azure/msal-react";
 import { isAdmin } from "../../utils/adminUsers";
 import React from "react";
 
 const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const userEmail = localStorage.getItem("loggedInUser");
-  const authToken = localStorage.getItem("authToken");
+  const { instance, accounts } = useMsal();
+  const account = instance.getActiveAccount() ?? accounts[0];
+  const userEmail = account?.username ?? "";
 
-  if (!userEmail || !authToken) {
+  if (!account) {
     return <Navigate to="/login" replace />;
   }
 
