@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 import hashlib
+import uuid
 import bcrypt
 from jose import JWTError, jwt
 from fastapi import HTTPException, status
@@ -95,7 +96,11 @@ def create_refresh_token(data: Dict) -> str:
         days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS
     )
     
-    to_encode.update({"exp": expire, "type": "refresh"})
+    to_encode.update({
+        "exp": expire,
+        "type": "refresh",
+        "jti": str(uuid.uuid4()),
+    })
     
     encoded_jwt = jwt.encode(
         to_encode,

@@ -496,6 +496,13 @@ export const authService = {
     localStorage.removeItem("profileCompleted");
     localStorage.removeItem("userProfile");
   },
+
+  azureLogin: async (idToken: string): Promise<TokenResponse> => {
+    const response = await apiClient.post<TokenResponse>("/auth/azure", {
+      id_token: idToken,
+    });
+    return response.data;
+  },
 };
 
 export const quizService = {

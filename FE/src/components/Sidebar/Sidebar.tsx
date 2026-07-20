@@ -28,6 +28,7 @@ import {
   AssignmentTurnedIn,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
+import { logger } from "../../utils/logger";
 import "./Sidebar.scss";
 
 const Sidebar = () => {
@@ -195,7 +196,10 @@ const Sidebar = () => {
               return (
                 <ListItemButton
                   key={item.text}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => {
+                    logger.info("Sidebar", "Menu item clicked", { path: item.path, text: item.text });
+                    navigate(item.path);
+                  }}
                   sx={{
                     borderRadius: '12px',
                     margin: '0.375rem 0',

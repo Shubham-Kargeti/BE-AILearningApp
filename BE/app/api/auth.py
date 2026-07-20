@@ -3,17 +3,19 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import HTTPBearer
-from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from authlib.integrations.starlette_client import OAuth
 from authlib.integrations.base_client.errors import OAuthError
+import httpx
 import secrets
+from jose import jwt, JWTError, ExpiredSignatureError
+from jose.exceptions import JWKError
 
 from app.db.session import get_db
 from app.db.models import User, RefreshToken, Candidate
-from app.core.security import create_token_pair, decode_token, verify_password
+from app.core.security import create_token_pair, verify_password
 # from app.core.redis import RedisService, get_redis  # DISABLED - Redis not in use
 from app.core.tasks.email_tasks import send_otp_email, generate_otp
 from app.core.dependencies import verify_refresh_token
@@ -28,13 +30,78 @@ security = HTTPBearer()
 DEFAULT_ADMIN_EMAIL = "admin@nagarro.com"
 DEFAULT_ADMIN_PASSWORD = "Admin@123"
 
+_jwks_cache: Optional[dict] = None
+_jwks_cache_key: Optional[str] = None
+
+
+async def _get_azure_jwks(tenant_id: str) -> dict:
+    global _jwks_cache, _jwks_cache_key
+
+    cache_key = f"https://login.microsoftonline.com/{tenant_id}/discovery/v2.0/keys"
+    if _jwks_cache_key == cache_key and _jwks_cache:
+        return _jwks_cache
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(cache_key, timeout=10.0)
+        response.raise_for_status()
+        keys = response.json()
+
+    _jwks_cache = {key["kid"]: key for key in keys.get("keys", [])}
+    _jwks_cache_key = cache_key
+    return _jwks_cache
+
+
+async def _validate_azure_id_token(id_token: str, tenant_id: str, client_id: str) -> dict:
+    try:
+        unverified_header = jwt.get_unverified_header(id_token)
+        kid = unverified_header.get("kid")
+        if not kid:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Azure AD token: missing kid"
+            )
+
+        jwks = await _get_azure_jwks(tenant_id)
+        public_key = jwks.get(kid)
+        if not public_key:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Azure AD token: key not found"
+            )
+
+        payload = jwt.decode(
+            id_token,
+            public_key,
+            algorithms=["RS256"],
+            audience=client_id,
+            issuer=f"https://login.microsoftonline.com/{tenant_id}/v2.0",
+        )
+        return payload
+
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Azure AD token expired"
+        )
+    except JWKError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Azure AD token signature"
+        )
+    except JWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Azure AD token: {str(exc)}"
+        )
+
+
 # Initialize OAuth client for Azure AD
 oauth = OAuth()
 oauth.register(
     name='azure',
-    client_id=settings.AZURE_CLIENT_ID,
-    client_secret=settings.AZURE_CLIENT_SECRET,
-    server_metadata_url=f'https://login.microsoftonline.com/{settings.AZURE_TENANT_ID}/v2.0/.well-known/openid-configuration',
+    client_id=settings.AZURE_AD_CLIENT_ID or settings.AZURE_CLIENT_ID,
+    client_secret=settings.AZURE_AD_CLIENT_SECRET or settings.AZURE_CLIENT_SECRET,
+    server_metadata_url=f'https://login.microsoftonline.com/{settings.AZURE_AD_TENANT_ID or settings.AZURE_TENANT_ID}/v2.0/.well-known/openid-configuration',
     client_kwargs={
         'scope': 'openid email profile',
     }
@@ -72,6 +139,11 @@ class TokenResponse(BaseModel):
 class RefreshTokenRequest(BaseModel):
     """Refresh token request."""
     refresh_token: str
+
+
+class AzureTokenRequest(BaseModel):
+    """Azure AD ID token exchange request."""
+    id_token: str
 
 
 async def get_or_create_user(
@@ -114,6 +186,21 @@ def candidate_password_matches(candidate: Candidate, password: str) -> bool:
     return candidate.password == password
 
 
+async def revoke_user_refresh_tokens(db: AsyncSession, user_id: int) -> None:
+    """Revoke all active refresh tokens for a user."""
+    result = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.user_id == user_id,
+            not RefreshToken.is_revoked,
+        )
+    )
+    tokens = result.scalars().all()
+    for token in tokens:
+        token.is_revoked = True
+    if tokens:
+        await db.commit()
+
+
 async def issue_token_response(
     user: User,
     db: AsyncSession,
@@ -136,6 +223,8 @@ async def issue_token_response(
 
     access_token = tokens["access_token"]
     refresh_token = tokens["refresh_token"]
+
+    await revoke_user_refresh_tokens(db, user.id)
 
     refresh_token_record = RefreshToken(
         user_id=user.id,
@@ -193,7 +282,7 @@ async def simple_login(
     result = await db.execute(
         select(Candidate).where(
             func.lower(Candidate.email) == email,
-            Candidate.is_active == True
+            Candidate.is_active
         )
     )
     candidate = result.scalar_one_or_none()
@@ -267,7 +356,6 @@ async def azure_sso_callback(
         
         email = user_info.get('email') or user_info.get('preferred_username')
         full_name = user_info.get('name', email.split('@')[0].title())
-        azure_user_id = user_info.get('sub') or user_info.get('oid')
         
         if not email:
             raise HTTPException(
@@ -276,12 +364,26 @@ async def azure_sso_callback(
             )
         
         email_domain = email.split('@')[1].lower()
-        allowed_domains = ['nagarro.com']
-        
-        if email_domain not in allowed_domains:
+        allowed_domains = [d.strip() for d in settings.SSO_ALLOWED_DOMAINS.split(",") if d.strip()]
+
+        if allowed_domains and email_domain not in allowed_domains:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Only {', '.join(allowed_domains)} email addresses are allowed"
+            )
+        
+        result = await db.execute(
+            select(Candidate).where(
+                func.lower(Candidate.email) == email.lower(),
+                Candidate.is_active,
+            )
+        )
+        candidate = result.scalar_one_or_none()
+
+        if not candidate:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not an authorized candidate for SSO login"
             )
         
         result = await db.execute(
@@ -295,9 +397,6 @@ async def azure_sso_callback(
                 full_name=full_name,
                 is_active=True,
                 is_verified=True,
-                # Store SSO provider info (you may need to add these fields to User model)
-                # sso_provider='azure',
-                # sso_user_id=azure_user_id
             )
             db.add(user)
             await db.commit()
@@ -305,7 +404,13 @@ async def azure_sso_callback(
         else:
             if user.full_name != full_name:
                 user.full_name = full_name
-            user.is_verified = True  # SSO users are auto-verified
+            user.is_verified = True
+            await db.commit()
+        
+        if candidate.user_id != user.id:
+            candidate.user_id = user.id
+            candidate.updated_at = datetime.now(timezone.utc)
+            db.add(candidate)
             await db.commit()
         
         if not user.is_active:
@@ -324,6 +429,8 @@ async def azure_sso_callback(
         access_token = tokens["access_token"]
         refresh_token = tokens["refresh_token"]
         
+        await revoke_user_refresh_tokens(db, user.id)
+
         refresh_token_record = RefreshToken(
             user_id=user.id,
             token=refresh_token,
@@ -333,12 +440,13 @@ async def azure_sso_callback(
         await db.commit()
         
         auth_attempts_total.labels(status="sso_success").inc()
-        # For now, return tokens as JSON with streak information
+
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
-            "login_streak": streak_info
+            "login_streak": streak_info,
+            "candidate_id": candidate.candidate_id,
         }
         
     except OAuthError as error:
@@ -347,6 +455,112 @@ async def azure_sso_callback(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Azure AD authentication failed: {error.error}"
         )
+    except Exception as e:
+        auth_attempts_total.labels(status="sso_error").inc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"SSO authentication error: {str(e)}"
+        )
+
+
+@router.post("/auth/azure", status_code=status.HTTP_200_OK)
+async def azure_token_exchange(
+    request: AzureTokenRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Exchange Azure AD ID token for application JWT tokens.
+
+    This endpoint accepts an ID token obtained by the frontend MSAL library,
+    validates it with Microsoft's public keys, creates or finds the user
+    in our database, and returns our application's JWT tokens.
+    """
+    try:
+        claims = await _validate_azure_id_token(
+            id_token=request.id_token,
+            tenant_id=settings.AZURE_AD_TENANT_ID or settings.AZURE_TENANT_ID,
+            client_id=settings.AZURE_AD_CLIENT_ID or settings.AZURE_CLIENT_ID,
+        )
+
+        email = claims.get("email") or claims.get("preferred_username")
+        full_name = claims.get("name", email.split("@")[0].title() if email else "User")
+
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email not provided by Azure AD"
+            )
+
+        email_domain = email.split("@")[1].lower()
+        allowed_domains = [d.strip() for d in settings.SSO_ALLOWED_DOMAINS.split(",") if d.strip()]
+
+        if allowed_domains and email_domain not in allowed_domains:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Only {', '.join(allowed_domains)} email addresses are allowed"
+            )
+
+        result = await db.execute(
+            select(Candidate).where(
+                func.lower(Candidate.email) == email.lower(),
+                Candidate.is_active,
+            )
+        )
+        candidate = result.scalar_one_or_none()
+
+        if not candidate:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not an authorized candidate for SSO login"
+            )
+
+        user = await get_or_create_user(db, email, full_name)
+
+        if candidate.user_id != user.id:
+            candidate.user_id = user.id
+            candidate.updated_at = datetime.utcnow()
+            db.add(candidate)
+            await db.commit()
+
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is inactive"
+            )
+
+        streak_info = await update_login_streak(user, db)
+
+        tokens = create_token_pair(
+            user_id=user.id,
+            email=user.email
+        )
+
+        access_token = tokens["access_token"]
+        refresh_token = tokens["refresh_token"]
+
+        await revoke_user_refresh_tokens(db, user.id)
+
+        refresh_token_record = RefreshToken(
+            user_id=user.id,
+            token=refresh_token,
+            expires_at=datetime.utcnow() + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
+        )
+        db.add(refresh_token_record)
+        await db.commit()
+
+        auth_attempts_total.labels(status="sso_success").inc()
+
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "login_streak": streak_info,
+            "role": "admin" if user.email == DEFAULT_ADMIN_EMAIL else "candidate",
+            "candidate_id": candidate.candidate_id,
+        }
+
+    except HTTPException:
+        raise
     except Exception as e:
         auth_attempts_total.labels(status="sso_error").inc()
         raise HTTPException(
@@ -480,6 +694,8 @@ async def verify_otp(
     
     tokens = create_token_pair(user.id, user.email)
     
+    await revoke_user_refresh_tokens(db, user.id)
+
     refresh_token_record = RefreshToken(
         token=tokens["refresh_token"],
         user_id=user.id,

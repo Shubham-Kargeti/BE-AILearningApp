@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { Box, TextField, Button, Typography, Alert } from "@mui/material";
+import { Box, TextField, Button, Typography, Alert, Divider } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import "./LoginContainer.scss";
 import Loader from "../../components/Loader";
 import { authService } from "../../API/services";
 import { isAdmin } from "../../utils/adminUsers";
+import { logger } from "../../utils/logger";
+import AzureSignInButton from "../../components/AzureSignInButton";
 
 const LoginContainer = () => {
   const navigate = useNavigate();
@@ -22,7 +24,16 @@ const LoginContainer = () => {
     const userEmail = localStorage.getItem("loggedInUser") || "";
     const profileCompleted = localStorage.getItem("profileCompleted") === "true";
 
+    logger.info("LoginContainer", "Mount effect - checking auth state", {
+      hasToken: !!token,
+      userEmail,
+      profileCompleted,
+    });
+
     if (token) {
+      logger.info("LoginContainer", "Token found, redirecting away from login", {
+        destination: isAdmin(userEmail) ? "/admin/dashboard" : profileCompleted ? "/app/dashboard" : "/app/profile-setup",
+      });
       navigate(isAdmin(userEmail) ? "/admin/dashboard" : profileCompleted ? "/app/dashboard" : "/app/profile-setup");
     }
   }, [navigate]);
@@ -31,8 +42,16 @@ const LoginContainer = () => {
     try {
       setLoading(true);
       setError("");
+      logger.info("LoginContainer", "Calling login API", { email: values.email.trim() });
       const response = await authService.login(values.email.trim(), values.password);
       const { access_token, refresh_token, role, candidate_id } = response;
+
+      logger.info("LoginContainer", "Login API response received", {
+        hasAccessToken: !!access_token,
+        hasRefreshToken: !!refresh_token,
+        role,
+        candidate_id,
+      });
 
       if (access_token) {
         localStorage.setItem("authToken", access_token);
@@ -57,6 +76,7 @@ const LoginContainer = () => {
         err?.response?.data?.detail ||
         err?.response?.data?.error ||
         "Invalid email or password.";
+      logger.error("LoginContainer", "Login API failed", { message, error: err });
       setError(message);
       setLoading(false);
     }
@@ -69,14 +89,19 @@ const LoginContainer = () => {
     }
 
     const response = await generateAuthToken();
-    if (!response?.access_token) return;
+    if (!response?.access_token) {
+      logger.warn("LoginContainer", "No access token in login response");
+      return;
+    }
 
     const email = values.email.trim().toLowerCase();
     localStorage.setItem("loggedInUser", email);
 
     if (response.role === "admin" || isAdmin(email)) {
+      logger.info("LoginContainer", "Navigating to admin dashboard");
       navigate("/admin/dashboard");
     } else {
+      logger.info("LoginContainer", "Navigating to profile setup");
       navigate("/app/profile-setup");
     }
   };
@@ -121,6 +146,14 @@ const LoginContainer = () => {
         >
           Sign In
         </Button>
+
+        <Divider sx={{ my: 3, "&::before, &::after": { borderColor: "rgba(0, 0, 0, 0.12)" } }}>
+          <Typography variant="body2" color="textSecondary">
+            or
+          </Typography>
+        </Divider>
+
+        <AzureSignInButton />
 
         <Typography className="switch">
           Don't have an account?{" "}

@@ -10,7 +10,6 @@ from app.db.models import (
     Candidate,
 )
 from app.models.schemas import (
-    OnboardingModuleDetailResponse,
     OnboardingModuleResponse,
     OnboardingModuleQuizResponse,
     OnboardingModuleKeyConceptResponse,
@@ -23,7 +22,6 @@ from app.models.schemas import (
     QuizSubmitResponse,
     VideoProgressUpdateRequest,
     VideoProgressResponse,
-    ActionChecklistItemResponse,
     CandidateChecklistResponse,
     CertificateResponse,
     CertificateDataResponse,
@@ -300,7 +298,6 @@ async def retry_module_quiz(
     db: AsyncSession = Depends(get_db),
 ):
     """Return a reshuffled quiz set with new question variants for a retry attempt."""
-    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
     parsed_ids = [int(x) for x in exclude_ids.split(",") if x.strip()]
     questions = await get_retry_quiz(db, module_id, parsed_ids)
     return questions
@@ -350,10 +347,6 @@ async def read_action_checklist(
         )
     )
     checklist = checklist_result.scalar_one_or_none()
-
-    completed_item_ids = []
-    if checklist and checklist.completed_item_ids:
-        completed_item_ids = [int(i) for i in checklist.completed_item_ids.split(",") if i.isdigit()]
 
     return {
         "id": checklist.id if checklist else 0,

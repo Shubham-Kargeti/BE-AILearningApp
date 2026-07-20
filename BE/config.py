@@ -95,6 +95,10 @@ class Settings(BaseSettings):
     AZURE_CLIENT_SECRET: str = ""
     AZURE_TENANT_ID: str = ""
     AZURE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/sso/azure/callback"
+    AZURE_AD_CLIENT_ID: str = "aa5c0fe6-8018-425c-8979-83effe1f8d82"
+    AZURE_AD_CLIENT_SECRET: str = ""
+    AZURE_AD_TENANT_ID: str = "699bb2f4-7783-4702-9e22-5b35bbd558e3"
+    SSO_ALLOWED_DOMAINS: str = ""
     
     # Email Configuration (Brevo - formerly Sendinblue)
     # Free tier: 300 emails/day
