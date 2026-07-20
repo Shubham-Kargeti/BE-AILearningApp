@@ -95,7 +95,7 @@ class Settings(BaseSettings):
     AZURE_CLIENT_SECRET: str = ""
     AZURE_TENANT_ID: str = ""
     AZURE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/sso/azure/callback"
-    AZURE_ALLOWED_EMAIL_DOMAINS: list[str] = ["nagarro.com"]
+    AZURE_ALLOWED_EMAIL_DOMAINS: list[str] = ["nagarro.com","oppharshitgmail.onmicrosoft.com"]
     AZURE_AUTO_PROVISION_CANDIDATES: bool = True
     AZURE_JWKS_CACHE_TTL_SECONDS: int = 3600
     AZURE_HTTP_TIMEOUT_SECONDS: float = 5.0
