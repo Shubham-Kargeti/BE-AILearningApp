@@ -17,7 +17,7 @@ export const msalConfig: Configuration = {
     clientId,
     authority: `https://login.microsoftonline.com/${tenantId}`,
     redirectUri: applicationOrigin,
-    postLogoutRedirectUri: `${applicationOrigin}/login`,
+    postLogoutRedirectUri: applicationOrigin,
   },
   cache: {
     cacheLocation: "localStorage",

@@ -11,7 +11,7 @@ const Logout = () => {
     clearApplicationSession();
     void instance.logoutRedirect({
       account: instance.getActiveAccount() ?? undefined,
-      postLogoutRedirectUri: `${window.location.origin}/login`,
+      postLogoutRedirectUri: window.location.origin,
     });
   }, [instance]);
 

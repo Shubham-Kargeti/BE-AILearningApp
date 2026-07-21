@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import "./LoginContainer.scss";
 import Loader from "../../components/Loader";
 import { loginRequest } from "../../auth/authConfig";
+import MicrosoftLogo from "../../auth/MicrosoftLogo";
 
 const LoginContainer = () => {
   const navigate = useNavigate();
@@ -56,6 +57,7 @@ const LoginContainer = () => {
           variant="contained"
           className="primary-btn"
           onClick={handleMicrosoftLogin}
+          startIcon={<MicrosoftLogo />}
         >
           Login with Nagarro
         </Button>

@@ -56,7 +56,7 @@ const Sidebar = () => {
       clearApplicationSession();
       await instance.logoutRedirect({
         account: instance.getActiveAccount() ?? undefined,
-        postLogoutRedirectUri: `${window.location.origin}/login`,
+        postLogoutRedirectUri: window.location.origin,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Please try again.";

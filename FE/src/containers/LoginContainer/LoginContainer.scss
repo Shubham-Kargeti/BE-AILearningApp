@@ -42,12 +42,67 @@
 }
 
 .primary-btn {
-  background: #3b2bee !important;
-  border-radius: 9999px !important;
+  background: #ffffff !important;
+  color: #242424 !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 10px !important;
   font-weight: 600 !important;
   text-transform: none !important;
-  height: 42px;
+  height: 48px;
   margin-top: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22) !important;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease !important;
+
+  &:hover {
+    background: #f8fafc !important;
+    box-shadow: 0 7px 20px rgba(0, 0, 0, 0.3) !important;
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &:focus-visible {
+    outline: 3px solid rgba(96, 165, 250, 0.55);
+    outline-offset: 3px;
+  }
+
+  .MuiButton-startIcon {
+    margin-right: 12px;
+  }
+}
+
+.microsoft-logo {
+  display: grid;
+  grid-template-columns: repeat(2, 8px);
+  grid-template-rows: repeat(2, 8px);
+  gap: 2px;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
+.microsoft-logo__square {
+  display: block;
+  width: 8px;
+  height: 8px;
+}
+
+.microsoft-logo__square--red {
+  background: #f25022;
+}
+
+.microsoft-logo__square--green {
+  background: #7fba00;
+}
+
+.microsoft-logo__square--blue {
+  background: #00a4ef;
+}
+
+.microsoft-logo__square--yellow {
+  background: #ffb900;
 }
 
 .switch {
