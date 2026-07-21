@@ -14,14 +14,14 @@ const UserProfile = () => {
   return (
     <Box sx={{ minWidth: 0 }}>
       <Typography fontWeight={700} noWrap title={account.name ?? "Nagarro user"}>
-        {account.name ?? "Nagarro user"}
+        Name: {account.name ?? "Nagarro user"}
       </Typography>
       <Typography variant="body2" noWrap title={account.username}>
-        {account.username}
+        Email: {account.username}
       </Typography>
-      <Typography variant="caption" noWrap title={account.tenantId}>
+      {/* <Typography variant="caption" noWrap title={account.tenantId}>
         Tenant: {account.tenantId}
-      </Typography>
+      </Typography> */}
     </Box>
   );
 };

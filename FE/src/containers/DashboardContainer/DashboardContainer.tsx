@@ -253,7 +253,7 @@ const DashboardContainer = () => {
                   transform: 'translateY(-4px) scale(1.02)'
                 }
               }} onClick={() => navigate("/app/streak")}>
-                <CardContent sx={{ textAlign: 'center', padding: '1.5rem' }}>
+                {/* <CardContent sx={{ textAlign: 'center', padding: '1.5rem' }}>
                   <LocalFireDepartmentIcon sx={{ fontSize: 48, color: 'white', marginBottom: '0.5rem' }} />
                   <Typography variant="h4" sx={{ fontWeight: 800, color: 'white', marginBottom: '0.25rem' }}>
                     5
@@ -261,7 +261,7 @@ const DashboardContainer = () => {
                   <Typography sx={{ color: 'rgba(255,255,255,0.95)', fontSize: '0.875rem', fontWeight: 600 }}>
                     Day Streak
                   </Typography>
-                </CardContent>
+                </CardContent> */}
               </Card>
             </Box>
           </Box>

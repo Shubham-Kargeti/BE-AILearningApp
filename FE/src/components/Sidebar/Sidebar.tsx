@@ -47,7 +47,7 @@ const Sidebar = () => {
     { text: "Onboarding", icon: <AssignmentTurnedIn />, path: "/app/onboarding-candidate", gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" },
     { text: "Learning Path", icon: <School />, path: "/app/learning-paths", gradient: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)" },
     { text: "Self Assessment", icon: <Person />, path: "/app/profile-setup", gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)" },
-    { text: "Settings", icon: <Settings />, path: "/app/settings", gradient: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)" },
+    // { text: "Settings", icon: <Settings />, path: "/app/settings", gradient: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)" },
   ];
 
   const handleLogout = async () => {
@@ -144,7 +144,7 @@ const Sidebar = () => {
                 <UserProfile />
               </Box>
               <Box sx={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <Chip 
+                {/* <Chip 
                   icon={<LocalFireDepartment sx={{ fontSize: 14 }} />}
                   label="5 Day Streak"
                   size="small"
@@ -158,7 +158,7 @@ const Sidebar = () => {
                     border: '1px solid rgba(255,255,255,0.2)',
                     '& .MuiChip-icon': { color: '#fbbf24' }
                   }}
-                />
+                /> */}
               </Box>
             </Box>
           )}
