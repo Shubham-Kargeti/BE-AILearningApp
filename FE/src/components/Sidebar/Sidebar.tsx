@@ -141,7 +141,7 @@ const Sidebar = () => {
               borderBottom: '1px solid rgba(255,255,255,0.1)'
             }}>
               <Box sx={{ color: "white", mb: 1.25 }}>
-                <UserProfile />
+                <UserProfile tone="dark" />
               </Box>
               <Box sx={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {/* <Chip 
