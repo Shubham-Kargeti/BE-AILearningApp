@@ -25,14 +25,22 @@ MODULE_NO_TO_RANK = {
 LINK_DISPLAY_PREFIX = "Link to Resources page"
 DIRECT_LINK_PREFIX = "Direct clickable link"
 DUMMY_LINK_PLACEHOLDER = "https://resources.internal/url-to-be-added"
+EMAIL_DISPLAY_PREFIX = "Display directly on module page"
 
 
 def _resolve_link_url(display_type: str) -> str | None:
     """Return a link URL when the display type calls for one, else None."""
+    display_type = display_type.strip()
+    if display_type.startswith(EMAIL_DISPLAY_PREFIX):
+        return None
     if display_type.startswith(LINK_DISPLAY_PREFIX) or display_type.startswith(
         DIRECT_LINK_PREFIX
     ):
         return DUMMY_LINK_PLACEHOLDER
+    if display_type.startswith("http://") or display_type.startswith("https://"):
+        return display_type
+    if "@" in display_type and " " not in display_type.split(";")[0].strip():
+        return display_type
     return None
 
 

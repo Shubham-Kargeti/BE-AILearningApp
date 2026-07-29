@@ -1121,7 +1121,7 @@ class OnboardingModuleKeyConcept(Base):
     )
 
     link_url = Column(
-        String(1000),
+        Text,
         nullable=True,
     )
 

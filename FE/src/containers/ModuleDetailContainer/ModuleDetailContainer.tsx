@@ -482,11 +482,11 @@ const ModuleDetailContainer = () => {
                       {concept.link_url && (
                         <a
                           className="module-detail-concept__link"
-                          href={concept.link_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          href={concept.link_url.includes("@") && !concept.link_url.startsWith("http") ? `mailto:${concept.link_url}` : concept.link_url}
+                          target={concept.link_url.startsWith("http") ? "_blank" : undefined}
+                          rel={concept.link_url.startsWith("http") ? "noopener noreferrer" : undefined}
                         >
-                          View Resource
+                          {concept.link_url.includes("@") && !concept.link_url.startsWith("http") ? "Email Contact" : "View Resource"}
                         </a>
                       )}
                     </Box>
