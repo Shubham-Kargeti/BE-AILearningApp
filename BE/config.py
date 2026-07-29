@@ -104,7 +104,7 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""  # Your Brevo login email
     SMTP_PASSWORD: str = ""  # Your Brevo SMTP key (not account password)
-    SMTP_FROM_EMAIL: str = "noreply@learningapp.com"
+    SMTP_FROM_EMAIL: str = "programming.harshit@gmail.com"
     SMTP_FROM_NAME: str = "AI Learning App"
     
     # Rate Limiting
@@ -180,7 +180,7 @@ class Settings(BaseSettings):
 
     # Onboarding Success Mail
     ONBOARDING_EMAILS: list[str] = [
-        "user1@test.com","user2@test.com",
+        "programming.harshit@gmail.com",
     ]
 
     # Onboarding Videos

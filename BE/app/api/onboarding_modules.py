@@ -47,6 +47,7 @@ from app.services.onboarding_module_service import (
     generate_certificate,
     get_certificate_data,
     share_certificate_email,
+    send_certificate_email_auto,
     get_retry_quiz,
 )
 
@@ -447,6 +448,25 @@ async def share_certificate(
     """Return a mailto URL for the candidate to send the onboarding completion email manually."""
     internal_candidate_id = await resolve_candidate_id(db, candidate_id)
     result = await share_certificate_email(db, internal_candidate_id, module_id)
+
+    if not result:
+        raise HTTPException(404, "Certificate not found or candidate email missing")
+
+    return result
+
+
+@router.post(
+    "/certificate/{candidate_id}/send-email",
+    response_model=dict,
+)
+async def send_certificate_email(
+    candidate_id: str,
+    module_id: int = Query(..., description="Module ID for certificate context"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Automatically send the onboarding completion email to project coordinators."""
+    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
+    result = await send_certificate_email_auto(db, internal_candidate_id, module_id)
 
     if not result:
         raise HTTPException(404, "Certificate not found or candidate email missing")

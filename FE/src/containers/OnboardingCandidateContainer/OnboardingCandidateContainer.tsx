@@ -12,7 +12,7 @@ import { AxiosError } from "axios";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import LockIcon from "@mui/icons-material/Lock";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
-import EmailIcon from "@mui/icons-material/Email";
+// EmailIcon is no longer needed since we use SMTP auto-email instead of mailto
 import { useNavigate } from "react-router-dom";
 import { onboardingModuleService } from "../../API/onboarding_module.service";
 import type {
@@ -120,13 +120,16 @@ const OnboardingCandidateContainer = () => {
   const [completedModules, setCompletedModules] = useState(0);
   const [remainingModules, setRemainingModules] = useState(0);
   const [overallProgress, setOverallProgress] = useState(0);
+  /* Email is sent automatically via SMTP when all modules are completed, so these are no longer needed
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  */
 
   const userEmail = localStorage.getItem("loggedInUser") || localStorage.getItem("userEmail");
   const userName = userEmail ? userEmail.split(".")[0].charAt(0).toUpperCase() + userEmail.split(".")[0].slice(1) : "User";
   const candidateId = localStorage.getItem("candidateId") || "";
 
+  /* Email is sent automatically via SMTP when all modules are completed, so this function is no longer needed
   const handleEmailProjectCoordinators = async () => {
     if (isSendingEmail || emailSent) return;
     setIsSendingEmail(true);
@@ -143,6 +146,7 @@ const OnboardingCandidateContainer = () => {
       setIsSendingEmail(false);
     }
   };
+  */
 
   useEffect(() => {
     const fetchData = async () => {
@@ -167,7 +171,7 @@ const OnboardingCandidateContainer = () => {
     };
 
     fetchData();
-  }, []);
+  }, [candidateId]);
 
   if (loading) {
     return (
@@ -211,19 +215,22 @@ const OnboardingCandidateContainer = () => {
               <Typography variant="h5" sx={{ mb: 2 }}>
                 All required onboarding modules have been completed successfully.
               </Typography>
-              <Typography sx={{ mb: 4 }}>
-                If you have not yet notified your Project Coordinators, please use the
-                Email Project Coordinators button below
-              </Typography>
-              <Button
-                variant="contained"
-                size="large"
-                startIcon={<EmailIcon />}
-                onClick={handleEmailProjectCoordinators}
-                disabled={isSendingEmail || emailSent}
-              >
-                {isSendingEmail ? "Opening Email..." : emailSent ? "Email Opened" : "Email Project Coordinators"}
-              </Button>
+               {/* Email is sent automatically via SMTP when all modules are completed, so this button is no longer needed */}
+               {/*
+               <Typography sx={{ mb: 4 }}>
+                 If you have not yet notified your Project Coordinators, please use the
+                 Email Project Coordinators button below
+               </Typography>
+               <Button
+                 variant="contained"
+                 size="large"
+                 startIcon={<EmailIcon />}
+                 onClick={handleEmailProjectCoordinators}
+                 disabled={isSendingEmail || emailSent}
+               >
+                 {isSendingEmail ? "Opening Email..." : emailSent ? "Email Opened" : "Email Project Coordinators"}
+               </Button>
+               */}
             </CardContent>
           </Card>
         ) : (

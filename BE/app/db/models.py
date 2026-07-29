@@ -1288,6 +1288,7 @@ class OnboardingModuleCandidateChecklist(Base):
     all_completed = Column(Boolean, nullable=False, server_default="false")
     certificate_generated = Column(Boolean, nullable=False, server_default="false")
     certificate_generated_date = Column(DateTime, nullable=True)
+    certificate_email_sent = Column(Boolean, nullable=False, server_default="false")
     completed_date = Column(DateTime, nullable=True)
 
     created_date = Column(DateTime, server_default=func.now(), nullable=False)

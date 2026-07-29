@@ -32,7 +32,8 @@ import SendIcon from "@mui/icons-material/Send";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Close";
 import DashboardIcon from "@mui/icons-material/Dashboard";
-import EmailIcon from "@mui/icons-material/Email";
+// EmailIcon is no longer needed since we use SMTP auto-email instead of mailto
+// import EmailIcon from "@mui/icons-material/Email";
 import { onboardingModuleService } from "../../API/onboarding_module.service";
 import type { ModuleDetailResponse, QuizSubmitResponse, CertificateDataResponse } from "../../API/onboarding_module.model";
 import "./ModuleDetailContainer.scss";
@@ -63,8 +64,10 @@ const ModuleDetailContainer = () => {
   const isDirectMedia = !!data?.video_url?.match(/\.(mp4|webm|ogg|ogv|mov|m4v|m3u8)(\?|#|$)/i);
   const [showCongratsDialog, setShowCongratsDialog] = useState(false);
   const [certificateData, setCertificateData] = useState<CertificateDataResponse | null>(null);
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  /* Email is sent automatically via SMTP when all modules are completed, so these are no longer needed
   const [emailSent, setEmailSent] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  */
 
 
   useEffect(() => {
@@ -348,6 +351,7 @@ const ModuleDetailContainer = () => {
     }
   };
 
+  /* Email is sent automatically via SMTP when all modules are completed, so this function is no longer needed
   const handleSendEmail = async () => {
     if (!data || isSendingEmail) return;
     setIsSendingEmail(true);
@@ -364,6 +368,7 @@ const ModuleDetailContainer = () => {
       setIsSendingEmail(false);
     }
   };
+  */
 
   const handleGoToNextModule = () => {
     if (nextModuleId) {
@@ -780,6 +785,8 @@ const ModuleDetailContainer = () => {
         )}
       </DialogContent>
       <DialogActions sx={{ justifyContent: "center", gap: 2, pb: 3 }}>
+        {/* Email is sent automatically via SMTP when all modules are completed, so this button is no longer needed */}
+        {/*
         <Button
           variant="contained"
           startIcon={<EmailIcon />}
@@ -789,6 +796,7 @@ const ModuleDetailContainer = () => {
         >
           {isSendingEmail ? "Sending..." : emailSent ? "Email Sent" : "Send via Email"}
         </Button>
+        */}
         <Button
           variant="contained"
           startIcon={<DashboardIcon />}
