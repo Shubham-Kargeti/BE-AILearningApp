@@ -21,12 +21,20 @@ export interface EmployeeModuleProgressSummaryItem {
   completed_date: string | null;
 }
 
+export interface ResourceLinkItem {
+  module_id: number;
+  module_title: string;
+  title: string;
+  url: string;
+}
+
 export interface EmployeeOnboardingProgressSummaryResponse {
   total_modules: number;
   completed_modules: number;
   remaining_modules: number;
   overall_progress_percentage: number;
   certificate_email_sent: boolean;
+  resources: ResourceLinkItem[];
   modules: Array<EmployeeModuleProgressSummaryItem>;
 }
 

@@ -625,6 +625,14 @@ class EmployeeModuleProgressSummaryItem(BaseModel):
     completed_date: Optional[datetime] = None
 
 
+class ResourceLinkItem(BaseModel):
+    """A resource link drawn from a module's key concepts."""
+    module_id: int
+    module_title: str
+    title: str
+    url: str
+
+
 class EmployeeOnboardingProgressSummaryResponse(BaseModel):
     """Aggregated onboarding progress summary for a candidate."""
     model_config = ConfigDict(from_attributes=True)
@@ -634,6 +642,7 @@ class EmployeeOnboardingProgressSummaryResponse(BaseModel):
     remaining_modules: int
     overall_progress_percentage: float
     certificate_email_sent: bool = False
+    resources: List[ResourceLinkItem] = []
     modules: List[EmployeeModuleProgressSummaryItem]
 
 

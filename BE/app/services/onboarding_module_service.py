@@ -458,12 +458,40 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
     )
     certificate_email_sent = email_sent_result.scalar_one_or_none() is not None
 
+    resources_result = await db.execute(
+        select(
+            OnboardingModuleKeyConcept.module_id,
+            OnboardingModule.title.label("module_title"),
+            OnboardingModuleKeyConcept.title,
+            OnboardingModuleKeyConcept.link_url,
+        )
+        .join(
+            OnboardingModule,
+            OnboardingModuleKeyConcept.module_id == OnboardingModule.id,
+        )
+        .where(
+            OnboardingModuleKeyConcept.link_url.is_not(None),
+            OnboardingModule.deleted_date.is_(None),
+        )
+        .order_by(OnboardingModule.rank, OnboardingModuleKeyConcept.display_order)
+    )
+    resources = [
+        {
+            "module_id": row.module_id,
+            "module_title": row.module_title,
+            "title": row.title,
+            "url": row.link_url,
+        }
+        for row in resources_result.all()
+    ]
+
     return {
         "total_modules": total_modules,
         "completed_modules": completed_modules,
         "remaining_modules": remaining_modules,
         "overall_progress_percentage": overall_progress_percentage,
         "certificate_email_sent": certificate_email_sent,
+        "resources": resources,
         "modules": modules,
     }
 

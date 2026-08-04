@@ -19,6 +19,7 @@ import { onboardingModuleService } from "../../API/onboarding_module.service";
 import type {
   EmployeeOnboardingProgressSummaryResponse,
   EmployeeModuleProgressSummaryItem,
+  ResourceLinkItem,
 } from "../../API/onboarding_module.model";
 import "./OnboardingCandidateContainer.scss";
 
@@ -115,6 +116,7 @@ const mapSummaryModulesToUi = (
 const OnboardingCandidateContainer = () => {
   const navigate = useNavigate();
   const [modules, setModules] = useState<ModuleItem[]>([]);
+  const [resources, setResources] = useState<ResourceLinkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalModules, setTotalModules] = useState(0);
@@ -138,6 +140,7 @@ const OnboardingCandidateContainer = () => {
         setRemainingModules(data.remaining_modules);
         setOverallProgress(data.overall_progress_percentage);
         setEmailSent(data.certificate_email_sent ?? false);
+        setResources(data.resources || []);
 
         const mapped = data.modules.map(mapSummaryModulesToUi);
         setModules(mapped);
@@ -180,6 +183,11 @@ const OnboardingCandidateContainer = () => {
 
   const emailFailed = allCompleted && !emailSent;
   const emailCanRetry = emailFailed && !isResendingEmail && !manualEmailOpened;
+
+  const truncateUrl = (url: string, maxLength: number = 55): string => {
+    if (url.length <= maxLength) return url;
+    return url.slice(0, maxLength) + "...";
+  };
 
   const handleResendEmail = async () => {
     if (!lastModuleId || isResendingEmail) return;
@@ -243,37 +251,82 @@ const OnboardingCandidateContainer = () => {
 
       <section className="onboarding-shell onboarding-content">
         {allCompleted ? (
-          <Card className="onboarding-completion-card">
-            <CardContent sx={{ textAlign: "center", py: 6 }}>
-              <CheckCircleIcon sx={{ fontSize: 64, color: "success.main", mb: 2 }} />
-              <Typography variant="h5" sx={{ mb: 2 }}>
-                All required onboarding modules have been completed successfully.
-              </Typography>
-
-              {emailFailed ? (
-                <>
-                  <Alert severity="error" sx={{ mb: 3, justifyContent: "center" }}>
-                    Email notification failed to send last time. Click below to send
-                    it manually again.
-                  </Alert>
-                  <Button
-                    variant="contained"
-                    size="large"
-                    startIcon={<MailOutlineIcon />}
-                    onClick={handleResendEmail}
-                    disabled={!emailCanRetry}
-                  >
-                    {isResendingEmail ? "Sending..." : "Send Email Manually"}
-                  </Button>
-                </>
-              ) : (
-                <Typography sx={{ mb: 4, color: "#475569" }}>
-                  We have notified your Project Coordinators about your onboarding
-                  completion.
+          <>
+            <Card className="onboarding-completion-card">
+              <CardContent sx={{ textAlign: "center", py: 6 }}>
+                <CheckCircleIcon sx={{ fontSize: 64, color: "success.main", mb: 2 }} />
+                <Typography variant="h5" sx={{ mb: 2 }}>
+                  All required onboarding modules have been completed successfully.
                 </Typography>
-              )}
-            </CardContent>
-          </Card>
+
+                {emailFailed ? (
+                  <>
+                    <Alert severity="error" sx={{ mb: 3, justifyContent: "center" }}>
+                      Email notification failed to send last time. Click below to send
+                      it manually again.
+                    </Alert>
+                    <Button
+                      variant="contained"
+                      size="large"
+                      startIcon={<MailOutlineIcon />}
+                      onClick={handleResendEmail}
+                      disabled={!emailCanRetry}
+                    >
+                      {isResendingEmail ? "Sending..." : "Send Email Manually"}
+                    </Button>
+                  </>
+                ) : (
+                  <Typography sx={{ mb: 4, color: "#475569" }}>
+                    We have notified your Project Coordinators about your onboarding
+                    completion.
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+
+            {resources.length > 0 && (
+              <Card className="onboarding-resources-card">
+                <CardContent>
+                  <Typography component="h3" className="onboarding-resources__title">
+                    Resources Links
+                  </Typography>
+                  <Box component="ul" className="onboarding-resources__list">
+                    {resources.map((resource, index) => {
+                      const isMailto =
+                        resource.url.includes("@") &&
+                        !resource.url.startsWith("http");
+                      const href = isMailto
+                        ? `mailto:${resource.url}`
+                        : resource.url;
+                      return (
+                        <Box
+                          component="li"
+                          key={`${resource.module_id}-${index}`}
+                          className="onboarding-resources__item"
+                        >
+                          <Typography
+                            component="span"
+                            className="onboarding-resources__item-title"
+                          >
+                            {resource.title}
+                          </Typography>
+                          <a
+                            href={href}
+                            target={isMailto ? undefined : "_blank"}
+                            rel={isMailto ? undefined : "noopener noreferrer"}
+                            className="onboarding-resources__item-link"
+                            title={resource.url}
+                          >
+                            {truncateUrl(resource.url)}
+                          </a>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </CardContent>
+              </Card>
+            )}
+          </>
         ) : (
           <>
             <div className="onboarding-stats-grid">
