@@ -633,6 +633,7 @@ class EmployeeOnboardingProgressSummaryResponse(BaseModel):
     completed_modules: int
     remaining_modules: int
     overall_progress_percentage: float
+    certificate_email_sent: bool = False
     modules: List[EmployeeModuleProgressSummaryItem]
 
 

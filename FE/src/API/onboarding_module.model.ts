@@ -26,6 +26,7 @@ export interface EmployeeOnboardingProgressSummaryResponse {
   completed_modules: number;
   remaining_modules: number;
   overall_progress_percentage: number;
+  certificate_email_sent: boolean;
   modules: Array<EmployeeModuleProgressSummaryItem>;
 }
 

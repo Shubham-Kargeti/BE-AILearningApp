@@ -486,7 +486,7 @@ const ModuleDetailContainer = () => {
                           target={concept.link_url.startsWith("http") ? "_blank" : undefined}
                           rel={concept.link_url.startsWith("http") ? "noopener noreferrer" : undefined}
                         >
-                          {concept.link_url.includes("@") && !concept.link_url.startsWith("http") ? "Email Contact" : "View Resource"}
+                          {concept.link_url.includes("@") && !concept.link_url.startsWith("http") ? concept.link_url : "View Resource"}
                         </a>
                       )}
                     </Box>

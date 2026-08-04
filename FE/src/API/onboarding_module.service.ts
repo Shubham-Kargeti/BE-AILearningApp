@@ -126,13 +126,23 @@ export const onboardingModuleService = {
     return response.data;
   },
 
-  shareCertificateEmail: async (
-    candidateId: string,
-    moduleId: number
-  ): Promise<{ mailto_url: string }> => {
-    const response = await apiClient.post<{ mailto_url: string }>(
-      `/onboarding-modules/certificate/${candidateId}/share?module_id=${moduleId}`
-    );
-    return response.data;
-  },
+   shareCertificateEmail: async (
+     candidateId: string,
+     moduleId: number
+   ): Promise<{ mailto_url: string }> => {
+     const response = await apiClient.post<{ mailto_url: string }>(
+       `/onboarding-modules/certificate/${candidateId}/share?module_id=${moduleId}`
+     );
+     return response.data;
+   },
+
+   sendCertificateEmail: async (
+     candidateId: string,
+     moduleId: number
+   ): Promise<{ sent: boolean; message: string }> => {
+     const response = await apiClient.post<{ sent: boolean; message: string }>(
+       `/onboarding-modules/certificate/${candidateId}/send-email?module_id=${moduleId}`
+     );
+     return response.data;
+   },
 };

@@ -449,11 +449,21 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
         (completed_modules / total_modules) * 100, 2
     ) if total_modules > 0 else 0.0
 
+    email_sent_result = await db.execute(
+        select(OnboardingModuleCandidateChecklist.certificate_email_sent)
+        .where(
+            OnboardingModuleCandidateChecklist.candidate_id == candidate_id,
+            OnboardingModuleCandidateChecklist.certificate_email_sent.is_(True),
+        )
+    )
+    certificate_email_sent = email_sent_result.scalar_one_or_none() is not None
+
     return {
         "total_modules": total_modules,
         "completed_modules": completed_modules,
         "remaining_modules": remaining_modules,
         "overall_progress_percentage": overall_progress_percentage,
+        "certificate_email_sent": certificate_email_sent,
         "modules": modules,
     }
 
@@ -743,10 +753,14 @@ async def _check_and_send_onboarding_completion_email(db: AsyncSession, candidat
     if checklist and checklist.certificate_email_sent:
         return
 
-    await send_certificate_email_auto(db, candidate_id, last_module.id)
+    email_result = await send_certificate_email_auto(db, candidate_id, last_module.id)
+    if email_result is None:
+        return
+
+    email_sent = email_result.get("sent", False)
 
     if checklist:
-        checklist.certificate_email_sent = True
+        checklist.certificate_email_sent = email_sent
     else:
         checklist = OnboardingModuleCandidateChecklist(
             candidate_id=candidate_id,
@@ -755,7 +769,7 @@ async def _check_and_send_onboarding_completion_email(db: AsyncSession, candidat
             all_completed=True,
             certificate_generated=True,
             certificate_generated_date=func.now(),
-            certificate_email_sent=True,
+            certificate_email_sent=email_sent,
             completed_date=func.now(),
         )
         db.add(checklist)
@@ -991,11 +1005,38 @@ Please find this email as confirmation of my onboarding completion. I look forwa
 </html>"""
 
     to_emails = settings.ONBOARDING_EMAILS
-    await send_email(
-        to_email=to_emails,
-        subject=subject,
-        html_body=html_body,
-        text_body=text_body,
-    )
+    try:
+        await send_email(
+            to_email=to_emails,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+        )
+    except Exception as exc:
+        print(f"Failed to send certificate email: {exc}")
+        return {"sent": False, "message": "Failed to send onboarding completion email"}
 
     return {"sent": True, "message": "Onboarding completion email sent successfully"}
+
+
+async def update_certificate_email_status(
+    db: AsyncSession,
+    candidate_id: int,
+    module_id: int,
+    email_sent: bool,
+) -> None:
+    """Update the certificate email sent flag on the candidate checklist.
+
+    Records whether an automatic email send succeeded or failed so the
+    dashboard can offer a manual resend when delivery fails (flag stays False).
+    """
+    result = await db.execute(
+        select(OnboardingModuleCandidateChecklist).where(
+            OnboardingModuleCandidateChecklist.candidate_id == candidate_id,
+            OnboardingModuleCandidateChecklist.module_id == module_id,
+        )
+    )
+    checklist = result.scalar_one_or_none()
+    if checklist:
+        checklist.certificate_email_sent = email_sent
+        await db.flush()
