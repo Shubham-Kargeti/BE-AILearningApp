@@ -242,7 +242,7 @@ const DashboardContainer = () => {
               </Box>
               
               {/* Streak Card */}
-              <Card sx={{ 
+              {/* <Card sx={{ 
                 background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
                 borderRadius: '16px',
                 minWidth: '180px',
@@ -262,7 +262,7 @@ const DashboardContainer = () => {
                     Day Streak
                   </Typography>
                 </CardContent>
-              </Card>
+              </Card> */}
             </Box>
           </Box>
         </Box>

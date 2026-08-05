@@ -122,10 +122,10 @@ const LoginContainer = () => {
           Sign In
         </Button>
 
-        <Typography className="switch">
+        {/* <Typography className="switch">
           Don't have an account?{" "}
           <span onClick={() => navigate("/signup")}>Sign Up</span>
-        </Typography>
+        </Typography> */}
       </Box>
     </Box>
   );
