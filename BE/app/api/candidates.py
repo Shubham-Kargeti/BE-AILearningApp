@@ -16,6 +16,7 @@ from app.core.dependencies import get_db, get_current_user, admin_required
 from app.core.security import get_password_hash
 from app.db.models import Candidate, User, UploadedDocument, Assessment, TestSession, AssessmentApplication
 from app.models.schemas import CandidateCreate, CandidateUpdate, CandidateResponse, FieldError, ValidationErrorResponse
+from app.services.onboarding_module_service import get_onboarding_candidates_with_status
 
 # Response schemas for new endpoints
 class EmailValidationResponse(BaseModel):
@@ -44,6 +45,16 @@ class BulkCandidateCreateResponse(BaseModel):
     created: List[BulkCandidateCreateItem]
     skipped: List[str] = []
     errors: List[BulkCandidateCreateItem] = []
+
+class OnboardingCandidateStatusResponse(BaseModel):
+    """Onboarding candidate with aggregated module progress status."""
+    candidate_id: str
+    email: str
+    full_name: str
+    created_at: datetime
+    password: Optional[str] = None
+    experience_level: str
+    overall_status: str  # "completed" | "in_progress" | "not_started"
 
 class CandidatePendingAssessmentResponse(BaseModel):
     application_id: str
@@ -466,6 +477,15 @@ async def list_candidates(
         to_candidate_response(candidate, include_password=True)
         for candidate in candidates
     ]
+
+
+@router.get("/onboarding-status", response_model=List[OnboardingCandidateStatusResponse])
+async def get_onboarding_candidates_status(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required),
+) -> List[OnboardingCandidateStatusResponse]:
+    """Return all onboarding-sourced candidates with their aggregated module progress status."""
+    return await get_onboarding_candidates_with_status(db)
 
 
 @router.get("/{candidate_id}", response_model=CandidateResponse)

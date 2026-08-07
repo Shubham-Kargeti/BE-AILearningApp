@@ -314,6 +314,16 @@ export interface BulkCandidateCreateResponse {
   errors: BulkCandidateCreateItem[];
 }
 
+export interface OnboardingCandidateStatusResponse {
+  candidate_id: string;
+  email: string;
+  full_name: string;
+  created_at: string;
+  password: string | null;
+  experience_level: string;
+  overall_status: "completed" | "in_progress" | "not_started";
+}
+
 export interface EmailValidationResponse {
   email: string;
   is_available: boolean;
@@ -694,6 +704,14 @@ export const candidateService = {
     const response = await apiClient.post<BulkCandidateCreateResponse>(
       "/candidates/bulk",
       { emails }
+    );
+    return response.data;
+  },
+
+  getOnboardingCandidatesStatus: async (skipCache = false): Promise<OnboardingCandidateStatusResponse[]> => {
+    const response = await apiClient.get<OnboardingCandidateStatusResponse[]>(
+      "/candidates/onboarding-status",
+      skipCache ? { headers: { "x-cache-skip": "true" } } : undefined
     );
     return response.data;
   },

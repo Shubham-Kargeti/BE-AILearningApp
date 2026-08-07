@@ -6,7 +6,7 @@ import random
 import re
 from urllib.parse import quote
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -531,6 +531,90 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
         "resources": resources,
         "modules": modules,
     }
+
+
+async def get_onboarding_candidates_with_status(db: AsyncSession):
+    """Return all onboarding-sourced candidates with their aggregated module status.
+
+    Status values:
+    - "completed": every assigned module is COMPLETED
+    - "in_progress": at least one module is actively being worked on
+    - "not_started": no modules started yet
+    """
+    stmt = (
+        select(
+            Candidate.candidate_id,
+            Candidate.email,
+            Candidate.full_name,
+            Candidate.created_at,
+            Candidate.password,
+            Candidate.experience_level,
+            func.coalesce(
+                case(
+                    (func.count(OnboardingModuleEmployeeProgress.id) == 0, "not_started"),
+                    (
+                        func.sum(
+                            case(
+                                (OnboardingModuleEmployeeProgress.status == "COMPLETED", 1),
+                                else_=0,
+                            )
+                        )
+                        == func.count(OnboardingModuleEmployeeProgress.id),
+                        "completed",
+                    ),
+                    (
+                        func.sum(
+                            case(
+                                (
+                                    OnboardingModuleEmployeeProgress.status.in_(
+                                        [
+                                            "VIDEO_IN_PROGRESS",
+                                            "VIDEO_COMPLETED",
+                                            "QUIZ_IN_PROGRESS",
+                                        ]
+                                    ),
+                                    1,
+                                ),
+                                else_=0,
+                            )
+                        )
+                        > 0,
+                        "in_progress",
+                    ),
+                    else_="not_started",
+                ),
+                "not_started",
+            ).label("overall_status"),
+        )
+        .select_from(Candidate)
+        .outerjoin(
+            OnboardingModuleEmployeeProgress,
+            (Candidate.id == OnboardingModuleEmployeeProgress.candidate_id),
+        )
+        .where(Candidate.source == "onboarding")
+        .group_by(
+            Candidate.candidate_id,
+            Candidate.email,
+            Candidate.full_name,
+            Candidate.created_at,
+            Candidate.password,
+            Candidate.experience_level,
+        )
+        .order_by(Candidate.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    return [
+        {
+            "candidate_id": row.candidate_id,
+            "email": row.email,
+            "full_name": row.full_name,
+            "created_at": row.created_at,
+            "password": row.password,
+            "experience_level": row.experience_level,
+            "overall_status": row.overall_status,
+        }
+        for row in result.all()
+    ]
 
 
 VIDEO_URL_MAP = {

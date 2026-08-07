@@ -16,6 +16,8 @@ import {
   Paper,
   TableContainer,
   Button,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import { AxiosError } from "axios";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -26,6 +28,7 @@ import type {
   BulkCandidateCreateResponse,
   Candidate,
   EmployeeModuleProgressSummaryItem,
+  OnboardingCandidateStatusResponse,
 } from "../../API/services";
 import "./AdminOnboardingModule.scss";
 
@@ -34,19 +37,20 @@ const AdminOnboardingModule = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BulkCandidateCreateResponse | null>(null);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidates, setCandidates] = useState<OnboardingCandidateStatusResponse[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [moduleProgress, setModuleProgress] = useState<EmployeeModuleProgressSummaryItem[]>([]);
   const [loadingProgress, setLoadingProgress] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"all" | "completed" | "in_progress" | "not_started">("all");
 
   const fetchOnboardingCandidates = async (skipCache = false) => {
     setLoadingCandidates(true);
     setRefreshError(null);
     try {
-      const data = await candidateService.listCandidates(0, 100, "", "onboarding", skipCache);
+      const data = await candidateService.getOnboardingCandidatesStatus(skipCache);
       setCandidates(data);
     } catch (err) {
       if (err instanceof AxiosError) {
@@ -316,7 +320,7 @@ const AdminOnboardingModule = () => {
 
         <Card className="onboarding-candidates-card">
           <CardContent>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
               <Typography component="h2" className="onboarding-candidates__title">
                 Onboarding Candidates
               </Typography>
@@ -332,6 +336,20 @@ const AdminOnboardingModule = () => {
               </Button>
             </Box>
 
+            <Tabs
+              value={activeTab}
+              onChange={(_, newValue) => {
+                setActiveTab(newValue);
+                setSelectedCandidateId(null);
+              }}
+              sx={{ mb: 2 }}
+            >
+              <Tab label={`All (${candidates.length})`} value="all" />
+              <Tab label={`Completed (${candidates.filter((c) => c.overall_status === "completed").length})`} value="completed" />
+              <Tab label={`In Progress (${candidates.filter((c) => c.overall_status === "in_progress").length})`} value="in_progress" />
+              <Tab label={`Not Started (${candidates.filter((c) => c.overall_status === "not_started").length})`} value="not_started" />
+            </Tabs>
+
             {refreshError && (
               <Alert severity="error" sx={{ mt: 2 }} onClose={() => setRefreshError(null)}>
                 {refreshError}
@@ -342,92 +360,100 @@ const AdminOnboardingModule = () => {
               <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
                 <CircularProgress size={32} />
               </Box>
-            ) : candidates.length === 0 ? (
-              <Typography sx={{ color: "#94a3b8", py: 3, textAlign: "center" }}>
-                No onboarding candidates have been added yet.
-              </Typography>
-            ) : (
-              <Paper elevation={0} className="onboarding-candidates__table-wrapper">
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Email</TableCell>
-                      <TableCell>Name</TableCell>
-                      <TableCell>Candidate ID</TableCell>
-                      <TableCell>Experience Level</TableCell>
-                      <TableCell>Password</TableCell>
-                      <TableCell>Created At</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {candidates.map((candidate: Candidate) => {
-                      const isSelected = candidate.candidate_id === selectedCandidateId;
-                      return (
-                        <TableRow
-                          key={candidate.candidate_id}
-                          hover
-                          selected={isSelected}
-                          onClick={() => fetchModuleProgress(candidate.candidate_id)}
-                          sx={{
-                            cursor: "pointer",
-                            "&.Mui-selected": {
-                              backgroundColor: "#eef2ff !important",
-                              "&:hover": {
-                                backgroundColor: "#e0e7ff !important",
+            ) : (() => {
+              const filtered = activeTab === "all"
+                ? candidates
+                : candidates.filter((c) => c.overall_status === activeTab);
+              if (filtered.length === 0) {
+                return (
+                  <Typography sx={{ color: "#94a3b8", py: 3, textAlign: "center" }}>
+                    No onboarding candidates have been added yet.
+                  </Typography>
+                );
+              }
+              return (
+                <Paper elevation={0} className="onboarding-candidates__table-wrapper">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Email</TableCell>
+                        <TableCell>Name</TableCell>
+                        <TableCell>Candidate ID</TableCell>
+                        <TableCell>Experience Level</TableCell>
+                        <TableCell>Password</TableCell>
+                        <TableCell>Created At</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filtered.map((candidate) => {
+                        const isSelected = candidate.candidate_id === selectedCandidateId;
+                        return (
+                          <TableRow
+                            key={candidate.candidate_id}
+                            hover
+                            selected={isSelected}
+                            onClick={() => fetchModuleProgress(candidate.candidate_id)}
+                            sx={{
+                              cursor: "pointer",
+                              "&.Mui-selected": {
+                                backgroundColor: "#eef2ff !important",
+                                "&:hover": {
+                                  backgroundColor: "#e0e7ff !important",
+                                },
                               },
-                            },
-                          }}
-                        >
-                          <TableCell>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                              {isSelected && (
+                            }}
+                          >
+                            <TableCell>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                {isSelected && (
+                                  <Box
+                                    component="span"
+                                    sx={{
+                                      display: "inline-flex",
+                                      color: "#4f46e5",
+                                      fontSize: "1.1rem",
+                                      lineHeight: 1,
+                                    }}
+                                  >
+                                    ▸
+                                  </Box>
+                                )}
+                                {candidate.email}
+                              </Box>
+                            </TableCell>
+                            <TableCell>{candidate.full_name}</TableCell>
+                            <TableCell>{candidate.candidate_id}</TableCell>
+                            <TableCell>{candidate.experience_level}</TableCell>
+                            <TableCell>
+                              {candidate.password ? (
                                 <Box
                                   component="span"
                                   sx={{
-                                    display: "inline-flex",
-                                    color: "#4f46e5",
-                                    fontSize: "1.1rem",
-                                    lineHeight: 1,
+                                    fontFamily: "monospace",
+                                    backgroundColor: "#f1f5f9",
+                                    px: 1,
+                                    py: 0.5,
+                                    borderRadius: 1,
+                                    fontSize: "0.8rem",
                                   }}
                                 >
-                                  ▸
+                                  {candidate.password}
                                 </Box>
+                              ) : (
+                                "-"
                               )}
-                              {candidate.email}
-                            </Box>
-                          </TableCell>
-                          <TableCell>{candidate.full_name}</TableCell>
-                          <TableCell>{candidate.candidate_id}</TableCell>
-                          <TableCell>{candidate.experience_level}</TableCell>
-                          <TableCell>
-                            {candidate.password ? (
-                              <Box
-                                component="span"
-                                sx={{
-                                  fontFamily: "monospace",
-                                  backgroundColor: "#f1f5f9",
-                                  px: 1,
-                                  py: 0.5,
-                                  borderRadius: 1,
-                                  fontSize: "0.8rem",
-                                }}
-                              >
-                                {candidate.password}
-                              </Box>
-                            ) : (
-                              "-"
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {new Date(candidate.created_at).toLocaleString()}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </Paper>
-            )}
+                            </TableCell>
+                            <TableCell>
+                              {new Date(candidate.created_at).toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </Paper>
+              );
+            })()}
 
             {selectedCandidate && (
               <Box className="module-progress-section">
