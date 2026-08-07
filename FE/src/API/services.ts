@@ -299,6 +299,20 @@ export type CandidateUpdateRequest = Partial<CandidateCreateRequest> & {
   created_at?: string;
 };
 
+export interface BulkCandidateCreateItem {
+  email: string;
+  created: boolean;
+  candidate_id?: string | null;
+  password?: string | null;
+  message?: string | null;
+}
+
+export interface BulkCandidateCreateResponse {
+  created: BulkCandidateCreateItem[];
+  skipped: string[];
+  errors: BulkCandidateCreateItem[];
+}
+
 export interface EmailValidationResponse {
   email: string;
   is_available: boolean;
@@ -670,6 +684,16 @@ export const candidateService = {
 
   createCandidate: async (data: CandidateCreateRequest): Promise<Candidate> => {
     const response = await apiClient.post<Candidate>("/candidates", data);
+    return response.data;
+  },
+
+  createBulkCandidates: async (
+    emails: string[]
+  ): Promise<BulkCandidateCreateResponse> => {
+    const response = await apiClient.post<BulkCandidateCreateResponse>(
+      "/candidates/bulk",
+      { emails }
+    );
     return response.data;
   },
 

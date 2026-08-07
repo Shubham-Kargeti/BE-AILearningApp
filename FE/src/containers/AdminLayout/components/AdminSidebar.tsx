@@ -19,6 +19,10 @@ const AdminSidebar = () => {
           Add Candidate
         </NavLink>
 
+        <NavLink to="/admin/onboarding-module" className="admin-link">
+          Onboarding Module
+        </NavLink>
+
         <NavLink to="/admin/candidate-list" className="admin-link">
           Candidate List
         </NavLink>

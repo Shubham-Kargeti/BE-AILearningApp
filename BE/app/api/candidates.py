@@ -9,6 +9,8 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, validator
 import re
+import secrets
+import string
 
 from app.core.dependencies import get_db, get_current_user, admin_required
 from app.core.security import get_password_hash
@@ -24,6 +26,24 @@ class EmailValidationResponse(BaseModel):
 
 class SkillsOverrideRequest(BaseModel):
     submitted_skills: dict  # {skill_name: proficiency_level}
+
+class BulkCandidateCreateRequest(BaseModel):
+    """Request body for bulk candidate creation from a list of email addresses."""
+    emails: List[str] = Field(..., description="List of email addresses to create candidates for")
+
+class BulkCandidateCreateItem(BaseModel):
+    """Result of attempting to create a candidate for a single email."""
+    email: str
+    created: bool = False
+    candidate_id: Optional[str] = None
+    password: Optional[str] = None
+    message: Optional[str] = None
+
+class BulkCandidateCreateResponse(BaseModel):
+    """Aggregated response for a bulk candidate creation request."""
+    created: List[BulkCandidateCreateItem]
+    skipped: List[str] = []
+    errors: List[BulkCandidateCreateItem] = []
 
 class CandidatePendingAssessmentResponse(BaseModel):
     application_id: str
@@ -209,6 +229,85 @@ async def create_candidate(
     await db.refresh(candidate)
     
     return to_candidate_response(candidate, include_password=True)
+
+
+def _generate_random_password(length: int = 16) -> str:
+    """Generate a random password for bulk-created candidates."""
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _derive_full_name(email: str) -> str:
+    """Derive a display name from an email address' local part."""
+    local = email.split("@")[0]
+    parts = re.split(r"[._\-+]+", local)
+    parts = [p.capitalize() for p in parts if p]
+    name = " ".join(parts)
+    return name or local.capitalize()
+
+
+@router.post("/bulk", response_model=BulkCandidateCreateResponse, status_code=status.HTTP_201_CREATED)
+async def create_candidates_bulk(
+    request: BulkCandidateCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required),
+) -> BulkCandidateCreateResponse:
+    """
+    Bulk create candidate profiles from a list of email addresses.
+
+    - Admin-only endpoint
+    - Each candidate is created with a randomly generated password and the
+      "junior" experience level by default
+    - Existing emails are skipped (reported in ``skipped``)
+    - Invalid emails are reported in ``errors``
+    """
+    created: List[BulkCandidateCreateItem] = []
+    skipped: List[str] = []
+    errors: List[BulkCandidateCreateItem] = []
+
+    for raw_email in request.emails:
+        email = (raw_email or "").strip().lower()
+        if not email:
+            continue
+
+        if not EMAIL_PATTERN.match(email):
+            errors.append(BulkCandidateCreateItem(
+                email=raw_email, message="Invalid email format"
+            ))
+            continue
+
+        existing_result = await db.execute(
+            select(Candidate).where(func.lower(Candidate.email) == email)
+        )
+        if existing_result.scalars().first():
+            skipped.append(email)
+            continue
+
+        password = _generate_random_password()
+        candidate = Candidate(
+            user_id=None,
+            full_name=_derive_full_name(email),
+            email=email,
+            password=password,
+            password_hash=get_password_hash(password),
+            experience_level="junior",
+            skills={},
+            availability_percentage=100,
+        )
+        db.add(candidate)
+        await db.flush()
+        created.append(BulkCandidateCreateItem(
+            email=email,
+            created=True,
+            candidate_id=candidate.candidate_id,
+            password=password,
+        ))
+
+    await db.commit()
+
+    return BulkCandidateCreateResponse(
+        created=created, skipped=skipped, errors=errors
+    )
 
 
 @router.get("/me", response_model=CandidateResponse)
