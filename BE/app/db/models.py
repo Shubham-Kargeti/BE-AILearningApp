@@ -599,8 +599,18 @@ class Candidate(Base, TimestampMixin):
         String(100), nullable=True
     )  # Reference to portfolio
 
+    assessment_application_id: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True
+    )
+
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    source: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="manual",
+        server_default="manual",
+    )  # "manual" (admin add-candidate) or "onboarding" (bulk onboarding-module)
 
     # Relationships
     assessment_applications: Mapped[list["AssessmentApplication"]] = relationship(

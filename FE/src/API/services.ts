@@ -253,6 +253,7 @@ export interface Candidate {
   is_active?: boolean;
   created_at: string;
   updated_at?: string;
+  source?: string;
 }
 
 export interface CandidatePendingAssessment {
@@ -710,13 +711,16 @@ export const candidateService = {
     return response.data;
   },
 
-  listCandidates: async (skip = 0, limit = 50, search = ""): Promise<Candidate[]> => {
+  listCandidates: async (skip = 0, limit = 50, search = "", source?: string): Promise<Candidate[]> => {
     const params = new URLSearchParams({
       skip: String(skip),
       limit: String(limit),
     });
     if (search.trim()) {
       params.set("search", search.trim());
+    }
+    if (source) {
+      params.set("source", source);
     }
     const response = await apiClient.get<Candidate[]>(
       `/candidates?${params.toString()}`

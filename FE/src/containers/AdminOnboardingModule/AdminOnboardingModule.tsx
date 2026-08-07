@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Card,
@@ -17,7 +17,11 @@ import {
 } from "@mui/material";
 import { AxiosError } from "axios";
 import { candidateService } from "../../API/services";
-import type { BulkCandidateCreateItem, BulkCandidateCreateResponse } from "../../API/services";
+import type {
+  BulkCandidateCreateItem,
+  BulkCandidateCreateResponse,
+  Candidate,
+} from "../../API/services";
 import "./AdminOnboardingModule.scss";
 
 const AdminOnboardingModule = () => {
@@ -25,6 +29,26 @@ const AdminOnboardingModule = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BulkCandidateCreateResponse | null>(null);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
+
+  const fetchOnboardingCandidates = async () => {
+    setLoadingCandidates(true);
+    try {
+      const data = await candidateService.listCandidates(0, 100, "", "onboarding");
+      setCandidates(data);
+    } catch (err) {
+      if (err instanceof AxiosError) {
+        console.error("Failed to load onboarding candidates", err.response?.data);
+      }
+    } finally {
+      setLoadingCandidates(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOnboardingCandidates();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +71,7 @@ const AdminOnboardingModule = () => {
 
       const response = await candidateService.createBulkCandidates(emails);
       setResult(response);
+      await fetchOnboardingCandidates();
     } catch (err) {
       if (err instanceof AxiosError) {
         setError(
@@ -203,6 +228,51 @@ const AdminOnboardingModule = () => {
             </CardContent>
           </Card>
         )}
+
+        <Card className="onboarding-candidates-card">
+          <CardContent>
+            <Typography component="h2" className="onboarding-candidates__title">
+              Onboarding Candidates
+            </Typography>
+
+            {loadingCandidates ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+                <CircularProgress size={32} />
+              </Box>
+            ) : candidates.length === 0 ? (
+              <Typography sx={{ color: "#94a3b8", py: 3, textAlign: "center" }}>
+                No onboarding candidates have been added yet.
+              </Typography>
+            ) : (
+              <Paper elevation={0} className="onboarding-candidates__table-wrapper">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Email</TableCell>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Candidate ID</TableCell>
+                      <TableCell>Experience Level</TableCell>
+                      <TableCell>Created At</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {candidates.map((candidate: Candidate) => (
+                      <TableRow key={candidate.candidate_id}>
+                        <TableCell>{candidate.email}</TableCell>
+                        <TableCell>{candidate.full_name}</TableCell>
+                        <TableCell>{candidate.candidate_id}</TableCell>
+                        <TableCell>{candidate.experience_level}</TableCell>
+                        <TableCell>
+                          {new Date(candidate.created_at).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Paper>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

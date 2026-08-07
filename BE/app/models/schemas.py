@@ -191,9 +191,10 @@ class CandidateCreate(BaseModel):
     github_url: Optional[str] = None
     portfolio_url: Optional[str] = None
     experience_years: Optional[str] = None  # e.g., "5 years"
-    experience_level: str  # junior, mid, senior, etc.
+    experience_level: str
     skills: dict = {}  # {skill_name: proficiency_level}
     availability_percentage: int = 100
+    source: str = "manual"  # "manual" or "onboarding"
 
 class CandidateUpdate(BaseModel):
     """Request to update candidate profile."""
@@ -243,6 +244,7 @@ class CandidateResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    source: str = "manual"
 
 
 class SkillResponse(BaseModel):

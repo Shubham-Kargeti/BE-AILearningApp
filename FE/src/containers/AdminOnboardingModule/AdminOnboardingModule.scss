@@ -159,6 +159,25 @@
   }
 }
 
+.onboarding-candidates-card {
+  margin-top: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+.onboarding-candidates__title {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  margin-bottom: 16px !important;
+}
+
+.onboarding-candidates__table-wrapper {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
 @media (max-width: 768px) {
   .admin-onboarding-module {
     padding: 16px;

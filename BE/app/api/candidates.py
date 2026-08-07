@@ -293,6 +293,7 @@ async def create_candidates_bulk(
             experience_level="junior",
             skills={},
             availability_percentage=100,
+            source="onboarding",
         )
         db.add(candidate)
         await db.flush()
@@ -436,6 +437,7 @@ async def list_candidates(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     search: Optional[str] = Query(None, description="Search candidates by name or email"),
+    source: Optional[str] = Query(None, description="Filter by source (e.g. 'onboarding')"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(admin_required),
 ) -> List[CandidateResponse]:
@@ -451,6 +453,9 @@ async def list_candidates(
                 func.lower(Candidate.email).like(search_term),
             )
         )
+
+    if source:
+        stmt = stmt.where(Candidate.source == source)
 
     stmt = stmt.order_by(Candidate.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
