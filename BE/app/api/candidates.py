@@ -98,6 +98,7 @@ def to_candidate_response(candidate: Candidate, include_password: bool = False) 
         is_active=candidate.is_active,
         created_at=candidate.created_at,
         updated_at=candidate.updated_at,
+        source=candidate.source,
     )
 
 

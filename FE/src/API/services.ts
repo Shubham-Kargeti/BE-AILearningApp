@@ -711,7 +711,7 @@ export const candidateService = {
     return response.data;
   },
 
-  listCandidates: async (skip = 0, limit = 50, search = "", source?: string): Promise<Candidate[]> => {
+  listCandidates: async (skip = 0, limit = 50, search = "", source?: string, skipCache = false): Promise<Candidate[]> => {
     const params = new URLSearchParams({
       skip: String(skip),
       limit: String(limit),
@@ -723,7 +723,8 @@ export const candidateService = {
       params.set("source", source);
     }
     const response = await apiClient.get<Candidate[]>(
-      `/candidates?${params.toString()}`
+      `/candidates?${params.toString()}`,
+      skipCache ? { headers: { "x-cache-skip": "true" } } : undefined
     );
     return response.data;
   },

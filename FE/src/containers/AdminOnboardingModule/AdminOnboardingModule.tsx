@@ -15,8 +15,10 @@ import {
   TableBody,
   Paper,
   TableContainer,
+  Button,
 } from "@mui/material";
 import { AxiosError } from "axios";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { candidateService } from "../../API/services";
 import { onboardingModuleService } from "../../API/onboarding_module.service";
 import type {
@@ -37,15 +39,22 @@ const AdminOnboardingModule = () => {
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [moduleProgress, setModuleProgress] = useState<EmployeeModuleProgressSummaryItem[]>([]);
   const [loadingProgress, setLoadingProgress] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
-  const fetchOnboardingCandidates = async () => {
+  const fetchOnboardingCandidates = async (skipCache = false) => {
     setLoadingCandidates(true);
+    setRefreshError(null);
     try {
-      const data = await candidateService.listCandidates(0, 100, "", "onboarding");
+      const data = await candidateService.listCandidates(0, 100, "", "onboarding", skipCache);
       setCandidates(data);
     } catch (err) {
       if (err instanceof AxiosError) {
         console.error("Failed to load onboarding candidates", err.response?.data);
+        setRefreshError(err.response?.data?.detail || "Failed to load onboarding candidates");
+      } else {
+        console.error("Failed to load onboarding candidates", err);
+        setRefreshError("Failed to load onboarding candidates");
       }
     } finally {
       setLoadingCandidates(false);
@@ -59,12 +68,17 @@ const AdminOnboardingModule = () => {
   const fetchModuleProgress = async (candidateId: string) => {
     setLoadingProgress(true);
     setSelectedCandidateId(candidateId);
+    setRefreshError(null);
     try {
       const data = await onboardingModuleService.getEmployeeProgressSummary(candidateId);
       setModuleProgress(data.modules);
     } catch (err) {
       if (err instanceof AxiosError) {
         console.error("Failed to load module progress", err.response?.data);
+        setRefreshError(err.response?.data?.detail || "Failed to load module progress");
+      } else {
+        console.error("Failed to load module progress", err);
+        setRefreshError("Failed to load module progress");
       }
       setModuleProgress([]);
     } finally {
@@ -105,6 +119,21 @@ const AdminOnboardingModule = () => {
   };
 
   const selectedCandidate = candidates.find((c) => c.candidate_id === selectedCandidateId);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    setRefreshError(null);
+    try {
+      await Promise.all([
+        fetchOnboardingCandidates(true),
+        selectedCandidateId ? fetchModuleProgress(selectedCandidateId) : Promise.resolve(),
+      ]);
+    } catch (err) {
+      console.error("Refresh failed", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -287,9 +316,27 @@ const AdminOnboardingModule = () => {
 
         <Card className="onboarding-candidates-card">
           <CardContent>
-            <Typography component="h2" className="onboarding-candidates__title">
-              Onboarding Candidates
-            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <Typography component="h2" className="onboarding-candidates__title">
+                Onboarding Candidates
+              </Typography>
+              <Button
+                type="button"
+                size="small"
+                variant="outlined"
+                startIcon={<RefreshIcon className={isRefreshing ? "spin" : ""} />}
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+              >
+                Refresh
+              </Button>
+            </Box>
+
+            {refreshError && (
+              <Alert severity="error" sx={{ mt: 2 }} onClose={() => setRefreshError(null)}>
+                {refreshError}
+              </Alert>
+            )}
 
             {loadingCandidates ? (
               <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
