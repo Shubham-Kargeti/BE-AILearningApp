@@ -19,6 +19,8 @@ export interface EmployeeModuleProgressSummaryItem {
   started_date: string | null;
   video_completed_date: string | null;
   completed_date: string | null;
+  score: number | null;
+  passing_status: string | null;
 }
 
 export interface ResourceLinkItem {

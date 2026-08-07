@@ -409,6 +409,7 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
             OnboardingModuleEmployeeProgress.started_date,
             OnboardingModuleEmployeeProgress.video_completed_date,
             OnboardingModuleEmployeeProgress.completed_date,
+            OnboardingModuleEmployeeProgress.id.label("employee_progress_id"),
         )
         .join(
             OnboardingModuleEmployeeProgress,
@@ -423,12 +424,46 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
     result = await db.execute(stmt)
     rows = result.all()
 
+    progress_ids = [row.employee_progress_id for row in rows if row.employee_progress_id is not None]
+
+    latest_scores: dict = {}
+    if progress_ids:
+        max_attempts_subq = (
+            select(
+                OnboardingModuleQuizAttempt.employee_progress_id,
+                func.max(OnboardingModuleQuizAttempt.attempt_number).label("max_attempt"),
+            )
+            .group_by(OnboardingModuleQuizAttempt.employee_progress_id)
+            .subquery()
+        )
+        score_rows = await db.execute(
+            select(
+                OnboardingModuleQuizAttempt.employee_progress_id,
+                OnboardingModuleQuizAttempt.score,
+                OnboardingModuleQuizAttempt.passing_status,
+            )
+            .join(
+                max_attempts_subq,
+                (OnboardingModuleQuizAttempt.employee_progress_id == max_attempts_subq.c.employee_progress_id)
+                & (OnboardingModuleQuizAttempt.attempt_number == max_attempts_subq.c.max_attempt),
+            )
+            .where(OnboardingModuleQuizAttempt.employee_progress_id.in_(progress_ids))
+        )
+        for row in score_rows.all():
+            latest_scores[row.employee_progress_id] = {
+                "score": float(row.score) if row.score is not None else None,
+                "passing_status": row.passing_status,
+            }
+
     modules = []
     completed_modules = 0
     for index, row in enumerate(rows):
         status = row.status or "LOCKED"
         previous_status = rows[index - 1].status if index > 0 else None
         is_unlocked = index == 0 or (previous_status or "LOCKED") == "COMPLETED"
+
+        progress_data = latest_scores.get(row.employee_progress_id, {}) if row.employee_progress_id else {}
+
         modules.append({
             "module_id": row.id,
             "title": row.title,
@@ -440,6 +475,8 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
             "started_date": row.started_date,
             "video_completed_date": row.video_completed_date,
             "completed_date": row.completed_date,
+            "score": progress_data.get("score"),
+            "passing_status": progress_data.get("passing_status"),
         })
         if status == "COMPLETED":
             completed_modules += 1

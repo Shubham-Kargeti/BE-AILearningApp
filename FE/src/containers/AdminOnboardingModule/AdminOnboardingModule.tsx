@@ -14,13 +14,16 @@ import {
   TableCell,
   TableBody,
   Paper,
+  TableContainer,
 } from "@mui/material";
 import { AxiosError } from "axios";
 import { candidateService } from "../../API/services";
+import { onboardingModuleService } from "../../API/onboarding_module.service";
 import type {
   BulkCandidateCreateItem,
   BulkCandidateCreateResponse,
   Candidate,
+  EmployeeModuleProgressSummaryItem,
 } from "../../API/services";
 import "./AdminOnboardingModule.scss";
 
@@ -31,6 +34,9 @@ const AdminOnboardingModule = () => {
   const [result, setResult] = useState<BulkCandidateCreateResponse | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [moduleProgress, setModuleProgress] = useState<EmployeeModuleProgressSummaryItem[]>([]);
+  const [loadingProgress, setLoadingProgress] = useState(false);
 
   const fetchOnboardingCandidates = async () => {
     setLoadingCandidates(true);
@@ -49,6 +55,56 @@ const AdminOnboardingModule = () => {
   useEffect(() => {
     fetchOnboardingCandidates();
   }, []);
+
+  const fetchModuleProgress = async (candidateId: string) => {
+    setLoadingProgress(true);
+    setSelectedCandidateId(candidateId);
+    try {
+      const data = await onboardingModuleService.getEmployeeProgressSummary(candidateId);
+      setModuleProgress(data.modules);
+    } catch (err) {
+      if (err instanceof AxiosError) {
+        console.error("Failed to load module progress", err.response?.data);
+      }
+      setModuleProgress([]);
+    } finally {
+      setLoadingProgress(false);
+    }
+  };
+
+  const getModuleStatusLabel = (status: string): string => {
+    switch (status) {
+      case "COMPLETED":
+        return "Completed";
+      case "VIDEO_IN_PROGRESS":
+        return "In Progress";
+      case "VIDEO_COMPLETED":
+        return "In Progress";
+      case "QUIZ_IN_PROGRESS":
+        return "In Progress";
+      case "NOT_STARTED":
+        return "Not Started";
+      case "LOCKED":
+        return "Not Started";
+      default:
+        return status;
+    }
+  };
+
+  const getModuleStatusColor = (status: string): "success" | "warning" | "default" => {
+    switch (status) {
+      case "COMPLETED":
+        return "success";
+      case "VIDEO_IN_PROGRESS":
+      case "VIDEO_COMPLETED":
+      case "QUIZ_IN_PROGRESS":
+        return "warning";
+      default:
+        return "default";
+    }
+  };
+
+  const selectedCandidate = candidates.find((c) => c.candidate_id === selectedCandidateId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -252,24 +308,148 @@ const AdminOnboardingModule = () => {
                       <TableCell>Name</TableCell>
                       <TableCell>Candidate ID</TableCell>
                       <TableCell>Experience Level</TableCell>
+                      <TableCell>Password</TableCell>
                       <TableCell>Created At</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {candidates.map((candidate: Candidate) => (
-                      <TableRow key={candidate.candidate_id}>
-                        <TableCell>{candidate.email}</TableCell>
-                        <TableCell>{candidate.full_name}</TableCell>
-                        <TableCell>{candidate.candidate_id}</TableCell>
-                        <TableCell>{candidate.experience_level}</TableCell>
-                        <TableCell>
-                          {new Date(candidate.created_at).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {candidates.map((candidate: Candidate) => {
+                      const isSelected = candidate.candidate_id === selectedCandidateId;
+                      return (
+                        <TableRow
+                          key={candidate.candidate_id}
+                          hover
+                          selected={isSelected}
+                          onClick={() => fetchModuleProgress(candidate.candidate_id)}
+                          sx={{
+                            cursor: "pointer",
+                            "&.Mui-selected": {
+                              backgroundColor: "#eef2ff !important",
+                              "&:hover": {
+                                backgroundColor: "#e0e7ff !important",
+                              },
+                            },
+                          }}
+                        >
+                          <TableCell>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              {isSelected && (
+                                <Box
+                                  component="span"
+                                  sx={{
+                                    display: "inline-flex",
+                                    color: "#4f46e5",
+                                    fontSize: "1.1rem",
+                                    lineHeight: 1,
+                                  }}
+                                >
+                                  ▸
+                                </Box>
+                              )}
+                              {candidate.email}
+                            </Box>
+                          </TableCell>
+                          <TableCell>{candidate.full_name}</TableCell>
+                          <TableCell>{candidate.candidate_id}</TableCell>
+                          <TableCell>{candidate.experience_level}</TableCell>
+                          <TableCell>
+                            {candidate.password ? (
+                              <Box
+                                component="span"
+                                sx={{
+                                  fontFamily: "monospace",
+                                  backgroundColor: "#f1f5f9",
+                                  px: 1,
+                                  py: 0.5,
+                                  borderRadius: 1,
+                                  fontSize: "0.8rem",
+                                }}
+                              >
+                                {candidate.password}
+                              </Box>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(candidate.created_at).toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </Paper>
+            )}
+
+            {selectedCandidate && (
+              <Box className="module-progress-section">
+                <Typography component="h3" className="module-progress__title">
+                  Module Progress - {selectedCandidate.full_name} ({selectedCandidate.email})
+                </Typography>
+
+                {loadingProgress ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+                    <CircularProgress size={28} />
+                  </Box>
+                ) : moduleProgress.length === 0 ? (
+                  <Typography sx={{ color: "#94a3b8", py: 2, textAlign: "center" }}>
+                    No module progress data available.
+                  </Typography>
+                ) : (
+                  <TableContainer component={Paper} elevation={0} className="module-progress__table-wrapper">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Rank</TableCell>
+                          <TableCell>Module</TableCell>
+                          <TableCell align="center">Status</TableCell>
+                          <TableCell align="center">Score</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {moduleProgress.map((module: EmployeeModuleProgressSummaryItem) => {
+                          const statusLabel = getModuleStatusLabel(module.status);
+                          const statusColor = getModuleStatusColor(module.status);
+                          const isCompleted = module.status === "COMPLETED";
+                          return (
+                            <TableRow key={module.module_id}>
+                              <TableCell>{module.rank}</TableCell>
+                              <TableCell>{module.title}</TableCell>
+                              <TableCell align="center">
+                                <Chip
+                                  label={statusLabel}
+                                  color={statusColor}
+                                  size="small"
+                                />
+                              </TableCell>
+                              <TableCell align="center">
+                                {isCompleted && module.score !== null && module.score !== undefined ? (
+                                  <Box component="span" sx={{ fontWeight: 600 }}>
+                                    {Math.round(module.score)}%
+                                    {module.passing_status && (
+                                      <Chip
+                                        label={module.passing_status}
+                                        color={module.passing_status === "PASS" ? "success" : "error"}
+                                        size="small"
+                                        sx={{ ml: 1, fontSize: "0.7rem", height: 20 }}
+                                      />
+                                    )}
+                                  </Box>
+                                ) : (
+                                  <Typography component="span" sx={{ color: "#94a3b8", fontSize: "0.85rem" }}>
+                                    -
+                                  </Typography>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Box>
             )}
           </CardContent>
         </Card>

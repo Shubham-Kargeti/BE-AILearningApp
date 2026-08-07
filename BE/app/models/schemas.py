@@ -625,6 +625,8 @@ class EmployeeModuleProgressSummaryItem(BaseModel):
     started_date: Optional[datetime] = None
     video_completed_date: Optional[datetime] = None
     completed_date: Optional[datetime] = None
+    score: Optional[float] = None
+    passing_status: Optional[str] = None
 
 
 class ResourceLinkItem(BaseModel):

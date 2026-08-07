@@ -178,6 +178,26 @@
   overflow: hidden;
 }
 
+.module-progress-section {
+  margin-top: 20px;
+  padding: 20px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.module-progress__title {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+  margin-bottom: 16px !important;
+}
+
+.module-progress__table-wrapper {
+  border-radius: 8px;
+  border: 1px solid #e2e8f0 !important;
+}
+
 @media (max-width: 768px) {
   .admin-onboarding-module {
     padding: 16px;
