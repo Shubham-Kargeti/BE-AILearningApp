@@ -378,9 +378,6 @@ const AdminOnboardingModule = () => {
                       <TableRow>
                         <TableCell>Email</TableCell>
                         <TableCell>Name</TableCell>
-                        <TableCell>Candidate ID</TableCell>
-                        <TableCell>Experience Level</TableCell>
-                        <TableCell>Password</TableCell>
                         <TableCell>Created At</TableCell>
                       </TableRow>
                     </TableHead>
@@ -422,27 +419,6 @@ const AdminOnboardingModule = () => {
                               </Box>
                             </TableCell>
                             <TableCell>{candidate.full_name}</TableCell>
-                            <TableCell>{candidate.candidate_id}</TableCell>
-                            <TableCell>{candidate.experience_level}</TableCell>
-                            <TableCell>
-                              {candidate.password ? (
-                                <Box
-                                  component="span"
-                                  sx={{
-                                    fontFamily: "monospace",
-                                    backgroundColor: "#f1f5f9",
-                                    px: 1,
-                                    py: 0.5,
-                                    borderRadius: 1,
-                                    fontSize: "0.8rem",
-                                  }}
-                                >
-                                  {candidate.password}
-                                </Box>
-                              ) : (
-                                "-"
-                              )}
-                            </TableCell>
                             <TableCell>
                               {new Date(candidate.created_at).toLocaleString()}
                             </TableCell>

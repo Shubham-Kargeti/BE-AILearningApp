@@ -319,7 +319,6 @@ export interface OnboardingCandidateStatusResponse {
   email: string;
   full_name: string;
   created_at: string;
-  password: string | null;
   experience_level: string;
   overall_status: "completed" | "in_progress" | "not_started";
 }

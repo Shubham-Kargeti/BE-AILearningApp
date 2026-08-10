@@ -52,7 +52,6 @@ class OnboardingCandidateStatusResponse(BaseModel):
     email: str
     full_name: str
     created_at: datetime
-    password: Optional[str] = None
     experience_level: str
     overall_status: str  # "completed" | "in_progress" | "not_started"
 

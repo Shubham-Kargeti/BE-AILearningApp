@@ -547,7 +547,6 @@ async def get_onboarding_candidates_with_status(db: AsyncSession):
             Candidate.email,
             Candidate.full_name,
             Candidate.created_at,
-            Candidate.password,
             Candidate.experience_level,
             func.coalesce(
                 case(
@@ -597,7 +596,6 @@ async def get_onboarding_candidates_with_status(db: AsyncSession):
             Candidate.email,
             Candidate.full_name,
             Candidate.created_at,
-            Candidate.password,
             Candidate.experience_level,
         )
         .order_by(Candidate.created_at.desc())
@@ -609,7 +607,6 @@ async def get_onboarding_candidates_with_status(db: AsyncSession):
             "email": row.email,
             "full_name": row.full_name,
             "created_at": row.created_at,
-            "password": row.password,
             "experience_level": row.experience_level,
             "overall_status": row.overall_status,
         }
