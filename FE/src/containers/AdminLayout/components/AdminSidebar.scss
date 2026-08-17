@@ -37,3 +37,56 @@
   background: #4a4a68;
   color: white;
 }
+
+.admin-menu-group {
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 8px 10px 10px;
+}
+
+.admin-menu-label {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 6px;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 15px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.admin-menu-chevron {
+  font-size: 20px;
+  line-height: 1;
+  color: #d8d8e6;
+}
+
+.admin-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.admin-sub-link {
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: #d8d8e6;
+  text-decoration: none;
+  transition: 0.2s;
+  font-size: 14px;
+}
+
+.admin-sub-link:hover {
+  background: #2a2a42;
+  color: white;
+}
+
+.admin-sub-link.active {
+  background: #4a4a68;
+  color: white;
+}

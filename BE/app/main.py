@@ -44,7 +44,6 @@ from app.scripts.seed_onboarding_modules import (
     seed_candidate_journey,
     seed_module_action_items,
 )
-from app.scripts.seed_module_quiz_from_excel import seed_module_quiz_from_excel
 from app.scripts.seed_module_key_concepts_from_excel import (
     seed_module_key_concepts_from_excel,
 )
@@ -91,9 +90,9 @@ async def lifespan(app: FastAPI):
             await seed_onboarding_modules(db)
             logger.info("onboarding_modules_seeded")
         
-        # Seed module quiz and key concepts (separate session)
+        # Seed module key concepts and default action items only during bootstrap.
+        # Quiz data is now managed from the admin Excel upload flow.
         async with async_session_maker() as db:
-            await seed_module_quiz_from_excel(db)
             await seed_module_key_concepts_from_excel(db)
             await seed_module_action_items(db)
             logger.info("module_quiz_concepts_and_action_items_seeded")

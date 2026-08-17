@@ -1,14 +1,22 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+import io
+from typing import Any
+
+import pandas as pd
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
+from app.core.dependencies import admin_required
 from app.db.session import get_db
 from app.db.models import (
     OnboardingModule,
     OnboardingModuleCandidateChecklist,
     Candidate,
+    OnboardingModuleQuiz,
+    QuestionType,
 )
+from app.scripts.seed_module_quiz_from_excel import parse_excel_file
 from app.models.schemas import (
     OnboardingModuleDetailResponse,
     OnboardingModuleResponse,
@@ -78,6 +86,170 @@ async def list_modules(
     db: AsyncSession = Depends(get_db),
 ):
     return await get_onboarding_modules(db)
+
+
+@router.post("/admin/onboarding-module-quiz-preview")
+async def preview_admin_onboarding_module_quiz(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    """Parse an uploaded onboarding quiz Excel and return a module-wise preview."""
+    contents = await file.read()
+    try:
+        rows = parse_excel_file(contents)
+    except Exception as exc:  # pragma: no cover - defensive validation path
+        raise HTTPException(status_code=400, detail=f"Failed to read Excel file: {exc}") from exc
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="No active quiz rows were found in the Excel file")
+
+    modules_result = await db.execute(select(OnboardingModule).order_by(OnboardingModule.rank))
+    modules = modules_result.scalars().all()
+    module_by_rank = {module.rank: module for module in modules}
+
+    grouped: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        module_no = int(row["module_no"])
+        module = module_by_rank.get(module_no)
+        if not module:
+            continue
+
+        variant = row.get("variant") or "1"
+        grouped.setdefault(module_no, {"module_id": module.id, "title": module.title, "variants": {}})
+        grouped[module_no]["variants"].setdefault(variant, []).append({
+            "module_no": module_no,
+            "module_id": module.id,
+            "question_text": row["question_text"],
+            "question_type": row["question_type"],
+            "choices": row["choices"],
+            "correct_answer": row["correct_answer"],
+            "variant": variant,
+        })
+
+    if not grouped:
+        raise HTTPException(status_code=400, detail="No onboarding modules in the uploaded file match the configured modules")
+
+    response = []
+    for module_no in sorted(grouped):
+        payload = grouped[module_no]
+        variants = []
+        for variant in sorted(payload["variants"].keys(), key=lambda value: int(value) if value.isdigit() else 999):
+            variants.append({
+                "variant": variant,
+                "questions": payload["variants"][variant],
+            })
+        response.append({
+            "module_no": module_no,
+            "module_id": payload["module_id"],
+            "title": payload["title"],
+            "variants": variants,
+        })
+
+    return {"modules": response}
+
+
+@router.get("/admin/onboarding-module-quiz-current")
+async def get_current_admin_onboarding_module_quiz(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    """Return the currently saved onboarding quiz data in the same preview structure used by the upload page."""
+    modules_result = await db.execute(select(OnboardingModule).order_by(OnboardingModule.rank))
+    modules = modules_result.scalars().all()
+
+    response = []
+    for module in modules:
+        quiz_result = await db.execute(
+            select(OnboardingModuleQuiz)
+            .where(
+                OnboardingModuleQuiz.module_id == module.id,
+                OnboardingModuleQuiz.deleted_date.is_(None),
+            )
+            .order_by(OnboardingModuleQuiz.display_order)
+        )
+        questions = quiz_result.scalars().all()
+        if not questions:
+            continue
+
+        grouped_variants: dict[str, list[dict[str, Any]]] = {}
+        for question in questions:
+            variant = str(question.variant or "1").strip() or "1"
+            grouped_variants.setdefault(variant, []).append({
+                "module_no": module.rank,
+                "module_id": module.id,
+                "question_text": question.question_text,
+                "question_type": question.question_type.value if hasattr(question.question_type, "value") else str(question.question_type),
+                "choices": question.choices or [],
+                "correct_answer": question.correct_answer,
+                "variant": variant,
+            })
+
+        variants = []
+        for variant in sorted(grouped_variants.keys(), key=lambda value: int(value) if value.isdigit() else 999):
+            variants.append({
+                "variant": variant,
+                "questions": grouped_variants[variant],
+            })
+
+        response.append({
+            "module_no": module.rank,
+            "module_id": module.id,
+            "title": module.title,
+            "variants": variants,
+        })
+
+    return {"modules": response}
+
+
+@router.post("/admin/onboarding-module-quiz-save")
+async def save_admin_onboarding_module_quiz(
+    payload: dict[str, Any] = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    """Persist confirmed onboarding quiz questions for one or more modules."""
+    records = payload.get("questions") or []
+    if not records:
+        raise HTTPException(status_code=400, detail="No questions were selected for save")
+
+    grouped: dict[int, list[dict[str, Any]]] = {}
+    for row in records:
+        module_id = row.get("module_id")
+        module_no = row.get("module_no")
+        if module_id is None and module_no is None:
+            continue
+        local_key = int(module_id) if module_id is not None else int(module_no)
+        grouped.setdefault(local_key, []).append(row)
+
+    saved = 0
+    for module_key, rows in grouped.items():
+        module = await db.get(OnboardingModule, module_key) if isinstance(module_key, int) and module_key > 0 else None
+        if module is None:
+            module_result = await db.execute(select(OnboardingModule).where(OnboardingModule.rank == module_key))
+            module = module_result.scalar_one_or_none()
+        if module is None:
+            continue
+
+        await db.execute(delete(OnboardingModuleQuiz).where(OnboardingModuleQuiz.module_id == module.id))
+        for index, row in enumerate(rows, start=1):
+            question_type = str(row.get("question_type") or "MCQ").strip().upper()
+            mapped_type = QuestionType.MCQ if question_type == "MCQ" else QuestionType.SCENARIO
+            question = OnboardingModuleQuiz(
+                module_id=module.id,
+                question_text=str(row.get("question_text") or "").strip(),
+                question_type=mapped_type,
+                choices=row.get("choices") or [],
+                correct_answer=str(row.get("correct_answer") or "").strip(),
+                display_order=index,
+                points=1,
+                variant=str(row.get("variant") or "").strip() or None,
+            )
+            db.add(question)
+            saved += 1
+
+    await db.commit()
+    return {"saved": saved, "modules": list(grouped.keys())}
 
 
 @router.get(
