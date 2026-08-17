@@ -21,6 +21,7 @@ import {
 } from "@mui/material";
 import { AxiosError } from "axios";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import { candidateService } from "../../API/services";
 import { onboardingModuleService } from "../../API/onboarding_module.service";
 import type {
@@ -45,6 +46,9 @@ const AdminOnboardingModule = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | "completed" | "in_progress" | "not_started">("all");
+  const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
+  const [emailSentId, setEmailSentId] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const fetchOnboardingCandidates = async (skipCache = false) => {
     setLoadingCandidates(true);
@@ -139,6 +143,24 @@ const AdminOnboardingModule = () => {
     }
   };
 
+  const handleSendEmail = async (candidateId: string, email: string) => {
+    setSendingEmailId(candidateId);
+    setEmailError(null);
+    try {
+      const result = await candidateService.sendCandidateCredentialsEmail(candidateId);
+      if (result?.mailto_url) {
+        window.location.href = result.mailto_url;
+      }
+      setEmailSentId(candidateId);
+      setTimeout(() => setEmailSentId(null), 3000);
+    } catch (err) {
+      setEmailError(err instanceof AxiosError ? (err.response?.data?.detail || "Failed to prepare email") : "Failed to prepare email");
+      setTimeout(() => setEmailError(null), 5000);
+    } finally {
+      setSendingEmailId(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailsInput.trim() || isSubmitting) return;
@@ -180,7 +202,7 @@ const AdminOnboardingModule = () => {
   return (
     <div className="admin-onboarding-module">
       <div className="candidate-container">
-        <h1>Onboarding Module - Bulk Add Candidates</h1>
+        <h1>Onboarding Module - Add Candidates</h1>
         <p className="subtitle">
           Paste comma separated email addresses to create candidate accounts in
           bulk. Each candidate receives a random password and is assigned the
@@ -271,7 +293,6 @@ const AdminOnboardingModule = () => {
                         <TableRow>
                           <TableCell>Email</TableCell>
                           <TableCell>Candidate ID</TableCell>
-                          <TableCell>Password</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -279,21 +300,6 @@ const AdminOnboardingModule = () => {
                           <TableRow key={item.candidate_id || item.email}>
                             <TableCell>{item.email}</TableCell>
                             <TableCell>{item.candidate_id}</TableCell>
-                            <TableCell>
-                              <Box
-                                component="span"
-                                sx={{
-                                  fontFamily: "monospace",
-                                  backgroundColor: "#f1f5f9",
-                                  px: 1,
-                                  py: 0.5,
-                                  borderRadius: 1,
-                                  fontSize: "0.8rem",
-                                }}
-                              >
-                                {item.password}
-                              </Box>
-                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -344,15 +350,21 @@ const AdminOnboardingModule = () => {
               }}
               sx={{ mb: 2 }}
             >
-              <Tab label={`All (${candidates.length})`} value="all" />
-              <Tab label={`Completed (${candidates.filter((c) => c.overall_status === "completed").length})`} value="completed" />
-              <Tab label={`In Progress (${candidates.filter((c) => c.overall_status === "in_progress").length})`} value="in_progress" />
               <Tab label={`Not Started (${candidates.filter((c) => c.overall_status === "not_started").length})`} value="not_started" />
+              <Tab label={`In Progress (${candidates.filter((c) => c.overall_status === "in_progress").length})`} value="in_progress" />
+              <Tab label={`Completed (${candidates.filter((c) => c.overall_status === "completed").length})`} value="completed" />
+              <Tab label={`All (${candidates.length})`} value="all" />
             </Tabs>
 
             {refreshError && (
               <Alert severity="error" sx={{ mt: 2 }} onClose={() => setRefreshError(null)}>
                 {refreshError}
+              </Alert>
+            )}
+
+            {emailError && (
+              <Alert severity="error" sx={{ mt: 1 }} onClose={() => setEmailError(null)}>
+                {emailError}
               </Alert>
             )}
 
@@ -379,6 +391,8 @@ const AdminOnboardingModule = () => {
                         <TableCell>Email</TableCell>
                         <TableCell>Name</TableCell>
                         <TableCell>Created At</TableCell>
+                        <TableCell align="center">Email Sent</TableCell>
+                        {activeTab === "not_started" && <TableCell align="center">Action</TableCell>}
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -422,6 +436,30 @@ const AdminOnboardingModule = () => {
                             <TableCell>
                               {new Date(candidate.created_at).toLocaleString()}
                             </TableCell>
+                            <TableCell align="center">
+                              <Chip
+                                label={candidate.onboarding_email_sent ? "Sent" : "Not Sent"}
+                                color={candidate.onboarding_email_sent ? "success" : "default"}
+                                size="small"
+                              />
+                            </TableCell>
+                            {activeTab === "not_started" && (
+                              <TableCell align="center">
+                                <Button
+                                  type="button"
+                                  size="small"
+                                  variant="outlined"
+                                  startIcon={<MailOutlineIcon />}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSendEmail(candidate.candidate_id, candidate.email);
+                                  }}
+                                  disabled={sendingEmailId === candidate.candidate_id}
+                                >
+                                  {sendingEmailId === candidate.candidate_id ? "Sending..." : emailSentId === candidate.candidate_id ? "Sent" : "Send Email Manually"}
+                                </Button>
+                              </TableCell>
+                            )}
                           </TableRow>
                         );
                       })}

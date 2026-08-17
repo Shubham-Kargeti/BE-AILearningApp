@@ -320,6 +320,7 @@ export interface OnboardingCandidateStatusResponse {
   full_name: string;
   created_at: string;
   experience_level: string;
+  onboarding_email_sent: boolean;
   overall_status: "completed" | "in_progress" | "not_started";
 }
 
@@ -711,6 +712,13 @@ export const candidateService = {
     const response = await apiClient.get<OnboardingCandidateStatusResponse[]>(
       "/candidates/onboarding-status",
       skipCache ? { headers: { "x-cache-skip": "true" } } : undefined
+    );
+    return response.data;
+  },
+
+  sendCandidateCredentialsEmail: async (candidateId: string): Promise<{ mailto_url: string }> => {
+    const response = await apiClient.post<{ mailto_url: string }>(
+      `/candidates/${candidateId}/send-credentials-email`
     );
     return response.data;
   },

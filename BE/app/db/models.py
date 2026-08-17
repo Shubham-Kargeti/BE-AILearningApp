@@ -611,6 +611,9 @@ class Candidate(Base, TimestampMixin):
         default="manual",
         server_default="manual",
     )  # "manual" (admin add-candidate) or "onboarding" (bulk onboarding-module)
+    onboarding_email_sent: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )  # Tracks whether credentials email was sent for onboarding candidates
 
     # Relationships
     assessment_applications: Mapped[list["AssessmentApplication"]] = relationship(

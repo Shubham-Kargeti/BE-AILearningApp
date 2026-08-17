@@ -548,6 +548,7 @@ async def get_onboarding_candidates_with_status(db: AsyncSession):
             Candidate.full_name,
             Candidate.created_at,
             Candidate.experience_level,
+            Candidate.onboarding_email_sent,
             func.coalesce(
                 case(
                     (func.count(OnboardingModuleEmployeeProgress.id) == 0, "not_started"),
@@ -597,6 +598,7 @@ async def get_onboarding_candidates_with_status(db: AsyncSession):
             Candidate.full_name,
             Candidate.created_at,
             Candidate.experience_level,
+            Candidate.onboarding_email_sent,
         )
         .order_by(Candidate.created_at.desc())
     )
@@ -608,6 +610,7 @@ async def get_onboarding_candidates_with_status(db: AsyncSession):
             "full_name": row.full_name,
             "created_at": row.created_at,
             "experience_level": row.experience_level,
+            "onboarding_email_sent": row.onboarding_email_sent,
             "overall_status": row.overall_status,
         }
         for row in result.all()

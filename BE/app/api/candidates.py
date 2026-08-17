@@ -8,12 +8,16 @@ from sqlalchemy.orm import joinedload
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, validator
+from urllib.parse import quote
 import re
 import secrets
 import string
+import asyncio
 
+from config import get_settings
 from app.core.dependencies import get_db, get_current_user, admin_required
 from app.core.security import get_password_hash
+from app.core.email import send_email
 from app.db.models import Candidate, User, UploadedDocument, Assessment, TestSession, AssessmentApplication
 from app.models.schemas import CandidateCreate, CandidateUpdate, CandidateResponse, FieldError, ValidationErrorResponse
 from app.services.onboarding_module_service import get_onboarding_candidates_with_status
@@ -53,6 +57,7 @@ class OnboardingCandidateStatusResponse(BaseModel):
     full_name: str
     created_at: datetime
     experience_level: str
+    onboarding_email_sent: bool = False
     overall_status: str  # "completed" | "in_progress" | "not_started"
 
 class CandidatePendingAssessmentResponse(BaseModel):
@@ -257,6 +262,52 @@ def _derive_full_name(email: str) -> str:
     return name or local.capitalize()
 
 
+async def _send_candidate_credentials_email(email: str, password: str, full_name: str) -> None:
+    """Send login credentials to a newly created candidate."""
+    settings = get_settings()
+    dashboard_url = f"{settings.FRONTEND_URL.rstrip('/')}/login"
+    subject = "Your AI Learning App Account Credentials"
+    text_body = (
+        f"Hello {full_name},\n\n"
+        f"Your account has been created on {settings.APP_NAME}.\n\n"
+        f"Email: {email}\n"
+        f"Password: {password}\n\n"
+        f"Login here: {dashboard_url}\n\n"
+        f"Best regards,\n{settings.APP_NAME} Team"
+    )
+    html_body = f"""<html>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4;">
+<div style="max-width: 600px; margin: 20px auto; background-color: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+<h1 style="color: white; margin: 0; font-size: 28px;">Welcome to {settings.APP_NAME}</h1>
+</div>
+<div style="padding: 30px;">
+<p style="font-size: 16px;">Hello <strong>{full_name}</strong>,</p>
+<p>Your account has been created successfully. Here are your login credentials:</p>
+<div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+<p style="margin: 10px 0;"><strong>Email:</strong> {email}</p>
+<p style="margin: 10px 0;"><strong>Password:</strong> {password}</p>
+</div>
+<p>Login here: <a href="{dashboard_url}" style="color: #667eea;">{dashboard_url}</a></p>
+<p>Please change your password after logging in for the first time.</p>
+<p>Best regards,<br><strong>{settings.APP_NAME} Team</strong></p>
+</div>
+<div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+<p style="color: #999; font-size: 12px; margin: 5px 0;">This is an automated email from {settings.APP_NAME}.</p>
+<p style="color: #999; font-size: 12px; margin: 5px 0;">© {datetime.now().year} {settings.APP_NAME}. All rights reserved.</p>
+</div>
+</div>
+</body>
+</html>"""
+    await send_email(
+        to_email=email,
+        subject=subject,
+        html_body=html_body,
+        text_body=text_body,
+    )
+    return True
+
+
 @router.post("/bulk", response_model=BulkCandidateCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_candidates_bulk(
     request: BulkCandidateCreateRequest,
@@ -316,6 +367,33 @@ async def create_candidates_bulk(
         ))
 
     await db.commit()
+
+    if created:
+        email_task_items = []
+        email_tasks = []
+        for item in created:
+            if item.email and item.password:
+                email_task_items.append(item)
+                email_tasks.append(
+                    _send_candidate_credentials_email(
+                        item.email, item.password, _derive_full_name(item.email)
+                    )
+                )
+
+        email_results = await asyncio.gather(*email_tasks, return_exceptions=True)
+
+        for item, email_result in zip(email_task_items, email_results):
+            sent = False
+            if isinstance(email_result, Exception):
+                print(f"Failed to send credentials email to {item.email}: {email_result}")
+            else:
+                sent = bool(email_result)
+
+            candidate = await db.get(Candidate, item.candidate_id)
+            if candidate:
+                candidate.onboarding_email_sent = sent
+
+        await db.flush()
 
     return BulkCandidateCreateResponse(
         created=created, skipped=skipped, errors=errors
@@ -485,6 +563,40 @@ async def get_onboarding_candidates_status(
 ) -> List[OnboardingCandidateStatusResponse]:
     """Return all onboarding-sourced candidates with their aggregated module progress status."""
     return await get_onboarding_candidates_with_status(db)
+
+
+@router.post("/{candidate_id}/send-credentials-email", response_model=dict)
+async def send_candidate_credentials_email(
+    candidate_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required),
+):
+    """Return a mailto URL so the admin can send credentials email manually via Outlook."""
+    result = await db.execute(
+        select(Candidate).where(Candidate.candidate_id == candidate_id)
+    )
+    candidate = result.scalar_one_or_none()
+    if not candidate:
+        raise HTTPException(404, "Candidate not found")
+
+    if not candidate.password:
+        raise HTTPException(400, "No password available for this candidate")
+
+    settings = get_settings()
+    dashboard_url = f"{settings.FRONTEND_URL.rstrip('/')}/login"
+    subject = "Your AI Learning App Account Credentials"
+    text_body = (
+        f"Hello {candidate.full_name},\n\n"
+        f"Your account has been created on {settings.APP_NAME}.\n\n"
+        f"Email: {candidate.email}\n"
+        f"Password: {candidate.password}\n\n"
+        f"Login here: {dashboard_url}\n\n"
+        f"Best regards,\n{settings.APP_NAME} Team"
+    )
+    to_email = candidate.email
+    mailto_url = f"mailto:{to_email}?subject={quote(subject)}&body={quote(text_body)}"
+
+    return {"mailto_url": mailto_url}
 
 
 @router.get("/{candidate_id}", response_model=CandidateResponse)
