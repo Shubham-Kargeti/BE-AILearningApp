@@ -389,7 +389,10 @@ async def create_candidates_bulk(
             else:
                 sent = bool(email_result)
 
-            candidate = await db.get(Candidate, item.candidate_id)
+            result = await db.execute(
+                select(Candidate).where(Candidate.candidate_id == item.candidate_id)
+            )
+            candidate = result.scalars().first()
             if candidate:
                 candidate.onboarding_email_sent = sent
 

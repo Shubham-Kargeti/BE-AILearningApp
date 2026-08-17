@@ -456,7 +456,7 @@ const AdminOnboardingModule = () => {
                                   }}
                                   disabled={sendingEmailId === candidate.candidate_id}
                                 >
-                                  {sendingEmailId === candidate.candidate_id ? "Sending..." : emailSentId === candidate.candidate_id ? "Sent" : "Send Email Manually"}
+                                  {sendingEmailId === candidate.candidate_id ? "Sending..." : emailSentId === candidate.candidate_id ? "Sent" : "Email Manually"}
                                 </Button>
                               </TableCell>
                             )}

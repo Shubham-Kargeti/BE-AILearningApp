@@ -272,7 +272,7 @@ const OnboardingCandidateContainer = () => {
                       onClick={handleResendEmail}
                       disabled={!emailCanRetry}
                     >
-                      {isResendingEmail ? "Sending..." : "Send Email Manually"}
+                      {isResendingEmail ? "Sending..." : "Email Manually"}
                     </Button>
                   </>
                 ) : (
