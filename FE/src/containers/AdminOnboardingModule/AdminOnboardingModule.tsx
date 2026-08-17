@@ -55,6 +55,7 @@ const AdminOnboardingModule = () => {
   const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
   const [emailSentId, setEmailSentId] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailSearch, setEmailSearch] = useState("");
   const [progressDialogOpen, setProgressDialogOpen] = useState(false);
   const [dialogCandidate, setDialogCandidate] = useState<OnboardingCandidateStatusResponse | null>(null);
   const [dialogModuleProgress, setDialogModuleProgress] = useState<EmployeeModuleProgressSummaryItem[]>([]);
@@ -380,6 +381,7 @@ const AdminOnboardingModule = () => {
               onChange={(_, newValue) => {
                 setActiveTab(newValue);
                 setSelectedCandidateId(null);
+                setEmailSearch("");
               }}
               sx={{ mb: 2 }}
             >
@@ -388,6 +390,16 @@ const AdminOnboardingModule = () => {
               <Tab label={`Completed (${candidates.filter((c) => c.overall_status === "completed").length})`} value="completed" />
               <Tab label={`All (${candidates.length})`} value="all" />
             </Tabs>
+
+            <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+              <TextField
+                size="small"
+                label="Search Email"
+                value={emailSearch}
+                onChange={(e) => setEmailSearch(e.target.value)}
+                sx={{ minWidth: 260 }}
+              />
+            </Box>
 
             {refreshError && (
               <Alert severity="error" sx={{ mt: 2 }} onClose={() => setRefreshError(null)}>
@@ -406,13 +418,20 @@ const AdminOnboardingModule = () => {
                 <CircularProgress size={32} />
               </Box>
             ) : (() => {
-              const filtered = activeTab === "all"
+              const filteredByStatus = activeTab === "all"
                 ? candidates
                 : candidates.filter((c) => c.overall_status === activeTab);
+
+              const filtered = filteredByStatus.filter((candidate) =>
+                candidate.email.toLowerCase().includes(emailSearch.trim().toLowerCase())
+              );
+
               if (filtered.length === 0) {
                 return (
                   <Typography sx={{ color: "#94a3b8", py: 3, textAlign: "center" }}>
-                    No onboarding candidates have been added yet.
+                    {emailSearch.trim()
+                      ? "No candidates match the current email search."
+                      : "No onboarding candidates have been added yet."}
                   </Typography>
                 );
               }
