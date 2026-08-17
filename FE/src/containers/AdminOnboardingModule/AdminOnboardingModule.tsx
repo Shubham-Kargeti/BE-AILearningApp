@@ -18,10 +18,16 @@ import {
   Button,
   Tabs,
   Tab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
 } from "@mui/material";
 import { AxiosError } from "axios";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import { candidateService } from "../../API/services";
 import { onboardingModuleService } from "../../API/onboarding_module.service";
 import type {
@@ -49,6 +55,10 @@ const AdminOnboardingModule = () => {
   const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
   const [emailSentId, setEmailSentId] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [progressDialogOpen, setProgressDialogOpen] = useState(false);
+  const [dialogCandidate, setDialogCandidate] = useState<OnboardingCandidateStatusResponse | null>(null);
+  const [dialogModuleProgress, setDialogModuleProgress] = useState<EmployeeModuleProgressSummaryItem[]>([]);
+  const [loadingDialogProgress, setLoadingDialogProgress] = useState(false);
 
   const fetchOnboardingCandidates = async (skipCache = false) => {
     setLoadingCandidates(true);
@@ -158,6 +168,29 @@ const AdminOnboardingModule = () => {
       setTimeout(() => setEmailError(null), 5000);
     } finally {
       setSendingEmailId(null);
+    }
+  };
+
+  const openProgressDialog = async (candidate: OnboardingCandidateStatusResponse) => {
+    setDialogCandidate(candidate);
+    setProgressDialogOpen(true);
+    setLoadingDialogProgress(true);
+    setRefreshError(null);
+
+    try {
+      const data = await onboardingModuleService.getEmployeeProgressSummary(candidate.candidate_id);
+      setDialogModuleProgress(data.modules);
+    } catch (err) {
+      if (err instanceof AxiosError) {
+        console.error("Failed to load module progress dialog", err.response?.data);
+        setRefreshError(err.response?.data?.detail || "Failed to load module progress");
+      } else {
+        console.error("Failed to load module progress dialog", err);
+        setRefreshError("Failed to load module progress");
+      }
+      setDialogModuleProgress([]);
+    } finally {
+      setLoadingDialogProgress(false);
     }
   };
 
@@ -392,7 +425,8 @@ const AdminOnboardingModule = () => {
                         <TableCell>Name</TableCell>
                         <TableCell>Created At</TableCell>
                         <TableCell align="center">Email Sent</TableCell>
-                        {activeTab === "not_started" && <TableCell align="center">Action</TableCell>}
+                        <TableCell align="center">View</TableCell>
+                        {activeTab === "not_started" && <TableCell align="center">Send Manual Email</TableCell>}
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -443,21 +477,31 @@ const AdminOnboardingModule = () => {
                                 size="small"
                               />
                             </TableCell>
+                            <TableCell align="center">
+                              <IconButton
+                                aria-label={`View ${candidate.full_name} progress`}
+                                color="primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void openProgressDialog(candidate);
+                                }}
+                              >
+                                <VisibilityIcon />
+                              </IconButton>
+                            </TableCell>
                             {activeTab === "not_started" && (
                               <TableCell align="center">
-                                <Button
-                                  type="button"
-                                  size="small"
-                                  variant="outlined"
-                                  startIcon={<MailOutlineIcon />}
+                                <IconButton
+                                  aria-label={`Send manual email to ${candidate.full_name}`}
+                                  color="primary"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleSendEmail(candidate.candidate_id, candidate.email);
                                   }}
                                   disabled={sendingEmailId === candidate.candidate_id}
                                 >
-                                  {sendingEmailId === candidate.candidate_id ? "Sending..." : emailSentId === candidate.candidate_id ? "Sent" : "Email Manually"}
-                                </Button>
+                                  <MailOutlineIcon />
+                                </IconButton>
                               </TableCell>
                             )}
                           </TableRow>
@@ -469,22 +513,21 @@ const AdminOnboardingModule = () => {
               );
             })()}
 
-            {selectedCandidate && (
-              <Box className="module-progress-section">
-                <Typography component="h3" className="module-progress__title">
-                  Module Progress - {selectedCandidate.full_name} ({selectedCandidate.email})
-                </Typography>
-
-                {loadingProgress ? (
+            <Dialog open={progressDialogOpen} onClose={() => setProgressDialogOpen(false)} maxWidth="md" fullWidth>
+              <DialogTitle>
+                Module Progress - {dialogCandidate?.full_name || "Candidate"} ({dialogCandidate?.email || ""})
+              </DialogTitle>
+              <DialogContent dividers>
+                {loadingDialogProgress ? (
                   <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
                     <CircularProgress size={28} />
                   </Box>
-                ) : moduleProgress.length === 0 ? (
+                ) : dialogModuleProgress.length === 0 ? (
                   <Typography sx={{ color: "#94a3b8", py: 2, textAlign: "center" }}>
                     No module progress data available.
                   </Typography>
                 ) : (
-                  <TableContainer component={Paper} elevation={0} className="module-progress__table-wrapper">
+                  <TableContainer component={Paper} elevation={0}>
                     <Table size="small">
                       <TableHead>
                         <TableRow>
@@ -495,7 +538,7 @@ const AdminOnboardingModule = () => {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {moduleProgress.map((module: EmployeeModuleProgressSummaryItem) => {
+                        {dialogModuleProgress.map((module: EmployeeModuleProgressSummaryItem) => {
                           const statusLabel = getModuleStatusLabel(module.status);
                           const statusColor = getModuleStatusColor(module.status);
                           const isCompleted = module.status === "COMPLETED";
@@ -536,8 +579,11 @@ const AdminOnboardingModule = () => {
                     </Table>
                   </TableContainer>
                 )}
-              </Box>
-            )}
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setProgressDialogOpen(false)}>Close</Button>
+              </DialogActions>
+            </Dialog>
           </CardContent>
         </Card>
       </div>
