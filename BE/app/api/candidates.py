@@ -266,13 +266,19 @@ async def _send_candidate_credentials_email(email: str, password: str, full_name
     """Send login credentials to a newly created candidate."""
     settings = get_settings()
     dashboard_url = f"{settings.FRONTEND_URL.rstrip('/')}/login"
-    subject = "Your AI Learning App Account Credentials"
+    subject = "BCG onboarding modules"
+    onboarding_url = f"{settings.FRONTEND_URL.rstrip('/')}/app/onboarding-candidate"
     text_body = (
-        f"Hello {full_name},\n\n"
-        f"Your account has been created on {settings.APP_NAME}.\n\n"
-        f"Email: {email}\n"
+        f"Dear User,\n\n"
+        f"Your account has been successfully created on the {settings.APP_NAME}.\n\n"
+        f"Username: {email}\n"
         f"Password: {password}\n\n"
-        f"Login here: {dashboard_url}\n\n"
+        f"Login: {dashboard_url}\n\n"
+        f"After logging in, you can access the onboarding modules in either of the following ways:\n\n"
+        f"1. Open the \"Onboarding\" option from the sidebar menu.\n"
+        f"2. Alternatively, directly access the Onboarding page here: {onboarding_url}\n\n"
+        f"Please complete all six onboarding modules. For each module, you are required to watch the video and complete the associated quiz.\n\n"
+        f"If you have any questions or encounter any issues while accessing the platform, please let us know.\n\n"
         f"Best regards,\n{settings.APP_NAME} Team"
     )
     html_body = f"""<html>
@@ -282,14 +288,20 @@ async def _send_candidate_credentials_email(email: str, password: str, full_name
 <h1 style="color: white; margin: 0; font-size: 28px;">Welcome to {settings.APP_NAME}</h1>
 </div>
 <div style="padding: 30px;">
-<p style="font-size: 16px;">Hello <strong>{full_name}</strong>,</p>
-<p>Your account has been created successfully. Here are your login credentials:</p>
+<p style="font-size: 16px;">Dear User,</p>
+<p>Your account has been successfully created on the <strong>{settings.APP_NAME}</strong>.</p>
 <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-<p style="margin: 10px 0;"><strong>Email:</strong> {email}</p>
+<p style="margin: 10px 0;"><strong>Username:</strong> {email}</p>
 <p style="margin: 10px 0;"><strong>Password:</strong> {password}</p>
 </div>
-<p>Login here: <a href="{dashboard_url}" style="color: #667eea;">{dashboard_url}</a></p>
-<p>Please change your password after logging in for the first time.</p>
+<p><strong>Login:</strong> <a href="{dashboard_url}" style="color: #667eea;">{dashboard_url}</a></p>
+<p>After logging in, you can access the onboarding modules in either of the following ways:</p>
+<ol style="padding-left: 20px; margin: 10px 0;">
+<li>Open the <strong>“Onboarding”</strong> option from the <strong>sidebar menu</strong>.</li>
+<li>Alternatively, directly access the <strong>Onboarding page</strong> here: <a href="{onboarding_url}" style="color: #667eea;">{onboarding_url}</a></li>
+</ol>
+<p>Please complete all six onboarding modules. For each module, you are required to watch the video and complete the associated quiz.</p>
+<p>If you have any questions or encounter any issues while accessing the platform, please let us know.</p>
 <p>Best regards,<br><strong>{settings.APP_NAME} Team</strong></p>
 </div>
 <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0;">
@@ -587,13 +599,19 @@ async def send_candidate_credentials_email(
 
     settings = get_settings()
     dashboard_url = f"{settings.FRONTEND_URL.rstrip('/')}/login"
-    subject = "Your AI Learning App Account Credentials"
+    subject = "BCG onboarding modules"
+    onboarding_url = f"{settings.FRONTEND_URL.rstrip('/')}/app/onboarding-candidate"
     text_body = (
-        f"Hello {candidate.full_name},\n\n"
-        f"Your account has been created on {settings.APP_NAME}.\n\n"
-        f"Email: {candidate.email}\n"
+        f"Dear User,\n\n"
+        f"Your account has been successfully created on the {settings.APP_NAME}.\n\n"
+        f"Username: {candidate.email}\n"
         f"Password: {candidate.password}\n\n"
-        f"Login here: {dashboard_url}\n\n"
+        f"Login: {dashboard_url}\n\n"
+        f"After logging in, you can access the onboarding modules in either of the following ways:\n\n"
+        f"1. Open the \"Onboarding\" option from the sidebar menu.\n"
+        f"2. Alternatively, directly access the Onboarding page here: {onboarding_url}\n\n"
+        f"Please complete all six onboarding modules. For each module, you are required to watch the video and complete the associated quiz.\n\n"
+        f"If you have any questions or encounter any issues while accessing the platform, please let us know.\n\n"
         f"Best regards,\n{settings.APP_NAME} Team"
     )
     to_email = candidate.email

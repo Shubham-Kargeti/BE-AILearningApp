@@ -222,7 +222,7 @@ const AdminOnboardingModule = () => {
               required
               fullWidth
               multiline
-              rows={4}
+              rows={2}
               disabled={isSubmitting}
               variant="outlined"
             />
