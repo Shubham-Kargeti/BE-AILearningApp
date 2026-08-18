@@ -8,6 +8,8 @@ import {
   Alert,
   TextField,
   CircularProgress,
+  Backdrop,
+  Snackbar,
   Table,
   TableHead,
   TableRow,
@@ -44,6 +46,8 @@ const AdminOnboardingModule = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BulkCandidateCreateResponse | null>(null);
+  const [snackOpen, setSnackOpen] = useState(false);
+  const [snackMessage, setSnackMessage] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<OnboardingCandidateStatusResponse[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
@@ -216,6 +220,11 @@ const AdminOnboardingModule = () => {
 
       const response = await candidateService.createBulkCandidates(emails);
       setResult(response);
+      const createdCount = response?.created?.length || 0;
+      if (createdCount > 0) {
+        setSnackMessage(`Created ${createdCount} candidate(s)`);
+        setSnackOpen(true);
+      }
       await fetchOnboardingCandidates();
     } catch (err) {
       if (err instanceof AxiosError) {
@@ -413,6 +422,17 @@ const AdminOnboardingModule = () => {
               </Alert>
             )}
 
+            <Snackbar
+              open={snackOpen}
+              autoHideDuration={4000}
+              onClose={() => setSnackOpen(false)}
+              anchorOrigin={{ vertical: "top", horizontal: "right" }}
+            >
+              <Alert onClose={() => setSnackOpen(false)} severity="success" sx={{ width: "100%" }}>
+                {snackMessage}
+              </Alert>
+            </Snackbar>
+
             {loadingCandidates ? (
               <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
                 <CircularProgress size={32} />
@@ -531,6 +551,13 @@ const AdminOnboardingModule = () => {
                 </Paper>
               );
             })()}
+
+            <Backdrop
+              sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1 }}
+              open={loadingCandidates || isRefreshing}
+            >
+              <CircularProgress color="inherit" />
+            </Backdrop>
 
             <Dialog open={progressDialogOpen} onClose={() => setProgressDialogOpen(false)} maxWidth="md" fullWidth>
               <DialogTitle>

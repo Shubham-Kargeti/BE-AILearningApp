@@ -9,6 +9,8 @@ import {
   CircularProgress,
   FormControlLabel,
   Typography,
+  Snackbar,
+  Backdrop,
 } from "@mui/material";
 import axios from "axios";
 import apiClient from "../../API/services";
@@ -42,6 +44,7 @@ const AdminOnboardingModulesUpload = () => {
   const [isExistingData, setIsExistingData] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [snackOpen, setSnackOpen] = useState(false);
 
   useEffect(() => {
     if (!modules.length) {
@@ -170,6 +173,11 @@ const AdminOnboardingModulesUpload = () => {
       );
       setSuccess(`Saved ${response.data.saved} module records across ${response.data.modules.length} module(s).`);
       setReviewConfirmed(false);
+        // After successful save switch to view mode and reload current modules
+        setIsExistingData(true);
+        setSelectedFile(null);
+        await loadCurrentModules();
+        setSnackOpen(true);
     } catch (err) {
       const message = axios.isAxiosError(err)
         ? err.response?.data?.detail || "Failed to save modules"
@@ -210,6 +218,24 @@ const AdminOnboardingModulesUpload = () => {
             {success}
           </Alert>
         )}
+
+        <Snackbar
+          open={snackOpen}
+          autoHideDuration={4000}
+          onClose={() => setSnackOpen(false)}
+          anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        >
+          <Alert onClose={() => setSnackOpen(false)} severity="success" sx={{ width: "100%" }}>
+            {success}
+          </Alert>
+        </Snackbar>
+
+        <Backdrop
+          sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1 }}
+          open={loading || saving}
+        >
+          <CircularProgress color="inherit" />
+        </Backdrop>
 
         {modules.length > 0 && (
           <>

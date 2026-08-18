@@ -11,6 +11,8 @@ import {
   Tab,
   Tabs,
   Typography,
+  Snackbar,
+  Backdrop,
 } from "@mui/material";
 import axios from "axios";
 import apiClient from "../../API/services";
@@ -48,6 +50,7 @@ const AdminOnboardingQuizUpload = () => {
   const [isExistingData, setIsExistingData] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [snackOpen, setSnackOpen] = useState(false);
 
   useEffect(() => {
     if (!modules.length) {
@@ -179,6 +182,13 @@ const AdminOnboardingQuizUpload = () => {
       );
       setSuccess(`Saved ${response.data.saved} questions across ${response.data.modules.length} module(s).`);
       setReviewConfirmed(false);
+      // After a successful save, switch back to view mode by loading the
+      // currently saved quiz data and mark it as existing so the Save
+      // checkbox/button are hidden until a new file is uploaded.
+      setIsExistingData(true);
+      setSelectedFile(null);
+      await loadCurrentModules();
+      setSnackOpen(true);
     } catch (err) {
       const message = axios.isAxiosError(err)
         ? err.response?.data?.detail || "Failed to save questions"
@@ -219,6 +229,24 @@ const AdminOnboardingQuizUpload = () => {
             {success}
           </Alert>
         )}
+
+        <Snackbar
+          open={snackOpen}
+          autoHideDuration={4000}
+          onClose={() => setSnackOpen(false)}
+          anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        >
+          <Alert onClose={() => setSnackOpen(false)} severity="success" sx={{ width: "100%" }}>
+            {success}
+          </Alert>
+        </Snackbar>
+
+        <Backdrop
+          sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1 }}
+          open={loading || saving}
+        >
+          <CircularProgress color="inherit" />
+        </Backdrop>
 
         {modules.length > 0 && (
           <>

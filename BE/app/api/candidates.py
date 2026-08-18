@@ -583,6 +583,7 @@ async def get_onboarding_candidates_status(
 @router.post("/{candidate_id}/send-credentials-email", response_model=dict)
 async def send_candidate_credentials_email(
     candidate_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(admin_required),
 ):
@@ -598,9 +599,31 @@ async def send_candidate_credentials_email(
         raise HTTPException(400, "No password available for this candidate")
 
     settings = get_settings()
-    dashboard_url = f"{settings.FRONTEND_URL.rstrip('/')}/login"
     subject = "BCG onboarding modules"
-    onboarding_url = f"{settings.FRONTEND_URL.rstrip('/')}/app/onboarding-candidate"
+
+    # Prefer a frontend origin provided by the browser (Origin or Referer)
+    # when available — this helps generate correct links in production
+    # environments without requiring a separate env var change.
+    frontend_base = settings.FRONTEND_URL.rstrip("/")
+    try:
+        origin_header = None
+        # FastAPI injects Request if added to the signature; try to read it
+        # from the context locals if present.
+        request_obj = locals().get("request")
+        if request_obj and hasattr(request_obj, "headers"):
+            origin_header = request_obj.headers.get("origin") or request_obj.headers.get("referer")
+        if origin_header:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(origin_header)
+            if parsed.scheme and parsed.netloc:
+                frontend_base = f"{parsed.scheme}://{parsed.netloc}"
+    except Exception:
+        # Fall back to configured FRONTEND_URL
+        pass
+
+    dashboard_url = f"{frontend_base}/login"
+    onboarding_url = f"{frontend_base}/app/onboarding-candidate"
     text_body = (
         f"Dear User,\n\n"
         f"Your account has been successfully created on the {settings.APP_NAME}.\n\n"
