@@ -42,10 +42,6 @@ const LoginContainer = () => {
         localStorage.setItem("refreshToken", refresh_token);
       }
 
-      if (role) {
-        localStorage.setItem("userRole", role);
-      }
-
       if (candidate_id) {
         localStorage.setItem("candidateId", candidate_id);
       }
@@ -74,7 +70,7 @@ const LoginContainer = () => {
     const email = values.email.trim().toLowerCase();
     localStorage.setItem("loggedInUser", email);
 
-    if (response.role === "admin" || isAdmin(email)) {
+    if (response.role === "admin") {
       navigate("/admin/dashboard");
     } else {
       navigate("/app/profile-setup");

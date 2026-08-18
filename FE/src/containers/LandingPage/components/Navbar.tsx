@@ -33,7 +33,7 @@ const Navbar = () => {
       <Box className="navbar-actions">
 
         {/* ⭐ ADMIN DASHBOARD BUTTON (only for logged-in admins) */}
-        {loggedUser && isAdmin(loggedUser) && (
+        {token && isAdmin(loggedUser) && (
           <Button
             variant="contained"
             className="admin-btn"

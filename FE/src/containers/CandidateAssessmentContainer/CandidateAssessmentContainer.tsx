@@ -139,9 +139,6 @@ const CandidateAssessmentContainer: React.FC = () => {
         if (loginResponse.refresh_token) {
           localStorage.setItem("refreshToken", loginResponse.refresh_token);
         }
-        if (loginResponse.role) {
-          localStorage.setItem("userRole", loginResponse.role);
-        }
         if (loginResponse.candidate_id) {
           localStorage.setItem("candidateId", loginResponse.candidate_id);
         }

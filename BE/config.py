@@ -175,12 +175,15 @@ class Settings(BaseSettings):
     
     # Admin Users (email-based for MVP)
     ADMIN_EMAILS: list[str] = [
-        "admin@nagarro.com",
+        "admin@nagarro.com", "monika.singh01@nagarro.com"
     ]
+    ADMIN_PASSWORD: str = "Admin@123"
 
     # Onboarding Success Mail
     ONBOARDING_EMAILS: list[str] = [
-        "monika.singh01@nagarro.com,devinder.kumar@nagarro.com",
+        "monika.singh01@nagarro.com",
+        "devinder.kumar@nagarro.com",
+        "arpit.saxena01@nagarro.com",
     ]
 
     # Onboarding Videos
