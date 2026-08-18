@@ -26,6 +26,8 @@ import AdminLayout from "./containers/AdminLayout";
 import AdminAddCandidate from "./containers/AdminAddCandidate/AdminAddCandidate";
 import AdminOnboardingModule from "./containers/AdminOnboardingModule/AdminOnboardingModule";
 import AdminOnboardingQuizUpload from "./containers/AdminOnboardingQuizUpload/AdminOnboardingQuizUpload";
+import AdminOnboardingKeyConceptUpload from "./containers/AdminOnboardingKeyConceptUpload/AdminOnboardingKeyConceptUpload";
+import AdminOnboardingModulesUpload from "./containers/AdminOnboardingModulesUpload/AdminOnboardingModulesUpload";
 import AdminCandidateList from "./containers/AdminCandidateList/AdminCandidateList";
 import AdminRequirement from "./containers/AdminRequirement/AdminRequirement";
 import AdminSettings from "./containers/AdminSettings/AdminSettings";
@@ -115,6 +117,8 @@ function App() {
           <Route path="add-candidate" element={<AdminAddCandidate />} />
           <Route path="onboarding-module" element={<AdminOnboardingModule />} />
           <Route path="onboarding-quiz-upload" element={<AdminOnboardingQuizUpload />} />
+          <Route path="onboarding-modules-upload" element={<AdminOnboardingModulesUpload />} />
+          <Route path="onboarding-keyconcepts-upload" element={<AdminOnboardingKeyConceptUpload />} />
           <Route path="candidate-list" element={<AdminCandidateList />} />
           <Route path="requirement" element={<AdminRequirement />} />
           <Route path="settings" element={<AdminSettings />} />

@@ -37,8 +37,10 @@ from app.api.generator_jobs import router as generator_jobs_router
 from app.api.assessment_results import router as assessment_results_router
 
 #onboarding_module
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.db.session import async_session_maker
+from app.db.models import OnboardingModuleEmployeeProgress
 from app.scripts.seed_onboarding_modules import (
     seed_onboarding_modules,
     seed_candidate_journey,
@@ -85,10 +87,9 @@ async def lifespan(app: FastAPI):
     try:
         await init_db()
         logger.info("database_initialized")
-        # Seed onboarding modules
-        async with async_session_maker() as db:
-            await seed_onboarding_modules(db)
-            logger.info("onboarding_modules_seeded")
+        # NOTE: onboarding module records are created via the admin UI upload flow.
+        # Previous automatic seeding of module definitions has been removed to avoid
+        # overwriting admin-managed data on startup.
         
         # Seed module key concepts and default action items only during bootstrap.
         # Quiz data is now managed from the admin Excel upload flow.
@@ -97,11 +98,17 @@ async def lifespan(app: FastAPI):
             await seed_module_action_items(db)
             logger.info("module_quiz_concepts_and_action_items_seeded")
         
-        # Seed employee progress (separate session to ensure all module data is committed)
+        # Seed employee progress only once; do not overwrite real onboarding data on restart.
         async with async_session_maker() as db:
-            await seed_candidate_journey(db)
-            logger.info("employee_onboarding_progress_seeded")
-        
+            existing_progress = await db.execute(
+                select(OnboardingModuleEmployeeProgress.id).limit(1)
+            )
+            if existing_progress.scalar_one_or_none() is None:
+                await seed_candidate_journey(db)
+                logger.info("employee_onboarding_progress_seeded")
+            else:
+                logger.info("employee_onboarding_progress_already_present; skipping startup reseed")
+
         # Sync video URLs on every startup
         async with async_session_maker() as db:
             await sync_video_urls(db)

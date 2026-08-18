@@ -25,9 +25,25 @@ QUESTION_TYPE_MAP = {
 
 
 def _canonical_column(columns: list[str], *candidates: str) -> str | None:
-    normalized = {str(col).strip().lower(): col for col in columns}
+    def normalize(value: str) -> str:
+        return " ".join(
+            str(value)
+            .strip()
+            .lower()
+            .replace("/", " ")
+            .replace("-", " ")
+            .replace("_", " ")
+            .replace("%", " ")
+            .replace("(", " ")
+            .replace(")", " ")
+            .replace(".", " ")
+            .replace(",", " ")
+            .split()
+        )
+
+    normalized = {normalize(col): col for col in columns}
     for candidate in candidates:
-        match = normalized.get(candidate.strip().lower())
+        match = normalized.get(normalize(candidate))
         if match is not None:
             return match
     return None
@@ -44,7 +60,7 @@ def parse_excel_rows(excel_df: pd.DataFrame) -> list[dict[str, Any]]:
         return []
 
     df = excel_df.copy()
-    columns = [str(col).strip() for col in df.columns]
+    columns = list(df.columns)
 
     module_col = _canonical_column(columns, "Module No.", "Module No", "Module Number", "module_no")
     active_col = _canonical_column(columns, "Active", "active")

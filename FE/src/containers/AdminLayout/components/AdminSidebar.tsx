@@ -49,6 +49,9 @@ const AdminSidebar = () => {
               <NavLink to="/admin/onboarding-quiz-upload" className="admin-sub-link">
                 2. Add/View Questionnaire
               </NavLink>
+              <NavLink to="/admin/onboarding-modules-upload" className="admin-sub-link">
+                3. Add/View Modules
+              </NavLink>
             </div>
           )}
         </div>

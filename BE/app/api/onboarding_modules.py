@@ -12,11 +12,19 @@ from app.db.session import get_db
 from app.db.models import (
     OnboardingModule,
     OnboardingModuleCandidateChecklist,
+    OnboardingModuleEmployeeProgress,
+    OnboardingModuleKeyConcept,
     Candidate,
     OnboardingModuleQuiz,
     QuestionType,
 )
 from app.scripts.seed_module_quiz_from_excel import parse_excel_file
+from app.scripts.seed_module_key_concepts_from_excel import parse_key_concepts_file
+from app.scripts.seed_onboarding_modules import (
+    build_module_replacement_plan,
+    parse_module_file,
+    reconcile_preserved_module_updates,
+)
 from app.models.schemas import (
     OnboardingModuleDetailResponse,
     OnboardingModuleResponse,
@@ -78,6 +86,20 @@ async def resolve_candidate_id(db: AsyncSession, candidate_id: str) -> int:
     return internal_id
 
 
+async def _module_has_employee_progress(db: AsyncSession, module_id: int) -> bool:
+    """Return True when a module is still linked to employee onboarding progress.
+
+    Keeping these modules avoids cascading away candidate video progress when new
+    modules are added via the Excel upload flow.
+    """
+    result = await db.execute(
+        select(OnboardingModuleEmployeeProgress.id)
+        .where(OnboardingModuleEmployeeProgress.module_id == module_id)
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
+
 @router.get(
     "/onboarding-modules",
     response_model=list[OnboardingModuleResponse],
@@ -86,6 +108,135 @@ async def list_modules(
     db: AsyncSession = Depends(get_db),
 ):
     return await get_onboarding_modules(db)
+
+
+@router.post("/admin/onboarding-module-preview")
+async def preview_admin_onboarding_module(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    """Parse an uploaded onboarding module Excel and return a module-wise preview."""
+    contents = await file.read()
+    try:
+        rows = parse_module_file(contents)
+    except Exception as exc:  # pragma: no cover - defensive validation path
+        raise HTTPException(status_code=400, detail=f"Failed to read Excel file: {exc}") from exc
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="No module rows were found in the Excel file")
+
+    modules_result = await db.execute(select(OnboardingModule).order_by(OnboardingModule.rank))
+    modules = modules_result.scalars().all()
+    module_by_rank = {module.rank: module for module in modules}
+
+    grouped: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        module_no = int(row["module_no"])
+        module = module_by_rank.get(module_no)
+        if not module:
+            continue
+
+        grouped[module_no] = {
+            "module_no": module_no,
+            "module_id": module.id,
+            "title": str(row.get("title") or module.title).strip(),
+            "description": str(row.get("description") or module.description or "").strip(),
+            "passing_criteria": float(row.get("passing_criteria") or module.passing_criteria or 0),
+            "icon": str(row.get("icon") or module.icon or "").strip() or None,
+        }
+
+    if not grouped:
+        raise HTTPException(status_code=400, detail="No onboarding modules in the uploaded file match the configured modules")
+
+    response = [grouped[module_no] for module_no in sorted(grouped)]
+    return {"modules": response}
+
+
+@router.get("/admin/onboarding-modules-current")
+async def get_current_admin_onboarding_modules(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    """Return the currently saved onboarding modules in the preview structure used by the upload page."""
+    modules_result = await db.execute(select(OnboardingModule).order_by(OnboardingModule.rank))
+    modules = modules_result.scalars().all()
+
+    response = [
+        {
+            "module_no": module.rank,
+            "module_id": module.id,
+            "title": module.title,
+            "description": module.description or "",
+            "passing_criteria": float(module.passing_criteria),
+            "icon": module.icon,
+        }
+        for module in modules
+    ]
+    return {"modules": response}
+
+
+@router.post("/admin/onboarding-module-save")
+async def save_admin_onboarding_module(
+    payload: dict[str, Any] = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    """Persist confirmed onboarding module metadata for one or more modules."""
+    records = payload.get("modules") or []
+    if not records:
+        raise HTTPException(status_code=400, detail="No modules were selected for save")
+
+    existing_result = await db.execute(select(OnboardingModule).order_by(OnboardingModule.rank))
+    existing_modules = existing_result.scalars().all()
+    incoming_rows = [
+        {"module_no": int(row.get("module_no")), "module_id": row.get("module_id")}
+        for row in records
+        if row.get("module_no") is not None
+    ]
+    existing_rows = [{"module_no": module.rank, "id": module.id} for module in existing_modules]
+    preserve_plan = reconcile_preserved_module_updates(existing_rows, incoming_rows)
+
+    saved = 0
+    for row in records:
+        module_id = row.get("module_id")
+        module_no = row.get("module_no")
+
+        module = None
+        if module_id is not None:
+            module = await db.get(OnboardingModule, int(module_id))
+        if module is None and module_no is not None:
+            result = await db.execute(select(OnboardingModule).where(OnboardingModule.rank == int(module_no)))
+            module = result.scalar_one_or_none()
+        if module is None:
+            module = OnboardingModule(rank=int(module_no) if module_no is not None else 0)
+            db.add(module)
+            await db.flush()
+
+        planned_match = next(
+            (item for item in preserve_plan if int(item.get("module_no")) == int(module_no) and item.get("id") == module.id),
+            None,
+        )
+        if planned_match is not None and planned_match.get("id") is not None:
+            row_for_update = planned_match
+        else:
+            row_for_update = row
+
+        module.title = str(row_for_update.get("title") or row.get("title") or module.title or "").strip()
+        module.description = str(row_for_update.get("description") or row.get("description") or "").strip() or None
+        passing_criteria = row_for_update.get("passing_criteria", row.get("passing_criteria"))
+        try:
+            module.passing_criteria = float(str(passing_criteria).replace("%", "").strip())
+        except Exception:
+            module.passing_criteria = module.passing_criteria or 80
+        icon_value = str(row_for_update.get("icon") or row.get("icon") or "").strip()
+        module.icon = icon_value or module.icon
+        if module_no is not None:
+            module.rank = int(module_no)
+        saved += 1
+
+    await db.commit()
+    return {"saved": saved, "modules": [record.get("module_no") for record in records if record.get("module_no") is not None]}
 
 
 @router.post("/admin/onboarding-module-quiz-preview")
@@ -147,6 +298,156 @@ async def preview_admin_onboarding_module_quiz(
         })
 
     return {"modules": response}
+
+
+@router.post("/admin/onboarding-module-keyconcepts-preview")
+async def preview_admin_onboarding_module_keyconcepts(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    """Parse an uploaded onboarding key-concepts Excel and return a module-wise preview."""
+    contents = await file.read()
+    try:
+        rows = parse_key_concepts_file(contents)
+    except Exception as exc:  # pragma: no cover - defensive validation path
+        raise HTTPException(status_code=400, detail=f"Failed to read Excel file: {exc}") from exc
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="No key concept rows were found in the Excel file")
+
+    modules_result = await db.execute(select(OnboardingModule).order_by(OnboardingModule.rank))
+    modules = modules_result.scalars().all()
+    module_by_rank = {module.rank: module for module in modules}
+
+    grouped: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        module_no = int(row["module_no"])
+        module = module_by_rank.get(module_no)
+        if not module:
+            continue
+
+        grouped.setdefault(module_no, {"module_id": module.id, "title": module.title, "key_concepts": []})
+        grouped[module_no]["key_concepts"].append({
+            "module_no": module_no,
+            "module_id": module.id,
+            "title": row["title"],
+            "description": row.get("description") or "",
+            "link_url": row.get("link_url"),
+            "display_order": row.get("display_order") or 0,
+        })
+
+    if not grouped:
+        raise HTTPException(status_code=400, detail="No onboarding modules in the uploaded file match the configured modules")
+
+    response = []
+    for module_no in sorted(grouped):
+        payload = grouped[module_no]
+        # Ensure concepts are ordered
+        concepts = sorted(payload["key_concepts"], key=lambda c: int(c.get("display_order") or 0))
+        response.append({
+            "module_no": module_no,
+            "module_id": payload["module_id"],
+            "title": payload["title"],
+            "key_concepts": concepts,
+        })
+
+    return {"modules": response}
+
+
+@router.get("/admin/onboarding-module-keyconcepts-current")
+async def get_current_admin_onboarding_module_keyconcepts(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    """Return the currently saved onboarding key concepts in a preview structure used by the upload page."""
+    modules_result = await db.execute(select(OnboardingModule).order_by(OnboardingModule.rank))
+    modules = modules_result.scalars().all()
+
+    response = []
+    for module in modules:
+        concept_result = await db.execute(
+            select(OnboardingModuleKeyConcept)
+            .where(
+                OnboardingModuleKeyConcept.module_id == module.id,
+            )
+            .order_by(OnboardingModuleKeyConcept.display_order)
+        )
+        concepts = concept_result.scalars().all()
+        if not concepts:
+            continue
+
+        response.append({
+            "module_no": module.rank,
+            "module_id": module.id,
+            "title": module.title,
+            "key_concepts": [
+                {
+                    "module_no": module.rank,
+                    "module_id": module.id,
+                    "title": c.title,
+                    "description": c.description,
+                    "link_url": c.link_url,
+                    "display_order": c.display_order,
+                }
+                for c in concepts
+            ],
+        })
+
+    return {"modules": response}
+
+
+@router.post("/admin/onboarding-module-keyconcepts-save")
+async def save_admin_onboarding_module_keyconcepts(
+    payload: dict[str, Any] = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    """Persist confirmed onboarding key concepts for one or more modules."""
+    records = payload.get("key_concepts") or []
+    if not records:
+        raise HTTPException(status_code=400, detail="No key concepts were selected for save")
+
+    grouped: dict[int, list[dict[str, Any]]] = {}
+    for row in records:
+        module_id = row.get("module_id")
+        module_no = row.get("module_no")
+        if module_id is None and module_no is None:
+            continue
+        local_key = int(module_id) if module_id is not None else int(module_no)
+        grouped.setdefault(local_key, []).append(row)
+
+    saved = 0
+    for module_key, rows in grouped.items():
+        module = await db.get(OnboardingModule, module_key) if isinstance(module_key, int) and module_key > 0 else None
+        if module is None:
+            module_result = await db.execute(select(OnboardingModule).where(OnboardingModule.rank == module_key))
+            module = module_result.scalar_one_or_none()
+        if module is None:
+            continue
+
+        existing_concepts_result = await db.execute(
+            select(OnboardingModuleKeyConcept)
+            .where(OnboardingModuleKeyConcept.module_id == module.id)
+            .order_by(OnboardingModuleKeyConcept.display_order)
+        )
+        existing_concepts = existing_concepts_result.scalars().all()
+        existing_by_order = {concept.display_order: concept for concept in existing_concepts}
+
+        for index, row in enumerate(rows, start=1):
+            display_order = int(row.get("display_order") or index)
+            concept = existing_by_order.get(display_order)
+            if concept is None:
+                concept = OnboardingModuleKeyConcept(module_id=module.id, display_order=display_order)
+                db.add(concept)
+            concept.title = str(row.get("title") or concept.title or "").strip()
+            concept.description = str(row.get("description") or concept.description or "").strip() or None
+            concept.link_url = row.get("link_url") or concept.link_url
+            concept.display_order = display_order
+            saved += 1
+
+    await db.commit()
+    return {"saved": saved, "modules": list(grouped.keys())}
 
 
 @router.get("/admin/onboarding-module-quiz-current")
@@ -231,21 +532,37 @@ async def save_admin_onboarding_module_quiz(
         if module is None:
             continue
 
-        await db.execute(delete(OnboardingModuleQuiz).where(OnboardingModuleQuiz.module_id == module.id))
+        existing_questions_result = await db.execute(
+            select(OnboardingModuleQuiz)
+            .where(OnboardingModuleQuiz.module_id == module.id)
+            .order_by(OnboardingModuleQuiz.display_order, OnboardingModuleQuiz.id)
+        )
+        existing_questions = existing_questions_result.scalars().all()
+        existing_by_index: dict[tuple[str, int], OnboardingModuleQuiz] = {}
+        for question in existing_questions:
+            existing_by_index[(str(question.variant or "1"), int(question.display_order))] = question
+
         for index, row in enumerate(rows, start=1):
             question_type = str(row.get("question_type") or "MCQ").strip().upper()
             mapped_type = QuestionType.MCQ if question_type == "MCQ" else QuestionType.SCENARIO
-            question = OnboardingModuleQuiz(
-                module_id=module.id,
-                question_text=str(row.get("question_text") or "").strip(),
-                question_type=mapped_type,
-                choices=row.get("choices") or [],
-                correct_answer=str(row.get("correct_answer") or "").strip(),
-                display_order=index,
-                points=1,
-                variant=str(row.get("variant") or "").strip() or None,
-            )
-            db.add(question)
+            variant = str(row.get("variant") or "").strip() or "1"
+            question = existing_by_index.get((variant, index))
+            if question is None:
+                question = OnboardingModuleQuiz(
+                    module_id=module.id,
+                    variant=variant,
+                    display_order=index,
+                    points=1,
+                )
+                db.add(question)
+
+            question.question_text = str(row.get("question_text") or question.question_text or "").strip()
+            question.question_type = mapped_type
+            question.choices = row.get("choices") or question.choices or []
+            question.correct_answer = str(row.get("correct_answer") or question.correct_answer or "").strip()
+            question.display_order = index
+            question.variant = variant
+            question.points = 1
             saved += 1
 
     await db.commit()

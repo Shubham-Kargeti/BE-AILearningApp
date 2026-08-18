@@ -1,6 +1,9 @@
+import io
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta
+
+import pandas as pd
 
 from config import get_settings
 settings = get_settings()
@@ -15,6 +18,183 @@ from app.db.models import (
     OnboardingModuleActionItem,
     OnboardingModuleCandidateChecklist,
 )
+
+
+def _canonical_column(columns: list[str], *candidates: str) -> str | None:
+    def normalize(value: str) -> str:
+        return " ".join(
+            str(value)
+            .strip()
+            .lower()
+            .replace("/", " ")
+            .replace("-", " ")
+            .replace("_", " ")
+            .replace("%", " ")
+            .replace("(", " ")
+            .replace(")", " ")
+            .replace(".", " ")
+            .replace(",", " ")
+            .split()
+        )
+
+    normalized = {normalize(col): col for col in columns}
+    for candidate in candidates:
+        match = normalized.get(normalize(candidate))
+        if match is not None:
+            return match
+    return None
+
+
+def build_module_replacement_plan(existing_rows: list[dict], incoming_rows: list[dict]) -> tuple[list[int], list[int]]:
+    """Return stale and retained module ranks when replacing the saved module set."""
+    existing_ranks = {
+        int(row["module_no"])
+        for row in existing_rows
+        if row.get("module_no") is not None
+    }
+    incoming_ranks = {
+        int(row["module_no"])
+        for row in incoming_rows
+        if row.get("module_no") is not None
+    }
+
+    stale_ranks = sorted(existing_ranks - incoming_ranks)
+    retained_ranks = sorted(existing_ranks & incoming_ranks)
+    return stale_ranks, retained_ranks
+
+
+def reconcile_preserved_module_updates(existing_rows: list[dict], incoming_rows: list[dict]) -> list[dict]:
+    """Keep existing module IDs when a module number is updated in-place.
+
+    Since candidates may already have started a module or quiz, the upload must
+    preserve the original row IDs and overwrite the values instead of deleting and
+    recreating them.
+    """
+    existing_by_no = {
+        int(row["module_no"]): row
+        for row in existing_rows
+        if row.get("module_no") is not None
+    }
+
+    planned: list[dict] = []
+    for row in incoming_rows:
+        module_no = row.get("module_no")
+        if module_no is None:
+            planned.append({**row, "id": None})
+            continue
+
+        existing = existing_by_no.get(int(module_no))
+        if existing is not None:
+            merged = {**existing, **row}
+            merged["id"] = existing.get("id")
+            planned.append(merged)
+        else:
+            planned.append({**row, "id": None})
+
+    return planned
+
+
+def parse_module_rows(excel_df: pd.DataFrame) -> list[dict]:
+    """Parse a module-export dataframe into module metadata rows."""
+    if excel_df is None or excel_df.empty:
+        return []
+
+    df = excel_df.copy()
+    columns = list(df.columns)
+
+    module_col = _canonical_column(
+        columns,
+        "Module No.",
+        "Module No",
+        "Module Number",
+        "module_no",
+        "Module No ",
+    )
+    title_col = _canonical_column(
+        columns,
+        "Module Name",
+        "Title",
+        "Module Title",
+        "module_name",
+        "Module Title ",
+    )
+    description_col = _canonical_column(columns, "Description", "description")
+    passing_col = _canonical_column(
+        columns,
+        "Passing Criteria",
+        "Pass Criteria",
+        "passing_criteria",
+        "Passing Criteria (%)",
+        "Pass Criteria (%)",
+    )
+    icon_col = _canonical_column(columns, "Icon", "icon", "Icon Name", "icon_name")
+
+    if not module_col or not title_col:
+        return []
+
+    df = df.dropna(subset=[module_col])
+    rows: list[dict] = []
+    for _, row in df.iterrows():
+        module_no = row.get(module_col)
+        if pd.isna(module_no):
+            continue
+        try:
+            module_no = int(float(str(module_no).strip() or 0))
+        except Exception:
+            continue
+
+        title = str(row.get(title_col, "") or "").strip()
+        if not title:
+            continue
+
+        description = str(row.get(description_col, "") or "").strip()
+        passing_criteria_raw = row.get(passing_col)
+        passing_criteria = 80.0
+        if not pd.isna(passing_criteria_raw):
+            try:
+                passing_criteria = float(str(passing_criteria_raw).replace("%", "").strip())
+            except Exception:
+                passing_criteria = 80.0
+
+        icon = str(row.get(icon_col, "") or "").strip() or None
+
+        rows.append({
+            "module_no": module_no,
+            "title": title,
+            "description": description,
+            "passing_criteria": passing_criteria,
+            "icon": icon,
+        })
+
+    rows.sort(key=lambda row: row["module_no"])
+    return rows
+
+
+def parse_module_file(file_bytes: bytes) -> list[dict]:
+    """Read the uploaded module workbook and support both real project templates.
+
+    The authored onboarding module Excel includes a short banner above the data table,
+    so the real header row is offset by 3 rows. Older or simpler exports may start
+    at row 0, so we try both layouts.
+    """
+    for header_row in (3, 0):
+        try:
+            df = pd.read_excel(io.BytesIO(file_bytes), header=header_row)
+        except Exception:
+            continue
+
+        columns = list(df.columns)
+        if _canonical_column(
+            columns,
+            "Module No.",
+            "Module No",
+            "Module Number",
+            "module_no",
+            "Module No ",
+        ):
+            return parse_module_rows(df)
+
+    return parse_module_rows(pd.read_excel(io.BytesIO(file_bytes)))
 
 
 ONBOARDING_MODULES = [

@@ -636,6 +636,26 @@ STATIC_VIDEO_URL_MAP = {
 }
 
 
+def _normalize_module_title_for_video_lookup(module_title: str) -> str:
+    """Normalize titles that get a trailing numeric suffix during Excel imports.
+
+    Excel import paths sometimes produce titles like "Engagement Context & Structure1"
+    while the canonical module titles in the app are exact strings without the stray
+    numeric suffix. Trim the trailing numeric suffix before lookup so the default
+    module videos remain stable.
+    """
+    if not module_title:
+        return ""
+
+    normalized = str(module_title).strip()
+    if normalized.endswith("1") and normalized[:-1].rstrip().endswith("Structure"):
+        normalized = normalized[:-1].rstrip()
+    elif normalized and normalized[-1].isdigit():
+        normalized = re.sub(r"\s*\d+$", "", normalized)
+
+    return normalized
+
+
 def _get_module_video_url(module_title: str) -> str:
     """Resolve the onboarding video URL for a module.
 
@@ -643,9 +663,10 @@ def _get_module_video_url(module_title: str) -> str:
     later turned into a presigned URL). When False, returns the static
     GitHub-hosted URL directly.
     """
+    lookup_title = _normalize_module_title_for_video_lookup(module_title)
     if settings.FETCH_VIDEOS_FROM_S3:
-        return VIDEO_URL_MAP.get(module_title, "")
-    return STATIC_VIDEO_URL_MAP.get(module_title, "")
+        return VIDEO_URL_MAP.get(lookup_title, VIDEO_URL_MAP.get(module_title, ""))
+    return STATIC_VIDEO_URL_MAP.get(lookup_title, STATIC_VIDEO_URL_MAP.get(module_title, ""))
 
 
 def _get_video_presigned_url(s3_key: str, expiration: int = 3600) -> str:
