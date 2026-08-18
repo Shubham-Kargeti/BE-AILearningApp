@@ -424,7 +424,10 @@ async def save_admin_onboarding_module_keyconcepts(
             module_result = await db.execute(select(OnboardingModule).where(OnboardingModule.rank == module_key))
             module = module_result.scalar_one_or_none()
         if module is None:
-            continue
+            # Create the module if it does not exist yet (use module_key as the rank)
+            module = OnboardingModule(rank=int(module_key) if isinstance(module_key, int) else 0)
+            db.add(module)
+            await db.flush()
 
         existing_concepts_result = await db.execute(
             select(OnboardingModuleKeyConcept)
@@ -530,7 +533,10 @@ async def save_admin_onboarding_module_quiz(
             module_result = await db.execute(select(OnboardingModule).where(OnboardingModule.rank == module_key))
             module = module_result.scalar_one_or_none()
         if module is None:
-            continue
+            # Create the module if it does not exist yet (use module_key as the rank)
+            module = OnboardingModule(rank=int(module_key) if isinstance(module_key, int) else 0)
+            db.add(module)
+            await db.flush()
 
         existing_questions_result = await db.execute(
             select(OnboardingModuleQuiz)
