@@ -91,23 +91,13 @@ async def lifespan(app: FastAPI):
         # Previous automatic seeding of module definitions has been removed to avoid
         # overwriting admin-managed data on startup.
         
-        # Seed module key concepts and default action items only during bootstrap.
-        # Quiz data is now managed from the admin Excel upload flow.
-        async with async_session_maker() as db:
-            await seed_module_key_concepts_from_excel(db)
-            await seed_module_action_items(db)
-            logger.info("module_quiz_concepts_and_action_items_seeded")
+        # Seeding of module key concepts and action items is skipped at startup.
+        # Admin panel now manages modules, key concepts and quiz data.
+        logger.info("startup_module_seeding_skipped;admin_manages_key_concepts_and_action_items")
         
-        # Seed employee progress only once; do not overwrite real onboarding data on restart.
-        async with async_session_maker() as db:
-            existing_progress = await db.execute(
-                select(OnboardingModuleEmployeeProgress.id).limit(1)
-            )
-            if existing_progress.scalar_one_or_none() is None:
-                await seed_candidate_journey(db)
-                logger.info("employee_onboarding_progress_seeded")
-            else:
-                logger.info("employee_onboarding_progress_already_present; skipping startup reseed")
+        # Seeding of a candidate journey at startup is skipped — admin will
+        # manage onboarding progress and sample data. Keep startup deterministic.
+        logger.info("startup_candidate_journey_seeding_skipped;admin_manages_employee_progress")
 
         # Sync video URLs on every startup
         async with async_session_maker() as db:
