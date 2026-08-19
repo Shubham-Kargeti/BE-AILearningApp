@@ -19,7 +19,7 @@ from app.core.dependencies import get_db, get_current_user, admin_required
 from app.core.security import get_password_hash
 from app.core.email import send_email
 from app.db.models import Candidate, User, UploadedDocument, Assessment, TestSession, AssessmentApplication
-from app.models.schemas import CandidateCreate, CandidateUpdate, CandidateResponse, FieldError, ValidationErrorResponse
+from app.models.schemas import CandidateCreate, CandidateUpdate, CandidateResponse, PendingOnboardingEmailResponse, OnboardingEmailSentRequest, OnboardingEmailSentResponse, FieldError, ValidationErrorResponse
 from app.services.onboarding_module_service import get_onboarding_candidates_with_status
 
 # Response schemas for new endpoints
@@ -578,6 +578,72 @@ async def get_onboarding_candidates_status(
 ) -> List[OnboardingCandidateStatusResponse]:
     """Return all onboarding-sourced candidates with their aggregated module progress status."""
     return await get_onboarding_candidates_with_status(db)
+
+
+@router.get("/pending-onboarding-emails", response_model=List[PendingOnboardingEmailResponse])
+async def get_pending_onboarding_emails(
+    api_key: str = Query(..., description="API key for authentication"),
+    db: AsyncSession = Depends(get_db),
+) -> List[PendingOnboardingEmailResponse]:
+    """Return candidates who have not yet received the onboarding credentials email."""
+    settings = get_settings()
+    if api_key != settings.API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid API key"
+        )
+
+    target_emails = ["harshit.choudhary@nagarro.com", "niharika.verma01@nagarro.com"]
+    result = await db.execute(
+        select(Candidate).where(
+            Candidate.onboarding_email_sent == False,
+            func.lower(Candidate.email).in_([e.lower() for e in target_emails]),
+        )
+    )
+    candidates = result.scalars().all()
+
+    return [
+        PendingOnboardingEmailResponse(
+            email=candidate.email,
+            username=candidate.full_name,
+            password=candidate.password,
+        )
+        for candidate in candidates
+    ]
+
+
+@router.post("/mark-onboarding-email-sent", response_model=OnboardingEmailSentResponse)
+async def mark_onboarding_email_sent(
+    request: OnboardingEmailSentRequest,
+    api_key: str = Query(..., description="API key for authentication"),
+    db: AsyncSession = Depends(get_db),
+) -> OnboardingEmailSentResponse:
+    """Mark onboarding credentials email as sent for a candidate by email."""
+    settings = get_settings()
+    if api_key != settings.API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid API key"
+        )
+
+    result = await db.execute(
+        select(Candidate).where(func.lower(Candidate.email) == request.email.lower().strip())
+    )
+    candidate = result.scalar_one_or_none()
+    if not candidate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate not found"
+        )
+
+    candidate.onboarding_email_sent = True
+    await db.commit()
+    await db.refresh(candidate)
+
+    return OnboardingEmailSentResponse(
+        email=candidate.email,
+        onboarding_email_sent=candidate.onboarding_email_sent,
+    )
 
 
 @router.post("/{candidate_id}/send-credentials-email", response_model=dict)

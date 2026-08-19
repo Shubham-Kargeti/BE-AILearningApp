@@ -247,6 +247,24 @@ class CandidateResponse(BaseModel):
     source: str = "manual"
 
 
+class PendingOnboardingEmailResponse(BaseModel):
+    """Candidate who has not yet received the onboarding credentials email."""
+    email: str
+    username: str
+    password: Optional[str] = None
+
+
+class OnboardingEmailSentRequest(BaseModel):
+    """Request to mark onboarding credentials email as sent."""
+    email: str
+
+
+class OnboardingEmailSentResponse(BaseModel):
+    """Response after marking onboarding email as sent."""
+    email: str
+    onboarding_email_sent: bool
+
+
 class SkillResponse(BaseModel):
     """Response with skill details."""
     id: int

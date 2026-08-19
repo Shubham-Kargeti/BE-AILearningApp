@@ -92,13 +92,18 @@ Candidate answer:
 """.strip()
 
     llm = _get_llm()
-    response = await asyncio.to_thread(
-        llm.invoke,
-        [
-            {"role": "system", "content": "You are a strict, fair onboarding quiz evaluator."},
-            {"role": "user", "content": prompt},
-        ],
-    )
+    try:
+        response = await asyncio.to_thread(
+            llm.invoke,
+            [
+                {"role": "system", "content": "You are a strict, fair onboarding quiz evaluator."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+    except Exception as exc:
+        print(f"LLM evaluation failed, falling back to score 0: {exc}")
+        return 0
+
     content = response.content if hasattr(response, "content") else str(response)
     parsed = _parse_json_object(content)
     score = int(round(float(parsed.get("score", 0))))

@@ -122,6 +122,9 @@ class Settings(BaseSettings):
     CORS_ALLOW_METHODS: list[str] = ["*"]
     CORS_ALLOW_HEADERS: list[str] = ["*"]
     
+    # API Key for public/admin-outofscope endpoints
+    API_KEY: str = "temp-1234"
+    
     # Sentry
     SENTRY_DSN: Optional[str] = None
     SENTRY_TRACES_SAMPLE_RATE: float = 0.1
