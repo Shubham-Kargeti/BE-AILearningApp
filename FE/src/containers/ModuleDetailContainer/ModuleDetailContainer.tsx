@@ -377,7 +377,17 @@ const ModuleDetailContainer = () => {
       previousModuleIdRef.current = moduleId;
       const scrollToTarget = () => {
         if (activeStep === "video") {
-          videoWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          const el = videoWrapperRef.current;
+          if (!el) return;
+          // Scroll the surrounding card into view so the video sits at the card level
+          const card = el.closest(".module-detail-card") as HTMLElement | null;
+          if (card) {
+            card.scrollIntoView({ behavior: "smooth", block: "start" });
+            window.scrollBy({ top: 10, left: 0, behavior: "smooth" });
+          } else {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+            window.scrollBy({ top: 10, left: 0, behavior: "smooth" });
+          }
         } else {
           const target = containerRef.current;
           if (target) {
@@ -394,7 +404,16 @@ const ModuleDetailContainer = () => {
   useLayoutEffect(() => {
     if (!loading && data && activeStep === "video") {
       const raf = requestAnimationFrame(() => {
-        videoWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        const el = videoWrapperRef.current;
+        if (!el) return;
+        const card = el.closest(".module-detail-card") as HTMLElement | null;
+        if (card) {
+          card.scrollIntoView({ behavior: "smooth", block: "start" });
+          window.scrollBy({ top: 10, left: 0, behavior: "smooth" });
+        } else {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+          window.scrollBy({ top: 10, left: 0, behavior: "smooth" });
+        }
       });
       return () => cancelAnimationFrame(raf);
     }
@@ -570,9 +589,32 @@ const ModuleDetailContainer = () => {
                 >
                   Video
                 </Button>
-                <Typography className="module-detail-step-nav__title" sx={{ fontWeight: 900 }}>
-                  Module {data.module.rank} • {data.module.title} • Passing: {Math.round(data.module.passing_criteria)}%
-                </Typography>
+                <Box className="module-detail-step-nav__title" sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', justifyContent: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: '0 0 auto' }}>
+                    <Box sx={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg,#5568f2,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '0.95rem' }} aria-hidden>
+                      {data.module.rank}
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ flex: '1 1 0', minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 900, fontSize: '1.15rem', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={data.module.title}>
+                      {data.module.title}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.85rem', color: 'text.secondary', textAlign: 'center' }}>
+                      {data.module.description || ''}
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip
+                      label={`Passing ${Math.round(data.module.passing_criteria)}%`}
+                      color={data.module.passing_criteria >= 80 ? 'success' : data.module.passing_criteria >= 60 ? 'warning' : 'default'}
+                      size="small"
+                      sx={{ fontWeight: 700 }}
+                      title={`Minimum passing score: ${Math.round(data.module.passing_criteria)}%`}
+                    />
+                  </Box>
+                </Box>
                 <Button
                   variant="text"
                   onClick={() => setActiveStep("quiz")}
