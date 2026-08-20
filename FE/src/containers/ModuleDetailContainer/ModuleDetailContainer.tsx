@@ -24,11 +24,21 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Alert
+  Alert,
+  IconButton,
+  Tooltip
 } from "@mui/material";
 import { AxiosError } from "axios";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import PauseIcon from "@mui/icons-material/Pause";
+import VolumeUpIcon from "@mui/icons-material/VolumeUp";
+import VolumeOffIcon from "@mui/icons-material/VolumeOff";
+import FullscreenIcon from "@mui/icons-material/Fullscreen";
+import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
+import CenterFocusStrongIcon from "@mui/icons-material/CenterFocusStrong";
+import LinkIcon from "@mui/icons-material/Link";
 import SendIcon from "@mui/icons-material/Send";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Close";
@@ -56,9 +66,17 @@ const ModuleDetailContainer = () => {
   const [quizResult, setQuizResult] = useState<QuizSubmitResponse | null>(null);
   const [nextModuleId, setNextModuleId] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoWrapperRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLElement | null>(null);
   const [videoCompleted, setVideoCompleted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [theaterMode, setTheaterMode] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const lastVideoUpdateRef = useRef<number>(0);
+  const lastPlaybackTimeRef = useRef<number>(0);
   const previousModuleIdRef = useRef(moduleId);
   const isVideoReady = !!data?.video_url;
   const isVideoAvailable = !!data?.video_url;
@@ -74,6 +92,52 @@ const ModuleDetailContainer = () => {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   */
 
+  const formatTime = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const togglePlayPause = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused || video.ended) {
+      video.play();
+    } else {
+      video.pause();
+    }
+  };
+
+  const toggleMute = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = !video.muted;
+    setMuted(video.muted);
+  };
+
+  const toggleTheaterMode = () => {
+    setTheaterMode((prev) => !prev);
+  };
+
+  const toggleFullscreen = () => {
+    const wrapper = videoWrapperRef.current;
+    if (!wrapper) return;
+
+    if (!document.fullscreenElement) {
+      wrapper.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
 
   useEffect(() => {
     setQuizResult(null);
@@ -99,6 +163,9 @@ const ModuleDetailContainer = () => {
       const current = Math.floor(video.currentTime || 0);
       const total = Math.floor(video.duration || 0);
       if (total <= 0) return;
+
+      lastPlaybackTimeRef.current = current;
+      setCurrentTime(current);
 
       const now = Date.now();
       if (now - lastVideoUpdateRef.current < 2000) {
@@ -129,7 +196,25 @@ const ModuleDetailContainer = () => {
       }
     };
 
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleLoadedMetadata = () => {
+      setDuration(video.duration || 0);
+      setCurrentTime(video.currentTime || 0);
+      setMuted(video.muted);
+    };
+    const handleVolumeChange = () => setMuted(video.muted);
+
+    const handleSeeking = () => {
+      const current = video.currentTime || 0;
+      const last = lastPlaybackTimeRef.current;
+      if (current > last + 3) {
+        video.currentTime = last;
+      }
+    };
+
     const handleEnded = async () => {
+      setIsPlaying(false);
       if (!data?.module?.id) return;
       const total = Math.floor(video.duration || 0);
       try {
@@ -153,10 +238,20 @@ const ModuleDetailContainer = () => {
 
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("ended", handleEnded);
+    video.addEventListener("seeking", handleSeeking);
+    video.addEventListener("play", handlePlay);
+    video.addEventListener("pause", handlePause);
+    video.addEventListener("loadedmetadata", handleLoadedMetadata);
+    video.addEventListener("volumechange", handleVolumeChange);
 
     return () => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("ended", handleEnded);
+      video.removeEventListener("seeking", handleSeeking);
+      video.removeEventListener("play", handlePlay);
+      video.removeEventListener("pause", handlePause);
+      video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      video.removeEventListener("volumechange", handleVolumeChange);
     };
   }, [isVideoReady, data?.module?.id, moduleId]);
 
@@ -280,17 +375,30 @@ const ModuleDetailContainer = () => {
   useLayoutEffect(() => {
     if (previousModuleIdRef.current !== moduleId && !loading && data) {
       previousModuleIdRef.current = moduleId;
-      const scrollToTop = () => {
-        const target = containerRef.current;
-        if (target) {
-          target.scrollIntoView({ behavior: "smooth", block: "start" });
+      const scrollToTarget = () => {
+        if (activeStep === "video") {
+          videoWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
         } else {
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          const target = containerRef.current;
+          if (target) {
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+          } else {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }
         }
       };
-      requestAnimationFrame(() => requestAnimationFrame(scrollToTop));
+      requestAnimationFrame(() => requestAnimationFrame(scrollToTarget));
     }
-  }, [moduleId, loading, data]);
+  }, [moduleId, loading, data, activeStep]);
+
+  useLayoutEffect(() => {
+    if (!loading && data && activeStep === "video") {
+      const raf = requestAnimationFrame(() => {
+        videoWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+      return () => cancelAnimationFrame(raf);
+    }
+  }, [loading, data, activeStep]);
 
   const handleAnswerChange = (questionId: number, value: string, type: string) => {
     if (type === "MCQ" || type === "SCENARIO") {
@@ -437,27 +545,19 @@ const ModuleDetailContainer = () => {
          </Alert>
         )}
         <Box className="module-detail-header__top">
-          <Box className="module-detail-header__title-block">
-            <Typography component="h1" className="module-detail-header__title">
-              {data.module.title}
-            </Typography>
-            <Typography className="module-detail-header__subtitle">
-              Module {data.module.rank} &bull; Passing Criteria: {Math.round(data.module.passing_criteria)}%
-            </Typography>
-          </Box>
-          <Box className="module-detail-header__actions">
-            <Button className="module-detail-header__back" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>
-              Back
-            </Button>
-            <Button className="module-detail-header__dashboard" startIcon={<DashboardIcon />} onClick={() => navigate("/app/onboarding-candidate")}>
-              All Modules
-            </Button>
-          </Box>
+        <Box className="module-detail-header__actions">
+          <Button className="module-detail-header__back" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>
+            Back
+          </Button>
+          <Button className="module-detail-header__dashboard" startIcon={<DashboardIcon />} onClick={() => navigate("/app/onboarding-candidate")}>
+            All Modules
+          </Button>
+        </Box>
         </Box>
       </Box>
 
       <Box className="module-detail-body">
-        <Box className="module-detail-grid">
+        <Box className={`module-detail-grid ${theaterMode ? "module-detail-grid--theater" : ""}`}>
           <Card className="module-detail-card module-detail-card--wide">
             <CardContent>
               <Box className="module-detail-step-nav">
@@ -470,8 +570,8 @@ const ModuleDetailContainer = () => {
                 >
                   Video
                 </Button>
-                <Typography className="module-detail-step-nav__title">
-                  {activeStep === "video" ? "Video" : "Quiz"}
+                <Typography className="module-detail-step-nav__title" sx={{ fontWeight: 900 }}>
+                  Module {data.module.rank} • {data.module.title} • Passing: {Math.round(data.module.passing_criteria)}%
                 </Typography>
                 <Button
                   variant="text"
@@ -485,20 +585,57 @@ const ModuleDetailContainer = () => {
               </Box>
 
               {activeStep === "video" && (
-                <Box>
+                <Box className="module-detail-content-panel">
                    {isVideoAvailable ? (
                       isDirectMedia ? (
-                        <video
-                          ref={videoRef}
-                          className="module-detail-video"
-                          controls
-                          controlsList="nodownload"
-                          preload="metadata"
-                          src={data.video_url}
-                        >
-                          <track kind="captions" src="" label="English" />
-                          Your browser does not support the video tag.
-                        </video>
+                         <Box ref={videoWrapperRef} className={`module-detail-video-wrapper ${theaterMode ? "module-detail-video-wrapper--theater" : ""}`}>
+                           <video
+                            ref={videoRef}
+                            className="module-detail-video"
+                            controlsList="nodownload"
+                            preload="metadata"
+                            src={data.video_url}
+                            onClick={togglePlayPause}
+                            onKeyDown={(e) => {
+                              if (["Space", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.code)) {
+                                e.preventDefault();
+                              }
+                            }}
+                            tabIndex={-1}
+                          >
+                            <track kind="captions" src="" label="English" />
+                            Your browser does not support the video tag.
+                          </video>
+
+                          {!isPlaying && (
+                            <Box className="module-detail-video-overlay" onClick={togglePlayPause}>
+                              <PlayArrowIcon />
+                            </Box>
+                          )}
+
+                            <Box className="module-detail-video-controls">
+                              <Box className="module-detail-video-progress">
+                                <Box className="module-detail-video-progress__bar" style={{ width: duration ? `${(currentTime / duration) * 100}%` : "0%" }} />
+                              </Box>
+                              <Box className="module-detail-video-controls__row">
+                                <IconButton onClick={togglePlayPause} className="module-detail-video-controls__btn">
+                                  {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+                                </IconButton>
+                                <IconButton onClick={toggleMute} className="module-detail-video-controls__btn">
+                                  {muted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+                                </IconButton>
+                                <IconButton onClick={toggleTheaterMode} className="module-detail-video-controls__btn" title={theaterMode ? "Exit theater mode" : "Theater mode"}>
+                                  <CenterFocusStrongIcon />
+                                </IconButton>
+                                <IconButton onClick={toggleFullscreen} className="module-detail-video-controls__btn" title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+                                  {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                                </IconButton>
+                                <Typography className="module-detail-video-time">
+                                  {formatTime(currentTime)} / {formatTime(duration)}
+                                </Typography>
+                              </Box>
+                            </Box>
+                        </Box>
                       ) : (
                         <iframe
                           src={data.video_url}
@@ -536,7 +673,7 @@ const ModuleDetailContainer = () => {
                 )}
 
                 {activeStep === "quiz" && (
-                <Box>
+                <Box className="module-detail-content-panel">
                   <Box className="module-detail-quiz-header">
                     <Typography component="h2" className="module-detail-card__title">
                       Quiz
@@ -608,32 +745,32 @@ const ModuleDetailContainer = () => {
                               return response?.is_correct === false ? "module-detail-question--incorrect" : "";
                             })()}`}
                           >
-                            <Typography className="module-detail-question__header">
-                              <span className="module-detail-question__number">Q{index + 1}</span>
-                              {(quizResult || lastAttempt) && (
-                                <Chip
-                                  size="small"
-                                  label={(() => {
-                                    const source = quizResult || lastAttempt;
-                                    const response = source?.responses.find(r => r.question_id === question.id);
-                                    const isCorrect = response?.is_correct;
-                                    if (isCorrect === true) return "Correct";
-                                    if (isCorrect === false) return "Incorrect";
-                                    return "";
-                                  })()}
-                                  className={`module-detail-result-badge module-detail-result-badge--${(() => {
-                                    const source = quizResult || lastAttempt;
-                                    const response = source?.responses.find(r => r.question_id === question.id);
-                                    return response?.is_correct === true ? "correct" : response?.is_correct === false ? "incorrect" : "";
-                                  })()}`}
-                                />
-                              )}
-                            </Typography>
-
-                            <Typography className="module-detail-question__text">{question.question_text}</Typography>
+                             <Box className="module-detail-question__header">
+                               <span className="module-detail-question__number">Q{index + 1}</span>
+                               <span className="module-detail-question__text">{question.question_text}</span>
+                               {(quizResult || lastAttempt) && (
+                                 <Chip
+                                   size="small"
+                                   label={(() => {
+                                     const source = quizResult || lastAttempt;
+                                     const response = source?.responses.find(r => r.question_id === question.id);
+                                     const isCorrect = response?.is_correct;
+                                     if (isCorrect === true) return "Correct";
+                                     if (isCorrect === false) return "Incorrect";
+                                     return "";
+                                   })()}
+                                   className={`module-detail-result-badge module-detail-result-badge--${(() => {
+                                     const source = quizResult || lastAttempt;
+                                     const response = source?.responses.find(r => r.question_id === question.id);
+                                     return response?.is_correct === true ? "correct" : response?.is_correct === false ? "incorrect" : "";
+                                   })()}`}
+                                 />
+                               )}
+                             </Box>
 
                             {isRadio ? (
                               <RadioGroup
+                                className="module-detail-quiz-options"
                                 value={answerValue}
                                 onChange={(e) => handleAnswerChange(question.id, e.target.value, questionType)}
                               >
@@ -775,41 +912,45 @@ const ModuleDetailContainer = () => {
             </CardContent>
            </Card>
 
-           <Box className="module-detail-key-concepts-cell">
-             <Card className="module-detail-card">
-              <CardContent>
-                <Typography component="h2" className="module-detail-card__title">
-                  Key Concepts
-                </Typography>
+            <Box className="module-detail-key-concepts-cell">
+              {(() => {
+                const conceptsWithLinks = data.key_concepts.filter((concept) => concept.link_url && concept.link_url.trim() !== "");
+                if (conceptsWithLinks.length === 0) return null;
+                return (
+                  <Card className="module-detail-card">
+                   <CardContent>
+                     <Typography component="h2" className="module-detail-card__title">
+                       Key Concepts
+                     </Typography>
 
-             {data.key_concepts.length > 0 ? (
-               <Box className="module-detail-concepts-list">
-                  {data.key_concepts.map((concept) => (
-                   <Box key={concept.id} className="module-detail-concept-item">
-                     <Typography component="h3" className="module-detail-concept__title">
-                       {concept.title}
-                     </Typography>
-                     <Typography className="module-detail-concept__description">
-                       {concept.description}
-                     </Typography>
-                     {concept.link_url && (
-                       <a
-                         href={concept.link_url.includes("@") && !concept.link_url.startsWith("http") ? `mailto:${concept.link_url}` : concept.link_url}
-                         target={concept.link_url.startsWith("http") ? "_blank" : undefined}
-                         rel={concept.link_url.startsWith("http") ? "noopener noreferrer" : undefined}
-                       >
-                         {concept.link_url.includes("@") && !concept.link_url.startsWith("http") ? concept.link_url : "View Resource"}
-                       </a>
-                     )}
-                   </Box>
-                 ))}
-               </Box>
-             ) : (
-               <Typography className="module-detail-empty">No key concepts for this module.</Typography>
-             )}
-            </CardContent>
-           </Card>
-         </Box>
+                   {conceptsWithLinks.length > 0 ? (
+                     <Box className="module-detail-concepts-list">
+                        {conceptsWithLinks.map((concept) => (
+                         <Tooltip key={concept.id} title={<Box sx={{ maxWidth: 260, wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'normal' }}>{concept.description || ""}</Box>} placement="top" arrow>
+                           <Box className="module-detail-concept-item">
+                             <a
+                               href={concept.link_url.includes("@") && !concept.link_url.startsWith("http") ? `mailto:${concept.link_url}` : concept.link_url}
+                               target={concept.link_url.startsWith("http") ? "_blank" : undefined}
+                               rel={concept.link_url.startsWith("http") ? "noopener noreferrer" : undefined}
+                               className="module-detail-concept-link"
+                             >
+                               <LinkIcon sx={{ fontSize: 16, marginRight: 0.5 }} />
+                               <Typography component="span" className="module-detail-concept__title">
+                                 {concept.title}
+                               </Typography>
+                             </a>
+                           </Box>
+                         </Tooltip>
+                        ))}
+                     </Box>
+                   ) : (
+                     <Typography className="module-detail-empty">No key concepts for this module.</Typography>
+                   )}
+                 </CardContent>
+                </Card>
+                );
+              })()}
+            </Box>
         </Box>
       </Box>
     </main>
