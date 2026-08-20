@@ -39,6 +39,7 @@ import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 import CenterFocusStrongIcon from "@mui/icons-material/CenterFocusStrong";
 import LinkIcon from "@mui/icons-material/Link";
+import EmailIcon from "@mui/icons-material/Email";
 import SendIcon from "@mui/icons-material/Send";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Close";
@@ -973,23 +974,38 @@ const ModuleDetailContainer = () => {
 
                    {conceptsWithLinks.length > 0 ? (
                      <Box className="module-detail-concepts-list">
-                        {conceptsWithLinks.map((concept) => (
-                         <Tooltip key={concept.id} title={<Box sx={{ maxWidth: 260, wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'normal' }}>{concept.description || ""}</Box>} placement="top" arrow>
-                           <Box className="module-detail-concept-item">
-                             <a
-                               href={concept.link_url.includes("@") && !concept.link_url.startsWith("http") ? `mailto:${concept.link_url}` : concept.link_url}
-                               target={concept.link_url.startsWith("http") ? "_blank" : undefined}
-                               rel={concept.link_url.startsWith("http") ? "noopener noreferrer" : undefined}
-                               className="module-detail-concept-link"
-                             >
-                               <LinkIcon sx={{ fontSize: 16, marginRight: 0.5 }} />
-                               <Typography component="span" className="module-detail-concept__title">
-                                 {concept.title}
-                               </Typography>
-                             </a>
-                           </Box>
-                         </Tooltip>
-                        ))}
+                         {conceptsWithLinks.map((concept) => (
+                          <Tooltip key={concept.id} title={<Box sx={{ maxWidth: 260, wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'normal' }}>{concept.description || ""}</Box>} placement="top" arrow>
+                            <Box className="module-detail-concept-item">
+                              <Typography component="h3" className="module-detail-concept__title">
+                                {concept.title}
+                              </Typography>
+                              {concept.link_url.includes("@") && !concept.link_url.startsWith("http") ? (
+                                <a
+                                  href={`mailto:${concept.link_url}`}
+                                  className="module-detail-concept-link"
+                                >
+                                  <EmailIcon sx={{ fontSize: 16, marginRight: 0.5 }} />
+                                  <Typography component="span" className="module-detail-concept__email">
+                                    {concept.link_url}
+                                  </Typography>
+                                </a>
+                              ) : (
+                                <a
+                                  href={concept.link_url}
+                                  target={concept.link_url.startsWith("http") ? "_blank" : undefined}
+                                  rel={concept.link_url.startsWith("http") ? "noopener noreferrer" : undefined}
+                                  className="module-detail-concept-link"
+                                >
+                                  <LinkIcon sx={{ fontSize: 16, marginRight: 0.5 }} />
+                                  <Typography component="span" className="module-detail-concept__title">
+                                    {concept.title}
+                                  </Typography>
+                                </a>
+                              )}
+                            </Box>
+                          </Tooltip>
+                         ))}
                      </Box>
                    ) : (
                      <Typography className="module-detail-empty">No key concepts for this module.</Typography>
