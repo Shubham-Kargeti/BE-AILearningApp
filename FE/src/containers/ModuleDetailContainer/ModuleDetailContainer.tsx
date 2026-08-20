@@ -628,45 +628,64 @@ const ModuleDetailContainer = () => {
 
               {activeStep === "video" && (
                 <Box className="module-detail-content-panel">
-                   {isVideoAvailable ? (
-                      isDirectMedia ? (
-                         <Box ref={videoWrapperRef} className={`module-detail-video-wrapper ${theaterMode ? "module-detail-video-wrapper--theater" : ""}`}>
-                           <video
-                            ref={videoRef}
-                            className="module-detail-video"
-                            controlsList="nodownload"
-                            preload="metadata"
-                            src={data.video_url}
-                            onClick={togglePlayPause}
-                            onKeyDown={(e) => {
-                              if (["Space", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.code)) {
-                                e.preventDefault();
-                              }
-                            }}
-                            tabIndex={-1}
-                          >
-                            <track kind="captions" src="" label="English" />
-                            Your browser does not support the video tag.
-                          </video>
+                  {data?.module?.rank === 1 && (data?.video_completed || videoCompleted) && !consentAccepted ? (
+                    <Box className="module-detail-consent">
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={consentAccepted}
+                            onChange={(e) => setConsentAccepted(e.target.checked)}
+                            color="primary"
+                          />
+                        }
+                        label={
+                          <Typography variant="body2">
+                            I have gone through the account structure knowing my PCEO, PMO, Tech Enablement team whom I can reach out in case I face challenges and need support from Nagarro
+                          </Typography>
+                        }
+                      />
+                    </Box>
+                  ) : (
+                    <>
+                      {isVideoAvailable ? (
+                         isDirectMedia ? (
+                            <Box ref={videoWrapperRef} className={`module-detail-video-wrapper ${theaterMode ? "module-detail-video-wrapper--theater" : ""}`}>
+                              <video
+                               ref={videoRef}
+                               className="module-detail-video"
+                               controlsList="nodownload"
+                               preload="metadata"
+                               src={data.video_url}
+                               onClick={togglePlayPause}
+                               onKeyDown={(e) => {
+                                 if (["Space", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.code)) {
+                                   e.preventDefault();
+                                 }
+                               }}
+                               tabIndex={-1}
+                             >
+                               <track kind="captions" src="" label="English" />
+                               Your browser does not support the video tag.
+                              </video>
 
-                          {!isPlaying && (
-                            <Box className="module-detail-video-overlay" onClick={togglePlayPause}>
-                              <PlayArrowIcon />
-                            </Box>
-                          )}
+                              {!isPlaying && (
+                                <Box className="module-detail-video-overlay" onClick={togglePlayPause}>
+                                  <PlayArrowIcon />
+                                </Box>
+                              )}
 
                             <Box className="module-detail-video-controls">
-                              <Box className="module-detail-video-progress">
-                                <Box className="module-detail-video-progress__bar" style={{ width: duration ? `${(currentTime / duration) * 100}%` : "0%" }} />
-                              </Box>
-                              <Box className="module-detail-video-controls__row">
-                                <IconButton onClick={togglePlayPause} className="module-detail-video-controls__btn">
-                                  {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-                                </IconButton>
-                                <IconButton onClick={toggleMute} className="module-detail-video-controls__btn">
-                                  {muted ? <VolumeOffIcon /> : <VolumeUpIcon />}
-                                </IconButton>
-                                <IconButton onClick={toggleTheaterMode} className="module-detail-video-controls__btn" title={theaterMode ? "Exit theater mode" : "Theater mode"}>
+                                 <Box className="module-detail-video-progress">
+                                   <Box className="module-detail-video-progress__bar" style={{ width: duration ? `${(currentTime / duration) * 100}%` : "0%" }} />
+                                 </Box>
+                                 <Box className="module-detail-video-controls__row">
+                                   <IconButton onClick={togglePlayPause} className="module-detail-video-controls__btn">
+                                     {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+                                   </IconButton>
+                                   <IconButton onClick={toggleMute} className="module-detail-video-controls__btn">
+                                     {muted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+                                   </IconButton>
+                                   <IconButton onClick={toggleTheaterMode} className="module-detail-video-controls__btn" title={theaterMode ? "Exit theater mode" : "Theater mode"}>
                                   <CenterFocusStrongIcon />
                                 </IconButton>
                                 <IconButton onClick={toggleFullscreen} className="module-detail-video-controls__btn" title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
@@ -678,43 +697,26 @@ const ModuleDetailContainer = () => {
                               </Box>
                             </Box>
                         </Box>
+                        ) : (
+                          <iframe
+                            src={data.video_url}
+                            className="module-detail-video module-detail-video--iframe"
+                            allow="autoplay; fullscreen"
+                            allowFullScreen
+                            title="Module video"
+                          />
+                        )
                       ) : (
-                        <iframe
-                          src={data.video_url}
-                          className="module-detail-video module-detail-video--iframe"
-                          allow="autoplay; fullscreen"
-                          allowFullScreen
-                          title="Module video"
-                        />
-                      )
-                     ) : (
-                      <Box className="module-detail-video-missing">
-                        <Typography>Video not available for this module.</Typography>
-                      </Box>
-                     )}
+                        <Box className="module-detail-video-missing">
+                          <Typography>Video not available for this module.</Typography>
+                        </Box>
+                   )}
+                    </>
+                  )}
+               </Box>
+            )}
 
-                     {data?.module?.rank === 1 && (data?.video_completed || videoCompleted) && !consentAccepted && (
-                       <Box className="module-detail-consent">
-                         <FormControlLabel
-                           control={
-                             <Checkbox
-                               checked={consentAccepted}
-                               onChange={(e) => setConsentAccepted(e.target.checked)}
-                               color="primary"
-                             />
-                           }
-                           label={
-                             <Typography variant="body2">
-                               I have gone through the account structure knowing my PCEO, PMO, Tech Enablement team whom I can reach out in case I face challenges and need support from Nagarro
-                             </Typography>
-                           }
-                         />
-                       </Box>
-                      )}
-                </Box>
-                )}
-
-                {activeStep === "quiz" && (
+                 {activeStep === "quiz" && (
                 <Box className="module-detail-content-panel">
                   <Box className="module-detail-quiz-header">
                     <Typography component="h2" className="module-detail-card__title">
