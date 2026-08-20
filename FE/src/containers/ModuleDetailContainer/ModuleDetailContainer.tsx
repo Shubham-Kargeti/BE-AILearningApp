@@ -103,7 +103,11 @@ const ModuleDetailContainer = () => {
     const video = videoRef.current;
     if (!video) return;
     if (video.paused || video.ended) {
-      video.play();
+      if (video.ended) {
+        video.currentTime = 0;
+      }
+      setIsPlaying(true);
+      video.play().catch(() => setIsPlaying(false));
     } else {
       video.pause();
     }
@@ -253,7 +257,7 @@ const ModuleDetailContainer = () => {
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       video.removeEventListener("volumechange", handleVolumeChange);
     };
-  }, [isVideoReady, data?.module?.id, moduleId]);
+  }, [isVideoReady, data?.module?.id, moduleId, activeStep]);
 
   useEffect(() => {
     if (!videoCompleted || activeStep !== "video") return;
@@ -337,7 +341,7 @@ const ModuleDetailContainer = () => {
     if (data.video_completed && !videoCompleted) {
       video.currentTime = video.duration || 0;
     }
-  }, [isVideoReady, data?.video_completed, videoCompleted]);
+  }, [isVideoReady, data?.video_completed, videoCompleted, activeStep]);
 
   useEffect(() => {
     const fetchData = async () => {

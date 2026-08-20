@@ -69,12 +69,7 @@
 }
 
 .module-detail-grid--theater {
-  grid-template-columns: 1fr;
-
-  .module-detail-card--wide,
-  .module-detail-key-concepts-cell {
-    grid-column: 1;
-  }
+  grid-template-columns: 4fr 1fr;
 }
 
 .module-detail-card {
