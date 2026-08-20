@@ -434,21 +434,25 @@ const ModuleDetailContainer = () => {
         {error && (
          <Alert severity="error" sx={{ mb: 2 }}>
            {error}
-          </Alert>
+         </Alert>
         )}
-        <Button className="module-detail-header__back" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>
-          Back
-        </Button>
-        <Button className="module-detail-header__dashboard" startIcon={<DashboardIcon />} onClick={() => navigate("/app/onboarding-candidate")}>
-          All Modules
-        </Button>
-        <Box className="module-detail-header__title-block">
-          <Typography component="h1" className="module-detail-header__title">
-            {data.module.title}
-          </Typography>
-          <Typography className="module-detail-header__subtitle">
-            Module {data.module.rank} &bull; Passing Criteria: {Math.round(data.module.passing_criteria)}%
-          </Typography>
+        <Box className="module-detail-header__top">
+          <Box className="module-detail-header__title-block">
+            <Typography component="h1" className="module-detail-header__title">
+              {data.module.title}
+            </Typography>
+            <Typography className="module-detail-header__subtitle">
+              Module {data.module.rank} &bull; Passing Criteria: {Math.round(data.module.passing_criteria)}%
+            </Typography>
+          </Box>
+          <Box className="module-detail-header__actions">
+            <Button className="module-detail-header__back" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>
+              Back
+            </Button>
+            <Button className="module-detail-header__dashboard" startIcon={<DashboardIcon />} onClick={() => navigate("/app/onboarding-candidate")}>
+              All Modules
+            </Button>
+          </Box>
         </Box>
       </Box>
 
@@ -481,11 +485,7 @@ const ModuleDetailContainer = () => {
               </Box>
 
               {activeStep === "video" && (
-                <>
-                  <Typography component="h2" className="module-detail-card__title">
-                    Video
-                  </Typography>
-
+                <Box>
                    {isVideoAvailable ? (
                       isDirectMedia ? (
                         <video
@@ -531,12 +531,12 @@ const ModuleDetailContainer = () => {
                            }
                          />
                        </Box>
-                     )}
-                </>
+                      )}
+                </Box>
                 )}
 
                 {activeStep === "quiz" && (
-                <>
+                <Box>
                   <Box className="module-detail-quiz-header">
                     <Typography component="h2" className="module-detail-card__title">
                       Quiz
@@ -769,17 +769,18 @@ const ModuleDetailContainer = () => {
                         You already submitted this quiz on {new Date(lastAttempt.attempted_date).toLocaleString()}.
                       </Typography>
                     )}
-                  </Box>
-                </>
+                   </Box>
+                </Box>
               )}
             </CardContent>
            </Card>
 
-           <Card className="module-detail-card">
-           <CardContent>
-             <Typography component="h2" className="module-detail-card__title">
-               Key Concepts
-             </Typography>
+           <Box className="module-detail-key-concepts-cell">
+             <Card className="module-detail-card">
+              <CardContent>
+                <Typography component="h2" className="module-detail-card__title">
+                  Key Concepts
+                </Typography>
 
              {data.key_concepts.length > 0 ? (
                <Box className="module-detail-concepts-list">
@@ -806,8 +807,9 @@ const ModuleDetailContainer = () => {
              ) : (
                <Typography className="module-detail-empty">No key concepts for this module.</Typography>
              )}
-           </CardContent>
-          </Card>
+            </CardContent>
+           </Card>
+         </Box>
         </Box>
       </Box>
     </main>
