@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import "./LoginContainer.scss";
 import Loader from "../../components/Loader";
 import { authService } from "../../API/services";
-import { isAdmin } from "../../utils/adminUsers";
+import { isAdmin, isOnboardingCandidate } from "../../utils/adminUsers";
 
 const LoginContainer = () => {
   const navigate = useNavigate();
@@ -20,10 +20,16 @@ const LoginContainer = () => {
   useEffect(() => {
     const token = localStorage.getItem("authToken");
     const userEmail = localStorage.getItem("loggedInUser") || "";
-    const profileCompleted = localStorage.getItem("profileCompleted") === "true";
 
     if (token) {
-      navigate(isAdmin(userEmail) ? "/admin/dashboard" : profileCompleted ? "/app/dashboard" : "/app/profile-setup");
+      if (isAdmin(userEmail)) {
+        navigate("/admin/dashboard");
+      } else if (isOnboardingCandidate()) {
+        navigate("/app/onboarding-candidate");
+      } else {
+        const profileCompleted = localStorage.getItem("profileCompleted") === "true";
+        navigate(profileCompleted ? "/app/dashboard" : "/app/profile-setup");
+      }
     }
   }, [navigate]);
 

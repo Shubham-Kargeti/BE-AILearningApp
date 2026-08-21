@@ -128,10 +128,18 @@ async def issue_token_response(
 
     streak_info = await update_login_streak(user, db)
 
+    source = None
+    if candidate_id and role == "candidate":
+        candidate_result = await db.execute(
+            select(Candidate.source).where(Candidate.candidate_id == candidate_id)
+        )
+        source = candidate_result.scalar_one_or_none()
+
     tokens = create_token_pair(
         user_id=user.id,
         email=user.email,
-        role=role
+        role=role,
+        source=source,
     )
 
     access_token = tokens["access_token"]

@@ -28,6 +28,7 @@ import {
   AssignmentTurnedIn,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
+import { isOnboardingCandidate } from "../../utils/adminUsers";
 import "./Sidebar.scss";
 
 const Sidebar = () => {
@@ -42,15 +43,19 @@ const Sidebar = () => {
 
   const userName = localStorage.getItem("userName") || "User";
   const userEmail = localStorage.getItem("userEmail") || "";
+  const onboardingMode = isOnboardingCandidate();
 
-  const menuItems = [
-    { text: "Dashboard", icon: <Dashboard />, path: "/app/dashboard", gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" },
-    { text: "My Assessments", icon: <Assessment />, path: "/app/assessments", gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)" },
-    { text: "Onboarding", icon: <AssignmentTurnedIn />, path: "/app/onboarding-candidate", gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" },
-    { text: "Learning Path", icon: <School />, path: "/app/learning-paths", gradient: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)" },
-    { text: "Self Assessment", icon: <Person />, path: "/app/profile-setup", gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)" },
-    { text: "Settings", icon: <Settings />, path: "/app/settings", gradient: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)" },
-  ];
+  const menuItems = onboardingMode
+    ? [
+        { text: "Onboarding", icon: <AssignmentTurnedIn />, path: "/app/onboarding-candidate", gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" },
+      ]
+    : [
+        { text: "Dashboard", icon: <Dashboard />, path: "/app/dashboard", gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" },
+        { text: "My Assessments", icon: <Assessment />, path: "/app/assessments", gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)" },
+        { text: "Learning Path", icon: <School />, path: "/app/learning-paths", gradient: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)" },
+        { text: "Self Assessment", icon: <Person />, path: "/app/profile-setup", gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)" },
+        { text: "Settings", icon: <Settings />, path: "/app/settings", gradient: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)" },
+      ];
 
   const handleLogout = () => {
     localStorage.clear();
@@ -128,7 +133,7 @@ const Sidebar = () => {
           </Box>
 
           {/* User Profile Section */}
-          {open && (
+          {open && !onboardingMode && (
             <Box sx={{ 
               padding: '1.5rem 1rem',
               borderBottom: '1px solid rgba(255,255,255,0.1)'
