@@ -176,6 +176,20 @@ export const onboardingModuleService = {
       return response.data;
     },
 
+    canDeleteAdminModule: async (moduleId: number): Promise<{ can_delete: boolean }> => {
+      const response = await apiClient.get<{ can_delete: boolean }>(
+        `/onboarding-modules/admin/onboarding-modules/${moduleId}/can-delete`
+      );
+      return response.data;
+    },
+
+    deleteAdminModule: async (moduleId: number): Promise<{ deleted: boolean }> => {
+      const response = await apiClient.delete<{ deleted: boolean }>(
+        `/onboarding-modules/admin/onboarding-modules/${moduleId}`
+      );
+      return response.data;
+    },
+
     updateAdminKeyConcept: async (conceptId: number, data: {
       title?: string;
       description?: string;

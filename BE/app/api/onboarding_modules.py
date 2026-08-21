@@ -1027,6 +1027,34 @@ async def create_admin_onboarding_module(
     return module
 
 
+@router.get("/admin/onboarding-modules/{module_id}/can-delete")
+async def can_delete_admin_onboarding_module(
+    module_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    """Check if a module can be deleted (no candidate progress)."""
+    has_progress = await _module_has_employee_progress(db, module_id)
+    return {"can_delete": not has_progress}
+
+
+@router.delete("/admin/onboarding-modules/{module_id}")
+async def delete_admin_onboarding_module(
+    module_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    module = await db.get(OnboardingModule, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+    has_progress = await _module_has_employee_progress(db, module_id)
+    if has_progress:
+        raise HTTPException(status_code=400, detail="Cannot delete module with existing candidate progress")
+    await db.delete(module)
+    await db.commit()
+    return {"deleted": True}
+
+
 @router.patch("/admin/onboarding-module-keyconcepts/{concept_id}", response_model=OnboardingModuleKeyConceptResponse)
 async def update_admin_onboarding_keyconcept(
     concept_id: int,

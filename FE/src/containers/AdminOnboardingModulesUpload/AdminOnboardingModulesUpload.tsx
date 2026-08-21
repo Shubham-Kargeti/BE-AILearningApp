@@ -46,6 +46,7 @@ type ModuleForm = {
   key_concepts: KeyConceptForm[];
   expanded: boolean;
   saving: boolean;
+  canDelete: boolean;
 };
 
 const emptyKeyConcept = (): KeyConceptForm => ({
@@ -64,6 +65,7 @@ const emptyModule = (rank: number): ModuleForm => ({
   key_concepts: [],
   expanded: true,
   saving: false,
+  canDelete: false,
 });
 
 const AdminOnboardingModulesUpload = () => {
@@ -90,6 +92,7 @@ const AdminOnboardingModulesUpload = () => {
         key_concepts: [],
         expanded: false,
         saving: false,
+        canDelete: false,
       }));
       setModules(forms);
 
@@ -116,7 +119,21 @@ const AdminOnboardingModulesUpload = () => {
             );
           })
       );
-      await Promise.all(keyConceptsPromises);
+
+      const canDeletePromises = data
+        .filter((m) => m.id)
+        .map((m) =>
+          onboardingModuleService
+            .canDeleteAdminModule(m.id)
+            .then((res) => {
+              setModules((prev) =>
+                prev.map((mod) => (mod.id === m.id ? { ...mod, canDelete: res.can_delete } : mod))
+              );
+            })
+            .catch(() => {})
+        );
+
+      await Promise.all([...keyConceptsPromises, ...canDeletePromises]);
     } catch (err) {
       setError("Failed to load modules");
     } finally {
@@ -187,6 +204,21 @@ const AdminOnboardingModulesUpload = () => {
         next[index] = { ...next[index], saving: false };
         return next;
       });
+    }
+  };
+
+  const deleteModule = async (index: number) => {
+    const module = modules[index];
+    if (!module.id || !module.canDelete) return;
+    if (!confirm("Are you sure you want to delete this module?")) return;
+
+    try {
+      await onboardingModuleService.deleteAdminModule(module.id);
+      setModules((prev) => prev.filter((_, i) => i !== index));
+      showMessage("Module deleted successfully");
+    } catch (err) {
+      const message = err instanceof AxiosError ? err.response?.data?.detail || "Failed to delete module" : "Failed to delete module";
+      setError(message);
     }
   };
 
@@ -402,6 +434,16 @@ const AdminOnboardingModulesUpload = () => {
                   >
                     {module.saving ? "Saving..." : "Save Module"}
                   </Button>
+                  {module.canDelete && (
+                    <IconButton
+                      color="error"
+                      onClick={() => deleteModule(moduleIndex)}
+                      size="small"
+                      sx={{ ml: "auto" }}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  )}
                 </Box>
 
                 <TextField
