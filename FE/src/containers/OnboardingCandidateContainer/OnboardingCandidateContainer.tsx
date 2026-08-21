@@ -181,13 +181,13 @@ const OnboardingCandidateContainer = () => {
       ? modules.reduce((max, m) => (m.module_no > max.module_no ? m : max), modules[0]).id
       : null;
 
-  const emailFailed = allCompleted && !emailSent;
-  const emailCanRetry = emailFailed && !isResendingEmail && !manualEmailOpened;
-
   const truncateUrl = (url: string, maxLength: number = 55): string => {
     if (url.length <= maxLength) return url;
     return url.slice(0, maxLength) + "...";
   };
+
+  const emailFailed = allCompleted && !emailSent;
+  const emailCanRetry = emailFailed && !isResendingEmail && !manualEmailOpened;
 
   const handleResendEmail = async () => {
     if (!lastModuleId || isResendingEmail) return;
@@ -259,28 +259,15 @@ const OnboardingCandidateContainer = () => {
                   All required onboarding modules have been completed successfully.
                 </Typography>
 
-                {emailFailed ? (
-                  <>
-                    <Alert severity="error" sx={{ mb: 3, justifyContent: "center" }}>
-                      Email notification failed to send last time. Click below to send
-                      it manually again.
-                    </Alert>
-                    <Button
-                      variant="contained"
-                      size="large"
-                      startIcon={<MailOutlineIcon />}
-                      onClick={handleResendEmail}
-                      disabled={!emailCanRetry}
-                    >
-                      {isResendingEmail ? "Sending..." : "Email Manually"}
-                    </Button>
-                  </>
-                ) : (
-                  <Typography sx={{ mb: 4, color: "#475569" }}>
-                    We have notified your Project Coordinators about your onboarding
-                    completion.
-                  </Typography>
-                )}
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<MailOutlineIcon />}
+                  onClick={handleResendEmail}
+                  disabled={!emailCanRetry}
+                >
+                  {isResendingEmail ? "Sending..." : "Email Manually"}
+                </Button>
               </CardContent>
             </Card>
 

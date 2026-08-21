@@ -63,7 +63,7 @@ from app.services.onboarding_module_service import (
     generate_certificate,
     get_certificate_data,
     share_certificate_email,
-    send_certificate_email_auto,
+    # send_certificate_email_auto,
     update_certificate_email_status,
     get_retry_quiz,
 )
@@ -965,13 +965,5 @@ async def send_certificate_email(
     Records the outcome (sent/failed) on the candidate checklist so the
     dashboard can offer a manual resend when delivery fails.
     """
-    internal_candidate_id = await resolve_candidate_id(db, candidate_id)
-    result = await send_certificate_email_auto(db, internal_candidate_id, module_id)
-
-    if not result:
-        raise HTTPException(404, "Certificate not found or candidate email missing")
-
-    email_sent = result.get("sent", False)
-    await update_certificate_email_status(db, internal_candidate_id, module_id, email_sent)
-
-    return result
+    # Email sending is currently disabled.
+    return {"sent": False, "message": "Email notifications are currently disabled"}

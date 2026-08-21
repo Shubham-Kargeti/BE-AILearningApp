@@ -178,18 +178,14 @@ const ModuleDetailContainer = () => {
       }
 
       const percentage = Math.round((current / total) * 100);
-      const isCompleted = percentage >= 95;
 
       try {
-        const updated = await onboardingModuleService.updateVideoProgress(candidateId, Number(moduleId), {
+        await onboardingModuleService.updateVideoProgress(candidateId, Number(moduleId), {
           current_duration_seconds: current,
           total_duration_seconds: total,
           completion_percentage: percentage,
-          is_completed: isCompleted,
+          is_completed: false,
         });
-        if (updated && isCompleted) {
-          setVideoCompleted(true);
-        }
       } catch (err) {
         if (err instanceof AxiosError) {
           console.error("Video progress update failed", err.response?.data || err.message);
@@ -963,7 +959,7 @@ const ModuleDetailContainer = () => {
 
             <Box className="module-detail-key-concepts-cell">
               {(() => {
-                const conceptsWithLinks = data.key_concepts.filter((concept) => concept.link_url && concept.link_url.trim() !== "");
+                const conceptsWithLinks = data.key_concepts.filter((concept) => concept.link_url && concept.link_url.trim() !== "" && !concept.link_url.includes("url-to-be-added"));
                 if (conceptsWithLinks.length === 0) return null;
                 return (
                   <Card className="module-detail-card">
@@ -976,34 +972,36 @@ const ModuleDetailContainer = () => {
                      <Box className="module-detail-concepts-list">
                          {conceptsWithLinks.map((concept) => (
                           <Tooltip key={concept.id} title={<Box sx={{ maxWidth: 260, wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'normal' }}>{concept.description || ""}</Box>} placement="top" arrow>
-                            <Box className="module-detail-concept-item">
-                              <Typography component="h3" className="module-detail-concept__title">
-                                {concept.title}
-                              </Typography>
-                              {concept.link_url.includes("@") && !concept.link_url.startsWith("http") ? (
-                                <a
-                                  href={`mailto:${concept.link_url}`}
-                                  className="module-detail-concept-link"
-                                >
-                                  <EmailIcon sx={{ fontSize: 16, marginRight: 0.5 }} />
-                                  <Typography component="span" className="module-detail-concept__email">
-                                    {concept.link_url}
-                                  </Typography>
-                                </a>
-                              ) : (
-                                <a
-                                  href={concept.link_url}
-                                  target={concept.link_url.startsWith("http") ? "_blank" : undefined}
-                                  rel={concept.link_url.startsWith("http") ? "noopener noreferrer" : undefined}
-                                  className="module-detail-concept-link"
-                                >
-                                  <LinkIcon sx={{ fontSize: 16, marginRight: 0.5 }} />
-                                  <Typography component="span" className="module-detail-concept__title">
-                                    {concept.title}
-                                  </Typography>
-                                </a>
-                              )}
-                            </Box>
+                             <Box className="module-detail-concept-item">
+                               {concept.link_url.includes("@") && !concept.link_url.startsWith("http") ? (
+                                 <>
+                                   <Typography component="h3" className="module-detail-concept__title">
+                                     {concept.title}
+                                   </Typography>
+                                   <a
+                                     href={`mailto:${concept.link_url}`}
+                                     className="module-detail-concept-link"
+                                   >
+                                     <EmailIcon sx={{ fontSize: 16, marginRight: 0.5 }} />
+                                     <Typography component="span" className="module-detail-concept__email">
+                                       {concept.link_url}
+                                     </Typography>
+                                   </a>
+                                 </>
+                               ) : (
+                                 <a
+                                   href={concept.link_url}
+                                   target={concept.link_url.startsWith("http") ? "_blank" : undefined}
+                                   rel={concept.link_url.startsWith("http") ? "noopener noreferrer" : undefined}
+                                   className="module-detail-concept-link"
+                                 >
+                                   <LinkIcon sx={{ fontSize: 16, marginRight: 0.5 }} />
+                                   <Typography component="span" className="module-detail-concept__title">
+                                     {concept.title}
+                                   </Typography>
+                                 </a>
+                               )}
+                             </Box>
                           </Tooltip>
                          ))}
                      </Box>
