@@ -380,35 +380,36 @@ async def create_candidates_bulk(
 
     await db.commit()
 
-    if created:
-        email_task_items = []
-        email_tasks = []
-        for item in created:
-            if item.email and item.password:
-                email_task_items.append(item)
-                email_tasks.append(
-                    _send_candidate_credentials_email(
-                        item.email, item.password, _derive_full_name(item.email)
-                    )
-                )
-
-        email_results = await asyncio.gather(*email_tasks, return_exceptions=True)
-
-        for item, email_result in zip(email_task_items, email_results):
-            sent = False
-            if isinstance(email_result, Exception):
-                print(f"Failed to send credentials email to {item.email}: {email_result}")
-            else:
-                sent = bool(email_result)
-
-            result = await db.execute(
-                select(Candidate).where(Candidate.candidate_id == item.candidate_id)
-            )
-            candidate = result.scalars().first()
-            if candidate:
-                candidate.onboarding_email_sent = sent
-
-        await db.flush()
+    # Disabled bulk onboarding email for now.
+    # if created:
+    #     email_task_items = []
+    #     email_tasks = []
+    #     for item in created:
+    #         if item.email and item.password:
+    #             email_task_items.append(item)
+    #             email_tasks.append(
+    #                 _send_candidate_credentials_email(
+    #                     item.email, item.password, _derive_full_name(item.email)
+    #                 )
+    #             )
+    #
+    #     email_results = await asyncio.gather(*email_tasks, return_exceptions=True)
+    #
+    #     for item, email_result in zip(email_task_items, email_results):
+    #         sent = False
+    #         if isinstance(email_result, Exception):
+    #             print(f"Failed to send credentials email to {item.email}: {email_result}")
+    #         else:
+    #             sent = bool(email_result)
+    #
+    #         result = await db.execute(
+    #             select(Candidate).where(Candidate.candidate_id == item.candidate_id)
+    #         )
+    #         candidate = result.scalars().first()
+    #         if candidate:
+    #             candidate.onboarding_email_sent = sent
+    #
+    #     await db.flush()
 
     return BulkCandidateCreateResponse(
         created=created, skipped=skipped, errors=errors
