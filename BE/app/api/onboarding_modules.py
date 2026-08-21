@@ -967,3 +967,130 @@ async def send_certificate_email(
     """
     # Email sending is currently disabled.
     return {"sent": False, "message": "Email notifications are currently disabled"}
+
+
+@router.patch("/admin/onboarding-modules/{module_id}", response_model=OnboardingModuleResponse)
+async def update_admin_onboarding_module(
+    module_id: int,
+    payload: dict[str, Any] = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    module = await db.get(OnboardingModule, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    if "title" in payload:
+        module.title = str(payload["title"] or "").strip()
+    if "description" in payload:
+        module.description = str(payload["description"] or "").strip() or None
+    if "passing_criteria" in payload:
+        try:
+            module.passing_criteria = float(str(payload["passing_criteria"]).replace("%", "").strip())
+        except Exception:
+            module.passing_criteria = module.passing_criteria or 80
+    if "icon" in payload:
+        module.icon = str(payload["icon"] or "").strip() or module.icon
+    if "rank" in payload:
+        try:
+            module.rank = int(payload["rank"])
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid rank")
+
+    await db.commit()
+    await db.refresh(module)
+    return module
+
+
+@router.post("/admin/onboarding-modules", response_model=OnboardingModuleResponse)
+async def create_admin_onboarding_module(
+    payload: dict[str, Any] = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    rank = payload.get("rank")
+    try:
+        rank_int = int(rank) if rank is not None else 0
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid rank")
+
+    module = OnboardingModule(
+        title=str(payload.get("title") or "").strip(),
+        description=str(payload.get("description") or "").strip() or None,
+        passing_criteria=float(str(payload.get("passing_criteria", 80)).replace("%", "").strip()),
+        icon=str(payload.get("icon") or "").strip() or None,
+        rank=rank_int,
+    )
+    db.add(module)
+    await db.commit()
+    await db.refresh(module)
+    return module
+
+
+@router.patch("/admin/onboarding-module-keyconcepts/{concept_id}", response_model=OnboardingModuleKeyConceptResponse)
+async def update_admin_onboarding_keyconcept(
+    concept_id: int,
+    payload: dict[str, Any] = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    concept = await db.get(OnboardingModuleKeyConcept, concept_id)
+    if not concept:
+        raise HTTPException(status_code=404, detail="Key concept not found")
+
+    if "title" in payload:
+        concept.title = str(payload["title"] or "").strip()
+    if "description" in payload:
+        concept.description = str(payload["description"] or "").strip() or None
+    if "link_url" in payload:
+        concept.link_url = payload["link_url"] or concept.link_url
+    if "display_order" in payload:
+        try:
+            concept.display_order = int(payload["display_order"])
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid display_order")
+
+    await db.commit()
+    await db.refresh(concept)
+    return concept
+
+
+@router.post("/admin/onboarding-module-keyconcepts", response_model=OnboardingModuleKeyConceptResponse)
+async def create_admin_onboarding_keyconcept(
+    payload: dict[str, Any] = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    module_id = payload.get("module_id")
+    if not module_id:
+        raise HTTPException(status_code=400, detail="module_id is required")
+
+    module = await db.get(OnboardingModule, int(module_id))
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    concept = OnboardingModuleKeyConcept(
+        module_id=int(module_id),
+        title=str(payload.get("title") or "").strip(),
+        description=str(payload.get("description") or "").strip() or None,
+        link_url=payload.get("link_url") or None,
+        display_order=int(payload.get("display_order") or 0),
+    )
+    db.add(concept)
+    await db.commit()
+    await db.refresh(concept)
+    return concept
+
+
+@router.delete("/admin/onboarding-module-keyconcepts/{concept_id}")
+async def delete_admin_onboarding_keyconcept(
+    concept_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    concept = await db.get(OnboardingModuleKeyConcept, concept_id)
+    if not concept:
+        raise HTTPException(status_code=404, detail="Key concept not found")
+    await db.delete(concept)
+    await db.commit()
+    return {"deleted": True}

@@ -1,221 +1,333 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Box,
   Button,
   Card,
   CardContent,
-  Checkbox,
-  CircularProgress,
-  FormControlLabel,
+  TextField,
   Typography,
   Snackbar,
   Backdrop,
+  CircularProgress,
+  IconButton,
+  Collapse,
+  Divider,
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
-import axios from "axios";
-import apiClient from "../../API/services";
+import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/Delete";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import { AxiosError } from "axios";
+import { onboardingModuleService } from "../../API/onboarding_module.service";
+import type { OnboardingModuleResponse, OnboardingModuleKeyConceptResponse } from "../../API/onboarding_module.model";
+import "./AdminOnboardingModulesUpload.scss";
 
-type KeyConceptItem = {
-  module_no: number;
-  module_id: number;
+type KeyConceptForm = {
+  id?: number;
   title: string;
   description: string;
-  link_url?: string | null;
+  link_url: string;
   display_order: number;
 };
 
-type ModulePreview = {
-  module_no: number;
-  module_id: number;
+type ModuleForm = {
+  id?: number;
   title: string;
   description: string;
-  passing_criteria: number;
-  icon: string | null;
-  key_concepts?: KeyConceptItem[];
+  passing_criteria: string;
+  icon: string;
+  rank: number;
+  key_concepts: KeyConceptForm[];
+  expanded: boolean;
+  saving: boolean;
 };
 
+const emptyKeyConcept = (): KeyConceptForm => ({
+  title: "",
+  description: "",
+  link_url: "",
+  display_order: 0,
+});
+
+const emptyModule = (rank: number): ModuleForm => ({
+  title: "",
+  description: "",
+  passing_criteria: "80",
+  icon: "",
+  rank,
+  key_concepts: [],
+  expanded: true,
+  saving: false,
+});
+
 const AdminOnboardingModulesUpload = () => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [modules, setModules] = useState<ModulePreview[]>([]);
-  const [selectedModuleNo, setSelectedModuleNo] = useState<number | null>(null);
-  const [reviewConfirmed, setReviewConfirmed] = useState(false);
+  const [modules, setModules] = useState<ModuleForm[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [isExistingData, setIsExistingData] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [snackOpen, setSnackOpen] = useState(false);
+  const [confirmAddOpen, setConfirmAddOpen] = useState(false);
 
-  useEffect(() => {
-    if (!modules.length) {
-      setSelectedModuleNo(null);
-      return;
-    }
-
-    const firstModule = modules[0];
-    if (selectedModuleNo === null || !modules.some((m) => m.module_no === selectedModuleNo)) {
-      setSelectedModuleNo(firstModule.module_no);
-    }
-  }, [modules, selectedModuleNo]);
-
-  const activeModule = useMemo(
-    () => modules.find((module) => module.module_no === selectedModuleNo) ?? modules[0] ?? null,
-    [modules, selectedModuleNo]
-  );
-
-  const loadCurrentKeyConcepts = async (): Promise<Record<number, KeyConceptItem[]>> => {
-    try {
-      const response = await apiClient.get<{
-        modules: Array<{
-          module_no: number;
-          module_id: number;
-          title: string;
-          key_concepts: KeyConceptItem[];
-        }>;
-      }>("/onboarding-modules/admin/onboarding-module-keyconcepts-current");
-
-      const map: Record<number, KeyConceptItem[]> = {};
-      for (const item of response.data.modules) {
-        map[item.module_no] = item.key_concepts ?? [];
-      }
-      return map;
-    } catch (error) {
-      return {};
-    }
-  };
-
-  const loadCurrentModules = async () => {
-    try {
-      const response = await apiClient.get<{ modules: ModulePreview[] }>(
-        "/onboarding-modules/admin/onboarding-modules-current"
-      );
-      const keyConceptsByModule = await loadCurrentKeyConcepts();
-      const mergedModules = response.data.modules.map((module) => ({
-        ...module,
-        key_concepts: keyConceptsByModule[module.module_no] ?? [],
-      }));
-      setModules(mergedModules);
-      setIsExistingData(true);
-      setReviewConfirmed(false);
-      if (mergedModules.length > 0) {
-        setSelectedModuleNo(mergedModules[0].module_no);
-      }
-    } catch (err) {
-      setModules([]);
-      setIsExistingData(false);
-    }
-  };
-
-  useEffect(() => {
-    loadCurrentModules();
-  }, []);
-
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      setError("Please choose an Excel file first.");
-      return;
-    }
-
+  const loadModules = async () => {
     setLoading(true);
     setError(null);
-    setSuccess(null);
-
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-
     try {
-      const response = await apiClient.post<{ modules: ModulePreview[] }>(
-        "/onboarding-modules/admin/onboarding-module-preview",
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
-      const keyConceptsByModule = await loadCurrentKeyConcepts();
-      const mergedModules = response.data.modules.map((module) => ({
-        ...module,
-        key_concepts: keyConceptsByModule[module.module_no] ?? [],
+      const data = await onboardingModuleService.listOnboardingModules();
+      const forms: ModuleForm[] = data.map((m) => ({
+        id: m.id,
+        title: m.title,
+        description: m.description || "",
+        passing_criteria: String(m.passing_criteria),
+        icon: m.icon || "",
+        rank: m.rank,
+        key_concepts: [],
+        expanded: false,
+        saving: false,
       }));
-      setModules(mergedModules);
-      setIsExistingData(false);
-      setReviewConfirmed(false);
-      if (mergedModules.length > 0) {
-        setSelectedModuleNo(mergedModules[0].module_no);
-      }
+      setModules(forms);
+
+      const keyConceptsPromises = data.map((m) =>
+        onboardingModuleService
+          .getModuleKeyConcepts(m.id)
+          .catch(() => [])
+          .then((concepts) => {
+            setModules((prev) =>
+              prev.map((mod) =>
+                mod.id === m.id
+                  ? {
+                      ...mod,
+                      key_concepts: concepts.map((c) => ({
+                        id: c.id,
+                        title: c.title,
+                        description: c.description,
+                        link_url: c.link_url || "",
+                        display_order: c.display_order,
+                      })),
+                    }
+                  : mod
+              )
+            );
+          })
+      );
+      await Promise.all(keyConceptsPromises);
     } catch (err) {
-      const message = axios.isAxiosError(err)
-        ? err.response?.data?.detail || "Failed to parse the uploaded Excel file"
-        : "Failed to parse the uploaded Excel file";
-      setError(message);
-      setModules([]);
+      setError("Failed to load modules");
     } finally {
       setLoading(false);
     }
   };
 
-  const saveConfirmedModules = async () => {
-    if (!modules.length) {
-      setError("Upload a file first to save modules.");
+  useEffect(() => {
+    loadModules();
+  }, []);
+
+  const showMessage = (message: string) => {
+    setSuccess(message);
+    setSnackOpen(true);
+  };
+
+  const updateModule = async (index: number, updates: Partial<ModuleForm>) => {
+    setModules((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...updates };
+      return next;
+    });
+  };
+
+  const saveModule = async (index: number) => {
+    const module = modules[index];
+    if (!module.title.trim()) {
+      setError("Module title is required");
       return;
     }
 
-    if (!reviewConfirmed) {
-      setError("Please confirm that you have reviewed all uploaded module metadata before saving.");
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
+    setModules((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], saving: true };
+      return next;
+    });
 
     try {
-      const response = await apiClient.post<{ saved: number; modules: number[] }>(
-        "/onboarding-modules/admin/onboarding-module-save",
-        { modules }
-      );
-      setSuccess(`Saved ${response.data.saved} module records across ${response.data.modules.length} module(s).`);
-      setReviewConfirmed(false);
-        // After successful save switch to view mode and reload current modules
-        setIsExistingData(true);
-        setSelectedFile(null);
-        await loadCurrentModules();
-        setSnackOpen(true);
+      if (module.id) {
+        await onboardingModuleService.updateAdminModule(module.id, {
+          title: module.title,
+          description: module.description || undefined,
+          passing_criteria: parseFloat(module.passing_criteria) || 80,
+          icon: module.icon || undefined,
+          rank: module.rank,
+        });
+      } else {
+        const created = await onboardingModuleService.createAdminModule({
+          title: module.title,
+          description: module.description || undefined,
+          passing_criteria: parseFloat(module.passing_criteria) || 80,
+          icon: module.icon || undefined,
+          rank: module.rank,
+        });
+        setModules((prev) => {
+          const next = [...prev];
+          next[index] = { ...next[index], id: created.id };
+          return next;
+        });
+      }
+      showMessage("Module saved successfully");
     } catch (err) {
-      const message = axios.isAxiosError(err)
-        ? err.response?.data?.detail || "Failed to save modules"
-        : "Failed to save modules";
+      const message = err instanceof AxiosError ? err.response?.data?.detail || "Failed to save module" : "Failed to save module";
       setError(message);
     } finally {
-      setSaving(false);
+      setModules((prev) => {
+        const next = [...prev];
+        next[index] = { ...next[index], saving: false };
+        return next;
+      });
     }
+  };
+
+  const addModule = () => {
+    setConfirmAddOpen(true);
+  };
+
+  const confirmAddModule = () => {
+    const maxRank = modules.reduce((max, m) => Math.max(max, m.rank), 0);
+    setModules((prev) => [...prev, emptyModule(maxRank + 1)]);
+    setConfirmAddOpen(false);
+  };
+
+  const updateKeyConcept = (moduleIndex: number, conceptIndex: number, updates: Partial<KeyConceptForm>) => {
+    setModules((prev) => {
+      const next = [...prev];
+      const module = { ...next[moduleIndex] };
+      const concepts = module.key_concepts.map((c, i) => (i === conceptIndex ? { ...c, ...updates } : c));
+      module.key_concepts = concepts;
+      next[moduleIndex] = module;
+      return next;
+    });
+  };
+
+  const saveKeyConcept = async (moduleIndex: number, conceptIndex: number) => {
+    const module = modules[moduleIndex];
+    const concept = module.key_concepts[conceptIndex];
+    if (!concept.title.trim()) {
+      setError("Key concept title is required");
+      return;
+    }
+
+    setModules((prev) => {
+      const next = [...prev];
+      const mod = { ...next[moduleIndex] };
+      const concepts = mod.key_concepts.map((c, i) => (i === conceptIndex ? { ...c, saving: true } : c));
+      mod.key_concepts = concepts;
+      next[moduleIndex] = mod;
+      return next;
+    });
+
+    try {
+      if (concept.id) {
+        await onboardingModuleService.updateAdminKeyConcept(concept.id, {
+          title: concept.title,
+          description: concept.description || undefined,
+          link_url: concept.link_url || undefined,
+          display_order: concept.display_order,
+        });
+      } else {
+        const created = await onboardingModuleService.createAdminKeyConcept({
+          module_id: module.id!,
+          title: concept.title,
+          description: concept.description || undefined,
+          link_url: concept.link_url || undefined,
+          display_order: concept.display_order,
+        });
+        setModules((prev) => {
+          const next = [...prev];
+          const mod = { ...next[moduleIndex] };
+          const concepts = mod.key_concepts.map((c, i) => (i === conceptIndex ? { ...c, id: created.id } : c));
+          mod.key_concepts = concepts;
+          next[moduleIndex] = mod;
+          return next;
+        });
+      }
+      showMessage("Key concept saved successfully");
+    } catch (err) {
+      const message = err instanceof AxiosError ? err.response?.data?.detail || "Failed to save key concept" : "Failed to save key concept";
+      setError(message);
+    } finally {
+      setModules((prev) => {
+        const next = [...prev];
+        const mod = { ...next[moduleIndex] };
+        const concepts = mod.key_concepts.map((c, i) => (i === conceptIndex ? { ...c, saving: false } : c));
+        mod.key_concepts = concepts;
+        next[moduleIndex] = mod;
+        return next;
+      });
+    }
+  };
+
+  const deleteKeyConcept = async (moduleIndex: number, conceptIndex: number) => {
+    const concept = modules[moduleIndex].key_concepts[conceptIndex];
+    if (!concept.id) return;
+    if (!confirm("Are you sure you want to delete this key concept?")) return;
+
+    try {
+      await onboardingModuleService.deleteAdminKeyConcept(concept.id);
+      setModules((prev) => {
+        const next = [...prev];
+        const module = { ...next[moduleIndex] };
+        module.key_concepts = module.key_concepts.filter((_, i) => i !== conceptIndex);
+        next[moduleIndex] = module;
+        return next;
+      });
+      showMessage("Key concept deleted successfully");
+    } catch (err) {
+      const message = err instanceof AxiosError ? err.response?.data?.detail || "Failed to delete key concept" : "Failed to delete key concept";
+      setError(message);
+    }
+  };
+
+  const addKeyConcept = (moduleIndex: number) => {
+    setModules((prev) => {
+      const next = [...prev];
+      const module = { ...next[moduleIndex] };
+      module.key_concepts = [...module.key_concepts, emptyKeyConcept()];
+      next[moduleIndex] = module;
+      return next;
+    });
   };
 
   return (
     <div className="admin-onboarding-module" style={{ padding: 32 }}>
       <div className="candidate-container" style={{ maxWidth: 1200 }}>
-        <h1>Onboarding Modules Upload</h1>
-        <p className="subtitle">
-          Upload the Excel workbook, review each module’s metadata, and confirm before saving to the database.
-        </p>
-
-        <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 24, flexWrap: "wrap" }}>
-          <input
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-          />
-          <Button variant="contained" onClick={handleUpload} disabled={!selectedFile || loading}>
-            {loading ? "Parsing..." : "Upload Excel"}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <div>
+            <h1>Onboarding Modules</h1>
+            <p className="subtitle">
+              Manage modules and their key concepts directly. Click Save to persist changes.
+            </p>
+          </div>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={addModule}
+            sx={{
+              borderRadius: '12px',
+              textTransform: 'none',
+              fontWeight: 700,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            }}
+          >
+            Add Module
           </Button>
         </div>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}
-          </Alert>
-        )}
-
-        {success && (
-          <Alert severity="success" sx={{ mb: 2 }}>
-            {success}
           </Alert>
         )}
 
@@ -237,120 +349,170 @@ const AdminOnboardingModulesUpload = () => {
           <CircularProgress color="inherit" />
         </Backdrop>
 
-        {modules.length > 0 && (
-          <>
-            {isExistingData && (
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Current saved module metadata is loaded. Upload a new Excel file to review and replace it.
-              </Alert>
-            )}
+        <Dialog open={confirmAddOpen} onClose={() => setConfirmAddOpen(false)}>
+          <DialogTitle>Add New Module</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Are you sure you want to add a new onboarding module?
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setConfirmAddOpen(false)}>Cancel</Button>
+            <Button variant="contained" onClick={confirmAddModule}>Yes, Add Module</Button>
+          </DialogActions>
+        </Dialog>
 
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                gap: 2,
-                mb: 2,
-                alignItems: "stretch",
-              }}
-            >
-              {modules.map((module) => (
-                <Button
-                  key={module.module_no}
-                  variant={selectedModuleNo === module.module_no ? "contained" : "outlined"}
-                  onClick={() => setSelectedModuleNo(module.module_no)}
-                  sx={{
-                    minHeight: 52,
-                    textTransform: "none",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    textAlign: "center",
-                    whiteSpace: "normal",
-                    lineHeight: 1.3,
-                    px: 1.5,
-                    width: "100%",
-                  }}
-                >
-                  {module.module_no}. {module.title}
-                </Button>
-              ))}
-            </Box>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {modules.map((module, moduleIndex) => (
+            <Card key={module.id ?? `new-${moduleIndex}`} sx={{ border: "1px solid #e2e8f0" }}>
+              <CardContent>
+                <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start", flexWrap: "wrap" }}>
+                  <TextField
+                    label="Module No."
+                    type="number"
+                    size="small"
+                    value={module.rank}
+                    onChange={(e) => updateModule(moduleIndex, { rank: parseInt(e.target.value) || 0 })}
+                    sx={{ width: 100 }}
+                    disabled={!!module.id}
+                  />
+                  <TextField
+                    label="Module Title"
+                    size="small"
+                    value={module.title}
+                    onChange={(e) => updateModule(moduleIndex, { title: e.target.value })}
+                    sx={{ flex: 1, minWidth: 200 }}
+                    disabled={module.saving}
+                  />
+                  <TextField
+                    label="Passing Criteria (%)"
+                    type="number"
+                    size="small"
+                    value={module.passing_criteria}
+                    onChange={(e) => updateModule(moduleIndex, { passing_criteria: e.target.value })}
+                    sx={{ width: 160 }}
+                    disabled={module.saving}
+                  />
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => saveModule(moduleIndex)}
+                    disabled={module.saving}
+                    sx={{ textTransform: "none", fontWeight: 600 }}
+                  >
+                    {module.saving ? "Saving..." : "Save Module"}
+                  </Button>
+                </Box>
 
-            {activeModule && (
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 1 }}>
-                    Module {activeModule.module_no}: {activeModule.title}
-                  </Typography>
-
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    {activeModule.description || "No description provided."}
-                  </Typography>
-
-                  <Box sx={{ display: "grid", gap: 1.5 }}>
-                    <Typography><strong>Passing Criteria:</strong> {activeModule.passing_criteria}%</Typography>
-                  </Box>
-
-                  <Box sx={{ mt: 3 }}>
-                    <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
-                      Key Concepts
-                    </Typography>
-
-                    {(activeModule.key_concepts ?? []).length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">
-                        No key concepts found for this module.
-                      </Typography>
-                    ) : (
-                      (activeModule.key_concepts ?? []).map((concept, index) => (
-                        <Box
-                          key={`${concept.title}-${index}`}
-                          sx={{ border: "1px solid #e2e8f0", borderRadius: 2, p: 2, mb: 2 }}
-                        >
-                          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
-                            {index + 1}. {concept.title}
-                          </Typography>
-
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            {concept.description}
-                          </Typography>
-
-                          {concept.link_url && (
-                            <Typography variant="body2">
-                              Link: <a href={concept.link_url}>{concept.link_url}</a>
-                            </Typography>
-                          )}
-                        </Box>
-                      ))
-                    )}
-                  </Box>
-                </CardContent>
-              </Card>
-            )}
-
-            {!isExistingData && (
-              <Box sx={{ mt: 3, display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start" }}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={reviewConfirmed}
-                      onChange={(event) => setReviewConfirmed(event.target.checked)}
-                    />
-                  }
-                  label="I have reviewed all module metadata and want to save them."
+                <TextField
+                  label="Description"
+                  size="small"
+                  multiline
+                  rows={2}
+                  value={module.description}
+                  onChange={(e) => updateModule(moduleIndex, { description: e.target.value })}
+                  sx={{ mt: 2, width: "100%" }}
+                  disabled={module.saving}
                 />
 
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={saveConfirmedModules}
-                  disabled={saving || !reviewConfirmed}
-                >
-                  {saving ? <CircularProgress size={18} color="inherit" /> : "Save All Modules"}
-                </Button>
-              </Box>
-            )}
-          </>
-        )}
+                <Box sx={{ mt: 2 }}>
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={() => updateModule(moduleIndex, { expanded: !module.expanded })}
+                    startIcon={module.expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    sx={{ textTransform: "none", fontWeight: 600 }}
+                  >
+                    {module.expanded ? "Hide" : "View"} Key Concepts ({module.key_concepts.length})
+                  </Button>
+                </Box>
+
+                <Collapse in={module.expanded}>
+                  <Divider sx={{ my: 2 }} />
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                    <Typography variant="subtitle1" fontWeight={700}>
+                      Key Concepts
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<AddIcon />}
+                      onClick={() => addKeyConcept(moduleIndex)}
+                      sx={{ textTransform: "none", fontWeight: 600 }}
+                    >
+                      Add Key Concept
+                    </Button>
+                  </Box>
+
+                  {module.key_concepts.length === 0 && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      No key concepts yet. Click "Add Key Concept" to create one.
+                    </Typography>
+                  )}
+
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {module.key_concepts.map((concept, conceptIndex) => (
+                      <Card
+                        key={concept.id ?? `new-concept-${conceptIndex}`}
+                        variant="outlined"
+                        sx={{ border: "1px solid #e2e8f0", backgroundColor: "#fafbfc" }}
+                      >
+                        <CardContent>
+                          <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start", flexWrap: "wrap" }}>
+                            <TextField
+                              label="Title"
+                              size="small"
+                              value={concept.title}
+                              onChange={(e) => updateKeyConcept(moduleIndex, conceptIndex, { title: e.target.value })}
+                              sx={{ flex: 1, minWidth: 200 }}
+                              disabled={concept.saving}
+                            />
+                            <TextField
+                              label="Link URL"
+                              size="small"
+                              value={concept.link_url}
+                              onChange={(e) => updateKeyConcept(moduleIndex, conceptIndex, { link_url: e.target.value })}
+                              sx={{ flex: 1, minWidth: 200 }}
+                              disabled={concept.saving}
+                            />
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              onClick={() => saveKeyConcept(moduleIndex, conceptIndex)}
+                              disabled={concept.saving}
+                              sx={{ textTransform: "none", fontWeight: 600 }}
+                            >
+                              {concept.saving ? "Saving..." : "Save"}
+                            </Button>
+                            {concept.id && (
+                              <IconButton
+                                color="error"
+                                onClick={() => deleteKeyConcept(moduleIndex, conceptIndex)}
+                                size="small"
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            )}
+                          </Box>
+                          <TextField
+                            label="Description"
+                            size="small"
+                            multiline
+                            rows={2}
+                            value={concept.description}
+                            onChange={(e) => updateKeyConcept(moduleIndex, conceptIndex, { description: e.target.value })}
+                            sx={{ mt: 2, width: "100%" }}
+                            disabled={concept.saving}
+                          />
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Box>
+                </Collapse>
+              </CardContent>
+            </Card>
+          ))}
+        </Box>
       </div>
     </div>
   );
