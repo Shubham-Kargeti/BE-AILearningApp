@@ -584,6 +584,7 @@ async def get_onboarding_candidates_status(
 @router.get("/pending-onboarding-emails", response_model=List[PendingOnboardingEmailResponse])
 async def get_pending_onboarding_emails(
     api_key: str = Query(..., description="API key for authentication"),
+    date: Optional[str] = Query(None, description="Filter candidates created from this date (YYYY-MM-DD). If omitted, returns all pending candidates."),
     db: AsyncSession = Depends(get_db),
 ) -> List[PendingOnboardingEmailResponse]:
     """Return candidates who have not yet received the onboarding credentials email."""
@@ -594,13 +595,19 @@ async def get_pending_onboarding_emails(
             detail="Invalid API key"
         )
 
-    target_emails = ["harshit.choudhary@nagarro.com", "niharika.verma01@nagarro.com"]
-    result = await db.execute(
-        select(Candidate).where(
-            Candidate.onboarding_email_sent == False,
-            func.lower(Candidate.email).in_([e.lower() for e in target_emails]),
-        )
-    )
+    query = select(Candidate).where(Candidate.onboarding_email_sent == False)
+
+    if date:
+        try:
+            from_date = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=None)
+            query = query.where(Candidate.created_at >= from_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid date format. Use YYYY-MM-DD."
+            )
+
+    result = await db.execute(query)
     candidates = result.scalars().all()
 
     return [

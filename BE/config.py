@@ -123,7 +123,7 @@ class Settings(BaseSettings):
     CORS_ALLOW_HEADERS: list[str] = ["*"]
     
     # API Key for public/admin-outofscope endpoints
-    API_KEY: str = "temp-1234"
+    API_KEY: str = "b734e6e3e71654df4de57eaf1629c4b4b48e20f54e1f4b4ebbc256b316f91e22"
     
     # Sentry
     SENTRY_DSN: Optional[str] = None
