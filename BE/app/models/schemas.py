@@ -254,6 +254,11 @@ class PendingOnboardingEmailResponse(BaseModel):
     password: Optional[str] = None
 
 
+class PendingOnboardingCompletionEmailResponse(BaseModel):
+    """Candidate who completed onboarding but has not yet received the completion email."""
+    email: str
+
+
 class OnboardingEmailSentRequest(BaseModel):
     """Request to mark onboarding credentials email as sent."""
     email: str

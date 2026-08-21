@@ -18,8 +18,8 @@ from config import get_settings
 from app.core.dependencies import get_db, get_current_user, admin_required
 from app.core.security import get_password_hash
 from app.core.email import send_email
-from app.db.models import Candidate, User, UploadedDocument, Assessment, TestSession, AssessmentApplication
-from app.models.schemas import CandidateCreate, CandidateUpdate, CandidateResponse, PendingOnboardingEmailResponse, OnboardingEmailSentRequest, OnboardingEmailSentResponse, FieldError, ValidationErrorResponse
+from app.db.models import Candidate, User, UploadedDocument, Assessment, TestSession, AssessmentApplication, OnboardingModule, OnboardingModuleEmployeeProgress, OnboardingModuleCandidateChecklist
+from app.models.schemas import CandidateCreate, CandidateUpdate, CandidateResponse, PendingOnboardingEmailResponse, PendingOnboardingCompletionEmailResponse, OnboardingEmailSentRequest, OnboardingEmailSentResponse, FieldError, ValidationErrorResponse
 from app.services.onboarding_module_service import get_onboarding_candidates_with_status
 
 # Response schemas for new endpoints
@@ -617,6 +617,94 @@ async def get_pending_onboarding_emails(
             password=candidate.password,
         )
         for candidate in candidates
+    ]
+
+
+@router.get("/pending-onboarding-completion-emails", response_model=List[PendingOnboardingCompletionEmailResponse])
+async def get_pending_onboarding_completion_emails(
+    api_key: str = Query(..., description="API key for authentication"),
+    date: Optional[str] = Query(None, description="Filter candidates created from this date (YYYY-MM-DD). If omitted, returns all pending candidates."),
+    db: AsyncSession = Depends(get_db),
+) -> List[PendingOnboardingCompletionEmailResponse]:
+    """Return onboarding candidates who completed all modules but have not yet received the completion email."""
+    settings = get_settings()
+    if api_key != settings.API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid API key"
+        )
+
+    candidate_query = select(Candidate).where(Candidate.source == "onboarding")
+
+    if date:
+        try:
+            from_date = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=None)
+            candidate_query = candidate_query.where(Candidate.created_at >= from_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid date format. Use YYYY-MM-DD."
+            )
+
+    candidate_result = await db.execute(candidate_query)
+    candidates = candidate_result.scalars().all()
+
+    if not candidates:
+        return []
+
+    candidate_ids = [c.id for c in candidates]
+
+    total_modules_result = await db.execute(
+        select(func.count(OnboardingModule.id)).where(OnboardingModule.deleted_date.is_(None))
+    )
+    total_modules = total_modules_result.scalar_one() or 0
+
+    if total_modules == 0:
+        return []
+
+    completed_result = await db.execute(
+        select(
+            OnboardingModuleEmployeeProgress.candidate_id,
+            func.count(OnboardingModuleEmployeeProgress.id).label("completed_count"),
+        )
+        .where(
+            OnboardingModuleEmployeeProgress.candidate_id.in_(candidate_ids),
+            OnboardingModuleEmployeeProgress.status == "COMPLETED",
+        )
+        .group_by(OnboardingModuleEmployeeProgress.candidate_id)
+    )
+    completed_map = {row.candidate_id: row.completed_count for row in completed_result.all()}
+
+    qualified_ids = [cid for cid in candidate_ids if completed_map.get(cid, 0) == total_modules]
+
+    if not qualified_ids:
+        return []
+
+    last_module_result = await db.execute(
+        select(OnboardingModule.id).where(OnboardingModule.deleted_date.is_(None)).order_by(OnboardingModule.rank.desc()).limit(1)
+    )
+    last_module_id = last_module_result.scalar_one_or_none()
+
+    if not last_module_id:
+        return []
+
+    checklist_result = await db.execute(
+        select(OnboardingModuleCandidateChecklist).where(
+            OnboardingModuleCandidateChecklist.candidate_id.in_(qualified_ids),
+            OnboardingModuleCandidateChecklist.module_id == last_module_id,
+            OnboardingModuleCandidateChecklist.certificate_email_sent == False,
+        )
+    )
+    checklists = checklist_result.scalars().all()
+    pending_candidate_ids = {cl.candidate_id for cl in checklists}
+
+    qualified_candidates = [c for c in candidates if c.id in pending_candidate_ids]
+
+    return [
+        PendingOnboardingCompletionEmailResponse(
+            email=candidate.email,
+        )
+        for candidate in qualified_candidates
     ]
 
 
