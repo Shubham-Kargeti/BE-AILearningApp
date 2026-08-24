@@ -82,6 +82,7 @@ docs/local/
 
 # PNG, DIAGRAMS & VISUAL ASSETS
 *.png
+!FE/public/ai-learning-icon.png
 *.jpg
 *.jpeg
 *.gif
