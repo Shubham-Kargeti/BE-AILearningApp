@@ -43,6 +43,7 @@ const Sidebar = () => {
 
   const userName = localStorage.getItem("userName") || "User";
   const userEmail = localStorage.getItem("userEmail") || "";
+  
   const onboardingMode = isOnboardingCandidate();
 
   const menuItems = onboardingMode
