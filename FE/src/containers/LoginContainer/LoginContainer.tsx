@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import "./LoginContainer.scss";
 import Loader from "../../components/Loader";
 import { authService } from "../../API/services";
-import { isAdmin } from "../../utils/adminUsers";
+import { isAdmin, isOnboardingCandidate } from "../../utils/adminUsers";
 
 const LoginContainer = () => {
   const navigate = useNavigate();
@@ -20,10 +20,16 @@ const LoginContainer = () => {
   useEffect(() => {
     const token = localStorage.getItem("authToken");
     const userEmail = localStorage.getItem("loggedInUser") || "";
-    const profileCompleted = localStorage.getItem("profileCompleted") === "true";
 
     if (token) {
-      navigate(isAdmin(userEmail) ? "/admin/dashboard" : profileCompleted ? "/app/dashboard" : "/app/profile-setup");
+      if (isAdmin(userEmail)) {
+        navigate("/admin/dashboard");
+      } else if (isOnboardingCandidate()) {
+        navigate("/app/onboarding-candidate");
+      } else {
+        const profileCompleted = localStorage.getItem("profileCompleted") === "true";
+        navigate(profileCompleted ? "/app/dashboard" : "/app/profile-setup");
+      }
     }
   }, [navigate]);
 
@@ -40,10 +46,6 @@ const LoginContainer = () => {
 
       if (refresh_token) {
         localStorage.setItem("refreshToken", refresh_token);
-      }
-
-      if (role) {
-        localStorage.setItem("userRole", role);
       }
 
       if (candidate_id) {
@@ -74,7 +76,7 @@ const LoginContainer = () => {
     const email = values.email.trim().toLowerCase();
     localStorage.setItem("loggedInUser", email);
 
-    if (response.role === "admin" || isAdmin(email)) {
+    if (response.role === "admin") {
       navigate("/admin/dashboard");
     } else {
       navigate("/app/profile-setup");

@@ -191,9 +191,10 @@ class CandidateCreate(BaseModel):
     github_url: Optional[str] = None
     portfolio_url: Optional[str] = None
     experience_years: Optional[str] = None  # e.g., "5 years"
-    experience_level: str  # junior, mid, senior, etc.
+    experience_level: str
     skills: dict = {}  # {skill_name: proficiency_level}
     availability_percentage: int = 100
+    source: str = "manual"  # "manual" or "onboarding"
 
 class CandidateUpdate(BaseModel):
     """Request to update candidate profile."""
@@ -243,6 +244,30 @@ class CandidateResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    source: str = "manual"
+
+
+class PendingOnboardingEmailResponse(BaseModel):
+    """Candidate who has not yet received the onboarding credentials email."""
+    email: str
+    username: str
+    password: Optional[str] = None
+
+
+class PendingOnboardingCompletionEmailResponse(BaseModel):
+    """Candidate who completed onboarding but has not yet received the completion email."""
+    email: str
+
+
+class OnboardingEmailSentRequest(BaseModel):
+    """Request to mark onboarding credentials email as sent."""
+    email: str
+
+
+class OnboardingEmailSentResponse(BaseModel):
+    """Response after marking onboarding email as sent."""
+    email: str
+    onboarding_email_sent: bool
 
 
 class SkillResponse(BaseModel):
@@ -623,6 +648,8 @@ class EmployeeModuleProgressSummaryItem(BaseModel):
     started_date: Optional[datetime] = None
     video_completed_date: Optional[datetime] = None
     completed_date: Optional[datetime] = None
+    score: Optional[float] = None
+    passing_status: Optional[str] = None
 
 
 class ResourceLinkItem(BaseModel):

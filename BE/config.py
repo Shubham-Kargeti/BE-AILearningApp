@@ -122,6 +122,9 @@ class Settings(BaseSettings):
     CORS_ALLOW_METHODS: list[str] = ["*"]
     CORS_ALLOW_HEADERS: list[str] = ["*"]
     
+    # API Key for public/admin-outofscope endpoints
+    API_KEY: str = "b734e6e3e71654df4de57eaf1629c4b4b48e20f54e1f4b4ebbc256b316f91e22"
+    
     # Sentry
     SENTRY_DSN: Optional[str] = None
     SENTRY_TRACES_SAMPLE_RATE: float = 0.1
@@ -175,12 +178,15 @@ class Settings(BaseSettings):
     
     # Admin Users (email-based for MVP)
     ADMIN_EMAILS: list[str] = [
-        "admin@nagarro.com",
+        "admin@nagarro.com", "monika.singh01@nagarro.com"
     ]
+    ADMIN_PASSWORD: str = "Admin@123"
 
     # Onboarding Success Mail
     ONBOARDING_EMAILS: list[str] = [
-        "monika.singh01@nagarro.com,devinder.kumar@nagarro.com",
+        "monika.singh01@nagarro.com",
+        "devinder.kumar@nagarro.com",
+        "arpit.saxena01@nagarro.com",
     ]
 
     # Onboarding Videos

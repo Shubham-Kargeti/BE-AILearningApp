@@ -13,7 +13,8 @@ import secrets
 
 from app.db.session import get_db
 from app.db.models import User, RefreshToken, Candidate
-from app.core.security import create_token_pair, decode_token, verify_password
+from app.core.security import create_token_pair, decode_token, verify_password, is_admin_user
+from app.core.logging import get_logger
 # from app.core.redis import RedisService, get_redis  # DISABLED - Redis not in use
 from app.core.tasks.email_tasks import send_otp_email, generate_otp
 from app.core.dependencies import verify_refresh_token
@@ -22,11 +23,9 @@ from app.utils.streak_manager import update_login_streak
 from config import get_settings
 
 settings = get_settings()
+logger = get_logger(__name__)
 router = APIRouter()
 security = HTTPBearer()
-
-DEFAULT_ADMIN_EMAIL = "admin@nagarro.com"
-DEFAULT_ADMIN_PASSWORD = "Admin@123"
 
 # Initialize OAuth client for Azure AD
 oauth = OAuth()
@@ -129,9 +128,18 @@ async def issue_token_response(
 
     streak_info = await update_login_streak(user, db)
 
+    source = None
+    if candidate_id and role == "candidate":
+        candidate_result = await db.execute(
+            select(Candidate.source).where(Candidate.candidate_id == candidate_id)
+        )
+        source = candidate_result.scalar_one_or_none()
+
     tokens = create_token_pair(
         user_id=user.id,
-        email=user.email
+        email=user.email,
+        role=role,
+        source=source,
     )
 
     access_token = tokens["access_token"]
@@ -179,15 +187,19 @@ async def simple_login(
     email = request.email.lower().strip()
     password = request.password
 
-    if email == DEFAULT_ADMIN_EMAIL:
-        if password != DEFAULT_ADMIN_PASSWORD:
+    logger.info("login_attempt", email=settings.ADMIN_EMAILS, password=settings.ADMIN_EMAILS)
+    if email in [e.lower() for e in settings.ADMIN_EMAILS]:
+        logger.info("admin_login_attempt", email=email)
+        if password != settings.ADMIN_PASSWORD:
             auth_attempts_total.labels(status="failed").inc()
+            logger.warning("admin_login_failed", email=email, reason="invalid_password")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password"
             )
 
         user = await get_or_create_user(db, email, "Admin")
+        logger.info("admin_login_success", email=email, user_id=str(user.id))
         return await issue_token_response(user, db, role="admin")
 
     result = await db.execute(
@@ -316,9 +328,11 @@ async def azure_sso_callback(
         
         streak_info = await update_login_streak(user, db)
         
+        role = "admin" if is_admin_user(email) else "candidate"
         tokens = create_token_pair(
             user_id=user.id,
-            email=user.email
+            email=user.email,
+            role=role
         )
         
         access_token = tokens["access_token"]
@@ -478,7 +492,7 @@ async def verify_otp(
     await db.commit()
     await db.refresh(user)
     
-    tokens = create_token_pair(user.id, user.email)
+    tokens = create_token_pair(user.id, user.email, role="candidate")
     
     refresh_token_record = RefreshToken(
         token=tokens["refresh_token"],
@@ -519,7 +533,9 @@ async def refresh_access_token(
     if old_token:
         old_token.is_revoked = True
     
-    tokens = create_token_pair(user.id, user.email)
+    payload = decode_token(request.refresh_token)
+    role = payload.get("role", "candidate") if payload else "candidate"
+    tokens = create_token_pair(user.id, user.email, role=role)
     
     new_refresh_token = RefreshToken(
         token=tokens["refresh_token"],

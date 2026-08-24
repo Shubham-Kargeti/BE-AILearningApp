@@ -13,7 +13,3 @@ export const GET_SUB_TOPICS = `${API_V1}/subskills?topic=`;
 export const HTTP_GET = "get";
 export const HTTP_POST = "post";
 export const HTTP_DELETE = "delete";
-
-export const allowedUsers = [
-  "admin@nagarro.com",
-];

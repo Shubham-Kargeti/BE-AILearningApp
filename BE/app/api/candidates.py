@@ -8,12 +8,19 @@ from sqlalchemy.orm import joinedload
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, validator
+from urllib.parse import quote
 import re
+import secrets
+import string
+import asyncio
 
+from config import get_settings
 from app.core.dependencies import get_db, get_current_user, admin_required
 from app.core.security import get_password_hash
-from app.db.models import Candidate, User, UploadedDocument, Assessment, TestSession, AssessmentApplication
-from app.models.schemas import CandidateCreate, CandidateUpdate, CandidateResponse, FieldError, ValidationErrorResponse
+from app.core.email import send_email
+from app.db.models import Candidate, User, UploadedDocument, Assessment, TestSession, AssessmentApplication, OnboardingModule, OnboardingModuleEmployeeProgress, OnboardingModuleCandidateChecklist
+from app.models.schemas import CandidateCreate, CandidateUpdate, CandidateResponse, PendingOnboardingEmailResponse, PendingOnboardingCompletionEmailResponse, OnboardingEmailSentRequest, OnboardingEmailSentResponse, FieldError, ValidationErrorResponse
+from app.services.onboarding_module_service import get_onboarding_candidates_with_status
 
 # Response schemas for new endpoints
 class EmailValidationResponse(BaseModel):
@@ -24,6 +31,34 @@ class EmailValidationResponse(BaseModel):
 
 class SkillsOverrideRequest(BaseModel):
     submitted_skills: dict  # {skill_name: proficiency_level}
+
+class BulkCandidateCreateRequest(BaseModel):
+    """Request body for bulk candidate creation from a list of email addresses."""
+    emails: List[str] = Field(..., description="List of email addresses to create candidates for")
+
+class BulkCandidateCreateItem(BaseModel):
+    """Result of attempting to create a candidate for a single email."""
+    email: str
+    created: bool = False
+    candidate_id: Optional[str] = None
+    password: Optional[str] = None
+    message: Optional[str] = None
+
+class BulkCandidateCreateResponse(BaseModel):
+    """Aggregated response for a bulk candidate creation request."""
+    created: List[BulkCandidateCreateItem]
+    skipped: List[str] = []
+    errors: List[BulkCandidateCreateItem] = []
+
+class OnboardingCandidateStatusResponse(BaseModel):
+    """Onboarding candidate with aggregated module progress status."""
+    candidate_id: str
+    email: str
+    full_name: str
+    created_at: datetime
+    experience_level: str
+    onboarding_email_sent: bool = False
+    overall_status: str  # "completed" | "in_progress" | "not_started"
 
 class CandidatePendingAssessmentResponse(BaseModel):
     application_id: str
@@ -78,6 +113,7 @@ def to_candidate_response(candidate: Candidate, include_password: bool = False) 
         is_active=candidate.is_active,
         created_at=candidate.created_at,
         updated_at=candidate.updated_at,
+        source=candidate.source,
     )
 
 
@@ -211,6 +247,175 @@ async def create_candidate(
     return to_candidate_response(candidate, include_password=True)
 
 
+def _generate_random_password(length: int = 16) -> str:
+    """Generate a random password for bulk-created candidates."""
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _derive_full_name(email: str) -> str:
+    """Derive a display name from an email address' local part."""
+    local = email.split("@")[0]
+    parts = re.split(r"[._\-+]+", local)
+    parts = [p.capitalize() for p in parts if p]
+    name = " ".join(parts)
+    return name or local.capitalize()
+
+
+async def _send_candidate_credentials_email(email: str, password: str, full_name: str) -> None:
+    """Send login credentials to a newly created candidate."""
+    settings = get_settings()
+    dashboard_url = f"{settings.FRONTEND_URL.rstrip('/')}/login"
+    subject = "BCG onboarding modules"
+    onboarding_url = f"{settings.FRONTEND_URL.rstrip('/')}/app/onboarding-candidate"
+    text_body = (
+        f"Dear User,\n\n"
+        f"Your account has been successfully created on the {settings.APP_NAME}.\n\n"
+        f"Username: {email}\n"
+        f"Password: {password}\n\n"
+        f"Login: {dashboard_url}\n\n"
+        f"After logging in, you can access the onboarding modules in either of the following ways:\n\n"
+        f"1. Open the \"Onboarding\" option from the sidebar menu.\n"
+        f"2. Alternatively, directly access the Onboarding page here: {onboarding_url}\n\n"
+        f"Please complete all six onboarding modules. For each module, you are required to watch the video and complete the associated quiz.\n\n"
+        f"If you have any questions or encounter any issues while accessing the platform, please let us know.\n\n"
+        f"Best regards,\n{settings.APP_NAME} Team"
+    )
+    html_body = f"""<html>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4;">
+<div style="max-width: 600px; margin: 20px auto; background-color: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+<h1 style="color: white; margin: 0; font-size: 28px;">Welcome to {settings.APP_NAME}</h1>
+</div>
+<div style="padding: 30px;">
+<p style="font-size: 16px;">Dear User,</p>
+<p>Your account has been successfully created on the <strong>{settings.APP_NAME}</strong>.</p>
+<div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+<p style="margin: 10px 0;"><strong>Username:</strong> {email}</p>
+<p style="margin: 10px 0;"><strong>Password:</strong> {password}</p>
+</div>
+<p><strong>Login:</strong> <a href="{dashboard_url}" style="color: #667eea;">{dashboard_url}</a></p>
+<p>After logging in, you can access the onboarding modules in either of the following ways:</p>
+<ol style="padding-left: 20px; margin: 10px 0;">
+<li>Open the <strong>“Onboarding”</strong> option from the <strong>sidebar menu</strong>.</li>
+<li>Alternatively, directly access the <strong>Onboarding page</strong> here: <a href="{onboarding_url}" style="color: #667eea;">{onboarding_url}</a></li>
+</ol>
+<p>Please complete all six onboarding modules. For each module, you are required to watch the video and complete the associated quiz.</p>
+<p>If you have any questions or encounter any issues while accessing the platform, please let us know.</p>
+<p>Best regards,<br><strong>{settings.APP_NAME} Team</strong></p>
+</div>
+<div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+<p style="color: #999; font-size: 12px; margin: 5px 0;">This is an automated email from {settings.APP_NAME}.</p>
+<p style="color: #999; font-size: 12px; margin: 5px 0;">© {datetime.now().year} {settings.APP_NAME}. All rights reserved.</p>
+</div>
+</div>
+</body>
+</html>"""
+    await send_email(
+        to_email=email,
+        subject=subject,
+        html_body=html_body,
+        text_body=text_body,
+    )
+    return True
+
+
+@router.post("/bulk", response_model=BulkCandidateCreateResponse, status_code=status.HTTP_201_CREATED)
+async def create_candidates_bulk(
+    request: BulkCandidateCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required),
+) -> BulkCandidateCreateResponse:
+    """
+    Bulk create candidate profiles from a list of email addresses.
+
+    - Admin-only endpoint
+    - Each candidate is created with a randomly generated password and the
+      "junior" experience level by default
+    - Existing emails are skipped (reported in ``skipped``)
+    - Invalid emails are reported in ``errors``
+    """
+    created: List[BulkCandidateCreateItem] = []
+    skipped: List[str] = []
+    errors: List[BulkCandidateCreateItem] = []
+
+    for raw_email in request.emails:
+        email = (raw_email or "").strip().lower()
+        if not email:
+            continue
+
+        if not EMAIL_PATTERN.match(email):
+            errors.append(BulkCandidateCreateItem(
+                email=raw_email, message="Invalid email format"
+            ))
+            continue
+
+        existing_result = await db.execute(
+            select(Candidate).where(func.lower(Candidate.email) == email)
+        )
+        if existing_result.scalars().first():
+            skipped.append(email)
+            continue
+
+        password = _generate_random_password()
+        candidate = Candidate(
+            user_id=None,
+            full_name=_derive_full_name(email),
+            email=email,
+            password=password,
+            password_hash=get_password_hash(password),
+            experience_level="junior",
+            skills={},
+            availability_percentage=100,
+            source="onboarding",
+        )
+        db.add(candidate)
+        await db.flush()
+        created.append(BulkCandidateCreateItem(
+            email=email,
+            created=True,
+            candidate_id=candidate.candidate_id,
+            password=password,
+        ))
+
+    await db.commit()
+
+    # Disabled bulk onboarding email for now.
+    # if created:
+    #     email_task_items = []
+    #     email_tasks = []
+    #     for item in created:
+    #         if item.email and item.password:
+    #             email_task_items.append(item)
+    #             email_tasks.append(
+    #                 _send_candidate_credentials_email(
+    #                     item.email, item.password, _derive_full_name(item.email)
+    #                 )
+    #             )
+    #
+    #     email_results = await asyncio.gather(*email_tasks, return_exceptions=True)
+    #
+    #     for item, email_result in zip(email_task_items, email_results):
+    #         sent = False
+    #         if isinstance(email_result, Exception):
+    #             print(f"Failed to send credentials email to {item.email}: {email_result}")
+    #         else:
+    #             sent = bool(email_result)
+    #
+    #         result = await db.execute(
+    #             select(Candidate).where(Candidate.candidate_id == item.candidate_id)
+    #         )
+    #         candidate = result.scalars().first()
+    #         if candidate:
+    #             candidate.onboarding_email_sent = sent
+    #
+    #     await db.flush()
+
+    return BulkCandidateCreateResponse(
+        created=created, skipped=skipped, errors=errors
+    )
+
+
 @router.get("/me", response_model=CandidateResponse)
 async def get_current_candidate(
     db: AsyncSession = Depends(get_db),
@@ -337,6 +542,7 @@ async def list_candidates(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     search: Optional[str] = Query(None, description="Search candidates by name or email"),
+    source: Optional[str] = Query(None, description="Filter by source (e.g. 'onboarding')"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(admin_required),
 ) -> List[CandidateResponse]:
@@ -353,6 +559,9 @@ async def list_candidates(
             )
         )
 
+    if source:
+        stmt = stmt.where(Candidate.source == source)
+
     stmt = stmt.order_by(Candidate.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
     candidates = result.scalars().all()
@@ -361,6 +570,239 @@ async def list_candidates(
         to_candidate_response(candidate, include_password=True)
         for candidate in candidates
     ]
+
+
+@router.get("/onboarding-status", response_model=List[OnboardingCandidateStatusResponse])
+async def get_onboarding_candidates_status(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required),
+) -> List[OnboardingCandidateStatusResponse]:
+    """Return all onboarding-sourced candidates with their aggregated module progress status."""
+    return await get_onboarding_candidates_with_status(db)
+
+
+@router.get("/pending-onboarding-emails", response_model=List[PendingOnboardingEmailResponse])
+async def get_pending_onboarding_emails(
+    api_key: str = Query(..., description="API key for authentication"),
+    date: Optional[str] = Query(None, description="Filter candidates created from this date (YYYY-MM-DD). If omitted, returns all pending candidates."),
+    db: AsyncSession = Depends(get_db),
+) -> List[PendingOnboardingEmailResponse]:
+    """Return candidates who have not yet received the onboarding credentials email."""
+    settings = get_settings()
+    if api_key != settings.API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid API key"
+        )
+
+    query = select(Candidate).where(Candidate.onboarding_email_sent == False)
+
+    if date:
+        try:
+            from_date = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=None)
+            query = query.where(Candidate.created_at >= from_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid date format. Use YYYY-MM-DD."
+            )
+
+    result = await db.execute(query)
+    candidates = result.scalars().all()
+
+    return [
+        PendingOnboardingEmailResponse(
+            email=candidate.email,
+            username=candidate.full_name,
+            password=candidate.password,
+        )
+        for candidate in candidates
+    ]
+
+
+@router.get("/pending-onboarding-completion-emails", response_model=List[PendingOnboardingCompletionEmailResponse])
+async def get_pending_onboarding_completion_emails(
+    api_key: str = Query(..., description="API key for authentication"),
+    date: Optional[str] = Query(None, description="Filter candidates created from this date (YYYY-MM-DD). If omitted, returns all pending candidates."),
+    db: AsyncSession = Depends(get_db),
+) -> List[PendingOnboardingCompletionEmailResponse]:
+    """Return onboarding candidates who completed all modules but have not yet received the completion email."""
+    settings = get_settings()
+    if api_key != settings.API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid API key"
+        )
+
+    candidate_query = select(Candidate).where(Candidate.source == "onboarding")
+
+    if date:
+        try:
+            from_date = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=None)
+            candidate_query = candidate_query.where(Candidate.created_at >= from_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid date format. Use YYYY-MM-DD."
+            )
+
+    candidate_result = await db.execute(candidate_query)
+    candidates = candidate_result.scalars().all()
+
+    if not candidates:
+        return []
+
+    candidate_ids = [c.id for c in candidates]
+
+    total_modules_result = await db.execute(
+        select(func.count(OnboardingModule.id)).where(OnboardingModule.deleted_date.is_(None))
+    )
+    total_modules = total_modules_result.scalar_one() or 0
+
+    if total_modules == 0:
+        return []
+
+    completed_result = await db.execute(
+        select(
+            OnboardingModuleEmployeeProgress.candidate_id,
+            func.count(OnboardingModuleEmployeeProgress.id).label("completed_count"),
+        )
+        .where(
+            OnboardingModuleEmployeeProgress.candidate_id.in_(candidate_ids),
+            OnboardingModuleEmployeeProgress.status == "COMPLETED",
+        )
+        .group_by(OnboardingModuleEmployeeProgress.candidate_id)
+    )
+    completed_map = {row.candidate_id: row.completed_count for row in completed_result.all()}
+
+    qualified_ids = [cid for cid in candidate_ids if completed_map.get(cid, 0) == total_modules]
+
+    if not qualified_ids:
+        return []
+
+    last_module_result = await db.execute(
+        select(OnboardingModule.id).where(OnboardingModule.deleted_date.is_(None)).order_by(OnboardingModule.rank.desc()).limit(1)
+    )
+    last_module_id = last_module_result.scalar_one_or_none()
+
+    if not last_module_id:
+        return []
+
+    checklist_result = await db.execute(
+        select(OnboardingModuleCandidateChecklist).where(
+            OnboardingModuleCandidateChecklist.candidate_id.in_(qualified_ids),
+            OnboardingModuleCandidateChecklist.module_id == last_module_id,
+            OnboardingModuleCandidateChecklist.certificate_email_sent == False,
+        )
+    )
+    checklists = checklist_result.scalars().all()
+    pending_candidate_ids = {cl.candidate_id for cl in checklists}
+
+    qualified_candidates = [c for c in candidates if c.id in pending_candidate_ids]
+
+    return [
+        PendingOnboardingCompletionEmailResponse(
+            email=candidate.email,
+        )
+        for candidate in qualified_candidates
+    ]
+
+
+@router.post("/mark-onboarding-email-sent", response_model=OnboardingEmailSentResponse)
+async def mark_onboarding_email_sent(
+    request: OnboardingEmailSentRequest,
+    api_key: str = Query(..., description="API key for authentication"),
+    db: AsyncSession = Depends(get_db),
+) -> OnboardingEmailSentResponse:
+    """Mark onboarding credentials email as sent for a candidate by email."""
+    settings = get_settings()
+    if api_key != settings.API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid API key"
+        )
+
+    result = await db.execute(
+        select(Candidate).where(func.lower(Candidate.email) == request.email.lower().strip())
+    )
+    candidate = result.scalar_one_or_none()
+    if not candidate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate not found"
+        )
+
+    candidate.onboarding_email_sent = True
+    await db.commit()
+    await db.refresh(candidate)
+
+    return OnboardingEmailSentResponse(
+        email=candidate.email,
+        onboarding_email_sent=candidate.onboarding_email_sent,
+    )
+
+
+@router.post("/{candidate_id}/send-credentials-email", response_model=dict)
+async def send_candidate_credentials_email(
+    candidate_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(admin_required),
+):
+    """Return a mailto URL so the admin can send credentials email manually via Outlook."""
+    result = await db.execute(
+        select(Candidate).where(Candidate.candidate_id == candidate_id)
+    )
+    candidate = result.scalar_one_or_none()
+    if not candidate:
+        raise HTTPException(404, "Candidate not found")
+
+    if not candidate.password:
+        raise HTTPException(400, "No password available for this candidate")
+
+    settings = get_settings()
+    subject = "BCG onboarding modules"
+
+    # Prefer a frontend origin provided by the browser (Origin or Referer)
+    # when available — this helps generate correct links in production
+    # environments without requiring a separate env var change.
+    frontend_base = settings.FRONTEND_URL.rstrip("/")
+    try:
+        origin_header = None
+        # FastAPI injects Request if added to the signature; try to read it
+        # from the context locals if present.
+        request_obj = locals().get("request")
+        if request_obj and hasattr(request_obj, "headers"):
+            origin_header = request_obj.headers.get("origin") or request_obj.headers.get("referer")
+        if origin_header:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(origin_header)
+            if parsed.scheme and parsed.netloc:
+                frontend_base = f"{parsed.scheme}://{parsed.netloc}"
+    except Exception:
+        # Fall back to configured FRONTEND_URL
+        pass
+
+    dashboard_url = f"{frontend_base}/login"
+    onboarding_url = f"{frontend_base}/app/onboarding-candidate"
+    text_body = (
+        f"Dear User,\n\n"
+        f"Your account has been successfully created on the {settings.APP_NAME}.\n\n"
+        f"Username: {candidate.email}\n"
+        f"Password: {candidate.password}\n\n"
+        f"Login: {dashboard_url}\n\n"
+        f"After logging in, you can access the onboarding modules in either of the following ways:\n\n"
+        f"1. Open the \"Onboarding\" option from the sidebar menu.\n"
+        f"2. Alternatively, directly access the Onboarding page here: {onboarding_url}\n\n"
+        f"Please complete all six onboarding modules. For each module, you are required to watch the video and complete the associated quiz.\n\n"
+        f"If you have any questions or encounter any issues while accessing the platform, please let us know.\n\n"
+        f"Best regards,\n{settings.APP_NAME} Team"
+    )
+    to_email = candidate.email
+    mailto_url = f"mailto:{to_email}?subject={quote(subject)}&body={quote(text_body)}"
+
+    return {"mailto_url": mailto_url}
 
 
 @router.get("/{candidate_id}", response_model=CandidateResponse)

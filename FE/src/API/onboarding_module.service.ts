@@ -1,6 +1,8 @@
 import apiClient from "./services";
 import type {
   OnboardingModule,
+  OnboardingModuleResponse,
+  OnboardingModuleKeyConceptResponse,
   EmployeeOnboardingProgressSummaryResponse,
   ModuleDetailResponse,
   QuizSubmitResponse,
@@ -137,12 +139,95 @@ export const onboardingModuleService = {
    },
 
    sendCertificateEmail: async (
-     candidateId: string,
-     moduleId: number
-   ): Promise<{ sent: boolean; message: string }> => {
-     const response = await apiClient.post<{ sent: boolean; message: string }>(
-       `/onboarding-modules/certificate/${candidateId}/send-email?module_id=${moduleId}`
-     );
-     return response.data;
-   },
-};
+      candidateId: string,
+      moduleId: number
+    ): Promise<{ sent: boolean; message: string }> => {
+      const response = await apiClient.post<{ sent: boolean; message: string }>(
+        `/onboarding-modules/certificate/${candidateId}/send-email?module_id=${moduleId}`
+      );
+      return response.data;
+    },
+
+    updateAdminModule: async (moduleId: number, data: {
+      title?: string;
+      description?: string;
+      passing_criteria?: number;
+      icon?: string;
+      rank?: number;
+    }): Promise<OnboardingModuleResponse> => {
+      const response = await apiClient.patch<OnboardingModuleResponse>(
+        `/onboarding-modules/admin/onboarding-modules/${moduleId}`,
+        data
+      );
+      return response.data;
+    },
+
+    createAdminModule: async (data: {
+      title: string;
+      description?: string;
+      passing_criteria?: number;
+      icon?: string;
+      rank: number;
+    }): Promise<OnboardingModuleResponse> => {
+      const response = await apiClient.post<OnboardingModuleResponse>(
+        `/onboarding-modules/admin/onboarding-modules`,
+        data
+      );
+      return response.data;
+    },
+
+    canDeleteAdminModule: async (moduleId: number): Promise<{ can_delete: boolean }> => {
+      const response = await apiClient.get<{ can_delete: boolean }>(
+        `/onboarding-modules/admin/onboarding-modules/${moduleId}/can-delete`
+      );
+      return response.data;
+    },
+
+    deleteAdminModule: async (moduleId: number): Promise<{ deleted: boolean }> => {
+      const response = await apiClient.delete<{ deleted: boolean }>(
+        `/onboarding-modules/admin/onboarding-modules/${moduleId}`
+      );
+      return response.data;
+    },
+
+    updateAdminKeyConcept: async (conceptId: number, data: {
+      title?: string;
+      description?: string;
+      link_url?: string;
+      display_order?: number;
+    }): Promise<OnboardingModuleKeyConceptResponse> => {
+      const response = await apiClient.patch<OnboardingModuleKeyConceptResponse>(
+        `/onboarding-modules/admin/onboarding-module-keyconcepts/${conceptId}`,
+        data
+      );
+      return response.data;
+    },
+
+    createAdminKeyConcept: async (data: {
+      module_id: number;
+      title: string;
+      description?: string;
+      link_url?: string;
+      display_order?: number;
+    }): Promise<OnboardingModuleKeyConceptResponse> => {
+      const response = await apiClient.post<OnboardingModuleKeyConceptResponse>(
+        `/onboarding-modules/admin/onboarding-module-keyconcepts`,
+        data
+      );
+      return response.data;
+    },
+
+    deleteAdminKeyConcept: async (conceptId: number): Promise<{ deleted: boolean }> => {
+      const response = await apiClient.delete<{ deleted: boolean }>(
+        `/onboarding-modules/admin/onboarding-module-keyconcepts/${conceptId}`
+      );
+      return response.data;
+    },
+
+    getModuleKeyConcepts: async (moduleId: number): Promise<OnboardingModuleKeyConceptResponse[]> => {
+      const response = await apiClient.get<OnboardingModuleKeyConceptResponse[]>(
+        `/onboarding-modules/onboarding-module-keyconcepts/${moduleId}`
+      );
+      return response.data;
+    },
+  };

@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 import React from "react";
-import { isAdmin } from "../../utils/adminUsers";
+import { isAdmin, isOnboardingCandidate } from "../../utils/adminUsers";
 
 interface ProtectedAuthRouteProps {
   children: React.ReactNode;
@@ -14,6 +14,10 @@ const ProtectedAuthRoute = ({ children }: ProtectedAuthRouteProps) => {
   if (token) {
     if (isAdmin(userEmail)) {
       return <Navigate to="/admin/dashboard" replace />;
+    }
+
+    if (isOnboardingCandidate()) {
+      return <Navigate to="/app/onboarding-candidate" replace />;
     }
 
     return <Navigate to={profileCompleted ? "/app/dashboard" : "/app/profile-setup"} replace />;

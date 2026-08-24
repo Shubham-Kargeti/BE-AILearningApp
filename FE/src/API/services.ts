@@ -253,6 +253,7 @@ export interface Candidate {
   is_active?: boolean;
   created_at: string;
   updated_at?: string;
+  source?: string;
 }
 
 export interface CandidatePendingAssessment {
@@ -298,6 +299,30 @@ export interface CandidateCreateRequest {
 export type CandidateUpdateRequest = Partial<CandidateCreateRequest> & {
   created_at?: string;
 };
+
+export interface BulkCandidateCreateItem {
+  email: string;
+  created: boolean;
+  candidate_id?: string | null;
+  password?: string | null;
+  message?: string | null;
+}
+
+export interface BulkCandidateCreateResponse {
+  created: BulkCandidateCreateItem[];
+  skipped: string[];
+  errors: BulkCandidateCreateItem[];
+}
+
+export interface OnboardingCandidateStatusResponse {
+  candidate_id: string;
+  email: string;
+  full_name: string;
+  created_at: string;
+  experience_level: string;
+  onboarding_email_sent: boolean;
+  overall_status: "completed" | "in_progress" | "not_started";
+}
 
 export interface EmailValidationResponse {
   email: string;
@@ -673,6 +698,31 @@ export const candidateService = {
     return response.data;
   },
 
+  createBulkCandidates: async (
+    emails: string[]
+  ): Promise<BulkCandidateCreateResponse> => {
+    const response = await apiClient.post<BulkCandidateCreateResponse>(
+      "/candidates/bulk",
+      { emails }
+    );
+    return response.data;
+  },
+
+  getOnboardingCandidatesStatus: async (skipCache = false): Promise<OnboardingCandidateStatusResponse[]> => {
+    const response = await apiClient.get<OnboardingCandidateStatusResponse[]>(
+      "/candidates/onboarding-status",
+      skipCache ? { headers: { "x-cache-skip": "true" } } : undefined
+    );
+    return response.data;
+  },
+
+  sendCandidateCredentialsEmail: async (candidateId: string): Promise<{ mailto_url: string }> => {
+    const response = await apiClient.post<{ mailto_url: string }>(
+      `/candidates/${candidateId}/send-credentials-email`
+    );
+    return response.data;
+  },
+
   getCandidate: async (candidateId: string): Promise<Candidate> => {
     const response = await apiClient.get<Candidate>(`/candidates/${candidateId}`);
     return response.data;
@@ -686,7 +736,7 @@ export const candidateService = {
     return response.data;
   },
 
-  listCandidates: async (skip = 0, limit = 50, search = ""): Promise<Candidate[]> => {
+  listCandidates: async (skip = 0, limit = 50, search = "", source?: string, skipCache = false): Promise<Candidate[]> => {
     const params = new URLSearchParams({
       skip: String(skip),
       limit: String(limit),
@@ -694,8 +744,12 @@ export const candidateService = {
     if (search.trim()) {
       params.set("search", search.trim());
     }
+    if (source) {
+      params.set("source", source);
+    }
     const response = await apiClient.get<Candidate[]>(
-      `/candidates?${params.toString()}`
+      `/candidates?${params.toString()}`,
+      skipCache ? { headers: { "x-cache-skip": "true" } } : undefined
     );
     return response.data;
   },

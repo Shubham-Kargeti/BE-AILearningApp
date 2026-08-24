@@ -19,6 +19,8 @@ export interface EmployeeModuleProgressSummaryItem {
   started_date: string | null;
   video_completed_date: string | null;
   completed_date: string | null;
+  score: number | null;
+  passing_status: string | null;
 }
 
 export interface ResourceLinkItem {
@@ -144,6 +146,25 @@ export interface CertificateModuleItem {
   score: number | null;
   passing_status: string | null;
   status: string;
+}
+
+export interface OnboardingModuleResponse {
+  id: number;
+  title: string;
+  description: string | null;
+  rank: number;
+  passing_criteria: number;
+  icon: string | null;
+  date: string | null;
+}
+
+export interface OnboardingModuleKeyConceptResponse {
+  id: number;
+  module_id: number;
+  title: string;
+  description: string;
+  link_url: string | null;
+  display_order: number;
 }
 
 export interface CertificateDataResponse {

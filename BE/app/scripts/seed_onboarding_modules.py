@@ -1,6 +1,9 @@
+import io
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta
+
+import pandas as pd
 
 from config import get_settings
 settings = get_settings()
@@ -15,6 +18,183 @@ from app.db.models import (
     OnboardingModuleActionItem,
     OnboardingModuleCandidateChecklist,
 )
+
+
+def _canonical_column(columns: list[str], *candidates: str) -> str | None:
+    def normalize(value: str) -> str:
+        return " ".join(
+            str(value)
+            .strip()
+            .lower()
+            .replace("/", " ")
+            .replace("-", " ")
+            .replace("_", " ")
+            .replace("%", " ")
+            .replace("(", " ")
+            .replace(")", " ")
+            .replace(".", " ")
+            .replace(",", " ")
+            .split()
+        )
+
+    normalized = {normalize(col): col for col in columns}
+    for candidate in candidates:
+        match = normalized.get(normalize(candidate))
+        if match is not None:
+            return match
+    return None
+
+
+def build_module_replacement_plan(existing_rows: list[dict], incoming_rows: list[dict]) -> tuple[list[int], list[int]]:
+    """Return stale and retained module ranks when replacing the saved module set."""
+    existing_ranks = {
+        int(row["module_no"])
+        for row in existing_rows
+        if row.get("module_no") is not None
+    }
+    incoming_ranks = {
+        int(row["module_no"])
+        for row in incoming_rows
+        if row.get("module_no") is not None
+    }
+
+    stale_ranks = sorted(existing_ranks - incoming_ranks)
+    retained_ranks = sorted(existing_ranks & incoming_ranks)
+    return stale_ranks, retained_ranks
+
+
+def reconcile_preserved_module_updates(existing_rows: list[dict], incoming_rows: list[dict]) -> list[dict]:
+    """Keep existing module IDs when a module number is updated in-place.
+
+    Since candidates may already have started a module or quiz, the upload must
+    preserve the original row IDs and overwrite the values instead of deleting and
+    recreating them.
+    """
+    existing_by_no = {
+        int(row["module_no"]): row
+        for row in existing_rows
+        if row.get("module_no") is not None
+    }
+
+    planned: list[dict] = []
+    for row in incoming_rows:
+        module_no = row.get("module_no")
+        if module_no is None:
+            planned.append({**row, "id": None})
+            continue
+
+        existing = existing_by_no.get(int(module_no))
+        if existing is not None:
+            merged = {**existing, **row}
+            merged["id"] = existing.get("id")
+            planned.append(merged)
+        else:
+            planned.append({**row, "id": None})
+
+    return planned
+
+
+def parse_module_rows(excel_df: pd.DataFrame) -> list[dict]:
+    """Parse a module-export dataframe into module metadata rows."""
+    if excel_df is None or excel_df.empty:
+        return []
+
+    df = excel_df.copy()
+    columns = list(df.columns)
+
+    module_col = _canonical_column(
+        columns,
+        "Module No.",
+        "Module No",
+        "Module Number",
+        "module_no",
+        "Module No ",
+    )
+    title_col = _canonical_column(
+        columns,
+        "Module Name",
+        "Title",
+        "Module Title",
+        "module_name",
+        "Module Title ",
+    )
+    description_col = _canonical_column(columns, "Description", "description")
+    passing_col = _canonical_column(
+        columns,
+        "Passing Criteria",
+        "Pass Criteria",
+        "passing_criteria",
+        "Passing Criteria (%)",
+        "Pass Criteria (%)",
+    )
+    icon_col = _canonical_column(columns, "Icon", "icon", "Icon Name", "icon_name")
+
+    if not module_col or not title_col:
+        return []
+
+    df = df.dropna(subset=[module_col])
+    rows: list[dict] = []
+    for _, row in df.iterrows():
+        module_no = row.get(module_col)
+        if pd.isna(module_no):
+            continue
+        try:
+            module_no = int(float(str(module_no).strip() or 0))
+        except Exception:
+            continue
+
+        title = str(row.get(title_col, "") or "").strip()
+        if not title:
+            continue
+
+        description = str(row.get(description_col, "") or "").strip()
+        passing_criteria_raw = row.get(passing_col)
+        passing_criteria = 80.0
+        if not pd.isna(passing_criteria_raw):
+            try:
+                passing_criteria = float(str(passing_criteria_raw).replace("%", "").strip())
+            except Exception:
+                passing_criteria = 80.0
+
+        icon = str(row.get(icon_col, "") or "").strip() or None
+
+        rows.append({
+            "module_no": module_no,
+            "title": title,
+            "description": description,
+            "passing_criteria": passing_criteria,
+            "icon": icon,
+        })
+
+    rows.sort(key=lambda row: row["module_no"])
+    return rows
+
+
+def parse_module_file(file_bytes: bytes) -> list[dict]:
+    """Read the uploaded module workbook and support both real project templates.
+
+    The authored onboarding module Excel includes a short banner above the data table,
+    so the real header row is offset by 3 rows. Older or simpler exports may start
+    at row 0, so we try both layouts.
+    """
+    for header_row in (3, 0):
+        try:
+            df = pd.read_excel(io.BytesIO(file_bytes), header=header_row)
+        except Exception:
+            continue
+
+        columns = list(df.columns)
+        if _canonical_column(
+            columns,
+            "Module No.",
+            "Module No",
+            "Module Number",
+            "module_no",
+            "Module No ",
+        ):
+            return parse_module_rows(df)
+
+    return parse_module_rows(pd.read_excel(io.BytesIO(file_bytes)))
 
 
 ONBOARDING_MODULES = [
@@ -196,348 +376,6 @@ async def seed_employee_onboarding_progress(db: AsyncSession, candidate_id: int 
     await db.commit()
 
 
-async def seed_module_quiz(db: AsyncSession) -> None:
-    """
-    Seed quiz questions for onboarding modules.
-    Can be toggled on/off as needed.
-    """
-    modules_to_seed = [
-        {
-            "title": "Engagement Context & Structure",
-            "quiz_data": [
-                {
-                    "question_text": "What is the dual-laptop policy at BCG Nagarro?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "One personal laptop for personal work and one company laptop for project work",
-                        "Only company-provided laptop is required",
-                        "Personal choice of laptop",
-                        "No specific policy",
-                    ],
-                    "correct_answer": "One personal laptop for personal work and one company laptop for project work",
-                    "display_order": 1,
-                    "points": 1,
-                },
-                {
-                    "question_text": "Who is the primary escalation point for project issues?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Project Manager or Team Lead",
-                        "HR Department",
-                        "Finance Team",
-                        "Senior Management",
-                    ],
-                    "correct_answer": "Project Manager or Team Lead",
-                    "display_order": 2,
-                    "points": 1,
-                },
-                {
-                    "question_text": "Which tools are used for daily standups at BCG Nagarro?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Slack and Jira",
-                        "Email and Excel",
-                        "Teams and Asana",
-                        "WhatsApp and Spreadsheets",
-                    ],
-                    "correct_answer": "Slack and Jira",
-                    "display_order": 3,
-                    "points": 1,
-                },
-                {
-                    "question_text": "What is the minimum leave notice period for planned leaves?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "2 weeks for planned leave",
-                        "1 week",
-                        "1 month",
-                        "Immediate leave is allowed",
-                    ],
-                    "correct_answer": "2 weeks for planned leave",
-                    "display_order": 4,
-                    "points": 1,
-                },
-            ],
-        },
-        {
-            "title": "Legal, Compliance & Data Security",
-            "quiz_data": [
-                {
-                    "question_text": "What best describes BCG Nagarro's leadership structure?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Flat hierarchy with direct access to leadership",
-                        "BCG leads client strategy and Nagarro leads engineering delivery",
-                        "Nagarro manages all client relationships",
-                        "No formal structure",
-                    ],
-                    "correct_answer": "BCG leads client strategy and Nagarro leads engineering delivery",
-                    "display_order": 1,
-                    "points": 1,
-                },
-                {
-                    "question_text": "Who defines project KPIs for delivery teams?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Engagement Manager / Delivery Lead",
-                        "HR",
-                        "Finance",
-                        "Individual contributors",
-                    ],
-                    "correct_answer": "Engagement Manager / Delivery Lead",
-                    "display_order": 2,
-                    "points": 1,
-                },
-                {
-                    "question_text": "How should a blocking delivery risk be escalated?",
-                    "question_type": "SCENARIO",
-                    "choices": [],
-                    "correct_answer": "",
-                    "display_order": 3,
-                    "points": 1,
-                },
-                {
-                    "question_text": "Which profile should you update for project role clarity and visibility?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Internal HRMS and project tool profiles",
-                        "Only LinkedIn",
-                        "Only timesheet tool",
-                        "Only email signature",
-                    ],
-                    "correct_answer": "Internal HRMS and project tool profiles",
-                    "display_order": 4,
-                    "points": 1,
-                },
-            ],
-        },
-        {
-            "title": "Ways of Working & Tools",
-            "quiz_data": [
-                {
-                    "question_text": "Which tool is primarily used for project task tracking?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Jira",
-                        "PowerPoint",
-                        "Outlook calendar only",
-                        "Files shared on chat",
-                    ],
-                    "correct_answer": "Jira",
-                    "display_order": 1,
-                    "points": 1,
-                },
-                {
-                    "question_text": "A daily 15-minute check-in with your team is most likely referring to which ritual?",
-                    "question_type": "SCENARIO",
-                    "choices": [],
-                    "correct_answer": "",
-                    "display_order": 2,
-                    "points": 1,
-                },
-                {
-                    "question_text": "Where should work-related project updates normally be recorded instead of personal chat threads?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Confluence and Jira",
-                        "Personal notes only",
-                        "WhatsApp group",
-                        "Email drafts",
-                    ],
-                    "correct_answer": "Confluence and Jira",
-                    "display_order": 3,
-                    "points": 1,
-                },
-                {
-                    "question_text": "What is the best practice when a feedback item is assigned to you after a review session?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Acknowledge it and create a follow-up action",
-                        "Ignore it until reminded again",
-                        "Forward it to another teammate",
-                        "Delete the feedback note",
-                    ],
-                    "correct_answer": "Acknowledge it and create a follow-up action",
-                    "display_order": 4,
-                    "points": 1,
-                },
-            ],
-        },
-        {
-            "title": "Engagement & Delivery Excellence",
-            "quiz_data": [
-                {
-                    "question_text": "Which action is safest when you receive an external email with an unexpected attachment?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Do not open it and report it to IT security",
-                        "Open it immediately to check what it contains",
-                        "Forward it to friends in the team",
-                        "Upload it to a shared drive first",
-                    ],
-                    "correct_answer": "Do not open it and report it to IT security",
-                    "display_order": 1,
-                    "points": 1,
-                },
-                {
-                    "question_text": "Who must approve access to sensitive project data before you share it outside the workspace?",
-                    "question_type": "SCENARIO",
-                    "choices": [
-                        "Your Delivery Lead and Information Security",
-                        "Any peer in the same project",
-                        "The office admin team only",
-                        "No approval is needed for internal data",
-                    ],
-                    "correct_answer": "Your Delivery Lead and Information Security",
-                    "display_order": 2,
-                    "points": 1,
-                },
-                {
-                    "question_text": "What is the main purpose of an NDA in client engagements?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Protect confidential client and company information",
-                        "Speed up laptop setup",
-                        "Record daily attendance",
-                        "Assign parking slots",
-                    ],
-                    "correct_answer": "Protect confidential client and company information",
-                    "display_order": 3,
-                    "points": 1,
-                },
-                {
-                    "question_text": "If you lose your company laptop or mobile device, what should you do first?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Report it to IT security immediately",
-                        "Wait to see if someone returns it",
-                        "Buy a replacement yourself",
-                        "Use personal email to recover accounts only",
-                    ],
-                    "correct_answer": "Report it to IT security immediately",
-                    "display_order": 4,
-                    "points": 1,
-                },
-            ],
-        },
-        {
-            "title": "Admin Essentials: Reimbursements",
-            "quiz_data": [
-                {
-                    "question_text": "Which platform is typically used for travel and expense reimbursements?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "SAP Concur",
-                        "Jira",
-                        "Slack expense bot",
-                        "Personal spreadsheet",
-                    ],
-                    "correct_answer": "SAP Concur",
-                    "display_order": 1,
-                    "points": 1,
-                },
-                {
-                    "question_text": "Before taking planned leave, what is the minimum expected action?",
-                    "question_type": "SCENARIO",
-                    "choices": [
-                        "Apply in the leave system and inform your lead",
-                        "Message your team only on chat",
-                        "Wait until returning from leave",
-                        "Send a personal email to HR only",
-                    ],
-                    "correct_answer": "Apply in the leave system and inform your lead",
-                    "display_order": 2,
-                    "points": 1,
-                },
-                {
-                    "question_text": "What is the best source for upcoming public holidays and blackout dates?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Official company holiday calendar",
-                        "Teammate memory",
-                        "Random website",
-                        "Previous year's calendar by guess",
-                    ],
-                    "correct_answer": "Official company holiday calendar",
-                    "display_order": 3,
-                    "points": 1,
-                },
-                {
-                    "question_text": "Which detail is most important while submitting an expense claim?",
-                    "question_type": "MCQ",
-                    "choices": [
-                        "Valid receipt, correct amount, and relevant project/cost center",
-                        "Screenshot of payment app only",
-                        "Colleague approval text message",
-                        "Only the total amount",
-                    ],
-                    "correct_answer": "Valid receipt, correct amount, and relevant project/cost center",
-                    "display_order": 4,
-                    "points": 1,
-                },
-            ],
-        },
-        {
-            "title": "Onboarding Completion & Next Steps",
-            "quiz_data": [],
-            "action_items": [
-                {
-                    "item_text": "I have completed all mandatory onboarding training modules.",
-                    "display_order": 1,
-                },
-                {
-                    "item_text": "I have set up my dual-laptop configuration as per policy.",
-                    "display_order": 2,
-                },
-                {
-                    "item_text": "I have reviewed the org structure and know my escalation paths.",
-                    "display_order": 3,
-                },
-                {
-                    "item_text": "I have installed all required tools and approved software.",
-                    "display_order": 4,
-                },
-                {
-                    "item_text": "I have read and acknowledged the compliance and security policies.",
-                    "display_order": 5,
-                },
-                {
-                    "item_text": "I have submitted my first timesheet and expense claim (if applicable).",
-                    "display_order": 6,
-                },
-                {
-                    "item_text": "I have introduced myself to the team and scheduled 1:1s with leads.",
-                    "display_order": 7,
-                },
-            ],
-        },
-    ]
-
-    for item in modules_to_seed:
-        module_result = await db.execute(
-            select(OnboardingModule).where(
-                OnboardingModule.title == item["title"]
-            )
-        )
-        module = module_result.scalar_one_or_none()
-        if not module:
-            continue
-
-        existing_quiz = await db.execute(
-            select(OnboardingModuleQuiz).where(
-                OnboardingModuleQuiz.module_id == module.id
-            ).limit(1)
-        )
-        if existing_quiz.scalar_one_or_none():
-            continue
-
-        db.add_all([
-            OnboardingModuleQuiz(module_id=module.id, **q)
-            for q in item["quiz_data"]
-        ])
-        await db.commit()
-
-
 async def seed_module_action_items(db: AsyncSession) -> None:
     """Seed action checklist items for module 6."""
     modules_to_seed = [
@@ -621,7 +459,7 @@ async def seed_candidate_journey(db: AsyncSession, candidate_id: int = 1) -> Non
         if quiz_questions:
             questions = quiz_questions
         else:
-            # Static fallback sample (used if seed_module_quiz was not run)
+            # Static fallback sample used only when no quiz data exists yet.
             questions = [
                 type("Q", (), {
                     "id": i + 1,

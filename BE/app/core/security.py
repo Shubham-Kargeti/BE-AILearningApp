@@ -127,13 +127,15 @@ def decode_token(token: str) -> Optional[Dict]:
         return None
 
 
-def create_token_pair(user_id: int, email: str) -> Dict[str, str]:
+def create_token_pair(user_id: int, email: str, role: str = "candidate", source: Optional[str] = None) -> Dict[str, str]:
     """
     Create access and refresh token pair.
     
     Args:
         user_id: User ID
         email: User email
+        role: User role (admin or candidate)
+        source: Candidate source ("manual" or "onboarding")
     
     Returns:
         Dict with access_token and refresh_token
@@ -141,7 +143,11 @@ def create_token_pair(user_id: int, email: str) -> Dict[str, str]:
     token_data = {
         "sub": str(user_id),
         "email": email,
+        "role": role,
     }
+    
+    if source:
+        token_data["source"] = source
     
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)

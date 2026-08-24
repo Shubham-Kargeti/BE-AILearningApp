@@ -37,14 +37,15 @@ from app.api.generator_jobs import router as generator_jobs_router
 from app.api.assessment_results import router as assessment_results_router
 
 #onboarding_module
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.db.session import async_session_maker
+from app.db.models import OnboardingModuleEmployeeProgress
 from app.scripts.seed_onboarding_modules import (
     seed_onboarding_modules,
     seed_candidate_journey,
     seed_module_action_items,
 )
-from app.scripts.seed_module_quiz_from_excel import seed_module_quiz_from_excel
 from app.scripts.seed_module_key_concepts_from_excel import (
     seed_module_key_concepts_from_excel,
 )
@@ -86,23 +87,18 @@ async def lifespan(app: FastAPI):
     try:
         await init_db()
         logger.info("database_initialized")
-        # Seed onboarding modules
-        async with async_session_maker() as db:
-            await seed_onboarding_modules(db)
-            logger.info("onboarding_modules_seeded")
+        # NOTE: onboarding module records are created via the admin UI upload flow.
+        # Previous automatic seeding of module definitions has been removed to avoid
+        # overwriting admin-managed data on startup.
         
-        # Seed module quiz and key concepts (separate session)
-        async with async_session_maker() as db:
-            await seed_module_quiz_from_excel(db)
-            await seed_module_key_concepts_from_excel(db)
-            await seed_module_action_items(db)
-            logger.info("module_quiz_concepts_and_action_items_seeded")
+        # Seeding of module key concepts and action items is skipped at startup.
+        # Admin panel now manages modules, key concepts and quiz data.
+        logger.info("startup_module_seeding_skipped;admin_manages_key_concepts_and_action_items")
         
-        # Seed employee progress (separate session to ensure all module data is committed)
-        async with async_session_maker() as db:
-            await seed_candidate_journey(db)
-            logger.info("employee_onboarding_progress_seeded")
-        
+        # Seeding of a candidate journey at startup is skipped — admin will
+        # manage onboarding progress and sample data. Keep startup deterministic.
+        logger.info("startup_candidate_journey_seeding_skipped;admin_manages_employee_progress")
+
         # Sync video URLs on every startup
         async with async_session_maker() as db:
             await sync_video_urls(db)

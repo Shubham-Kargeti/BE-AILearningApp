@@ -24,6 +24,10 @@ import AdminProtectedRoute from "./components/adminProtectedRoute/AdminProtected
 import AdminDashboard from "./containers/AdminDashboard";
 import AdminLayout from "./containers/AdminLayout";
 import AdminAddCandidate from "./containers/AdminAddCandidate/AdminAddCandidate";
+import AdminOnboardingModule from "./containers/AdminOnboardingModule/AdminOnboardingModule";
+import AdminOnboardingQuizUpload from "./containers/AdminOnboardingQuizUpload/AdminOnboardingQuizUpload";
+import AdminOnboardingKeyConceptUpload from "./containers/AdminOnboardingKeyConceptUpload/AdminOnboardingKeyConceptUpload";
+import AdminOnboardingModulesUpload from "./containers/AdminOnboardingModulesUpload/AdminOnboardingModulesUpload";
 import AdminCandidateList from "./containers/AdminCandidateList/AdminCandidateList";
 import AdminRequirement from "./containers/AdminRequirement/AdminRequirement";
 import AdminSettings from "./containers/AdminSettings/AdminSettings";
@@ -34,6 +38,8 @@ import AdminLearningPathsContainer from "./containers/AdminLearningPathsContaine
 import DetailedResultsView from "./containers/DetailedResultsView/DetailedResultsView";
 import AdminAssessmentLandingContainer from "./containers/AdminAssessmentLandingContainer/AdminAssessmentLandingContainer";
 import Logout from "./components/Logout";
+import OnboardingRedirect from "./components/OnboardingRedirect/OnboardingRedirect";
+import NonOnboardingRedirect from "./components/NonOnboardingRedirect/NonOnboardingRedirect";
 
 function App() {
   return (
@@ -68,17 +74,17 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route path={client.PROFILE_SETUP} element={<ProfileSetupContainer />} />
-          <Route path={client.DASHBOARD} element={<DashboardContainer />} />
-          <Route path={client.STREAK} element={<StreakContainer />} />
-          <Route path={client.SETTINGS} element={<SettingsContainer />} />
-          <Route path={client.ASSESSMENTS} element={<AssessmentsListContainer />} />
-          <Route path={client.ONBOARDING_CANDIDATE} element={<OnboardingCandidateContainer />} />
-          <Route path={client.MODULE_DETAIL} element={<ModuleDetailContainer />} />
-          <Route path={client.CERTIFICATE} element={<CertificateContainer />} />
-          {/*<Route path="learning-paths" element={<LearningPathsContainer />} /> */}
-          <Route path="learning-paths" element={<EmployeeLearningPath />} />
-          <Route path="learning-paths/:learningPathId" element={<EmployeeLearningPath />} />
+          <Route path={client.PROFILE_SETUP} element={<OnboardingRedirect><ProfileSetupContainer /></OnboardingRedirect>} />
+          <Route path={client.DASHBOARD} element={<OnboardingRedirect><DashboardContainer /></OnboardingRedirect>} />
+          <Route path={client.STREAK} element={<OnboardingRedirect><StreakContainer /></OnboardingRedirect>} />
+          <Route path={client.SETTINGS} element={<OnboardingRedirect><SettingsContainer /></OnboardingRedirect>} />
+          <Route path={client.ASSESSMENTS} element={<OnboardingRedirect><AssessmentsListContainer /></OnboardingRedirect>} />
+          <Route path="learning-paths" element={<OnboardingRedirect><EmployeeLearningPath /></OnboardingRedirect>} />
+          <Route path="learning-paths/:learningPathId" element={<OnboardingRedirect><EmployeeLearningPath /></OnboardingRedirect>} />
+
+          <Route path={client.ONBOARDING_CANDIDATE} element={<NonOnboardingRedirect><OnboardingCandidateContainer /></NonOnboardingRedirect>} />
+          <Route path={client.MODULE_DETAIL} element={<NonOnboardingRedirect><ModuleDetailContainer /></NonOnboardingRedirect>} />
+          <Route path={client.CERTIFICATE} element={<NonOnboardingRedirect><CertificateContainer /></NonOnboardingRedirect>} />
         </Route>
 
         <Route
@@ -111,6 +117,10 @@ function App() {
           <Route path="learning-paths/assigned/:employeeEmail/:learningPathId" element={<AdminLearningPathsContainer />} />
           <Route path="assessment-results/:sessionId" element={<DetailedResultsView />} />
           <Route path="add-candidate" element={<AdminAddCandidate />} />
+          <Route path="onboarding-module" element={<AdminOnboardingModule />} />
+          <Route path="onboarding-quiz-upload" element={<AdminOnboardingQuizUpload />} />
+          <Route path="onboarding-modules-upload" element={<AdminOnboardingModulesUpload />} />
+          <Route path="onboarding-keyconcepts-upload" element={<AdminOnboardingKeyConceptUpload />} />
           <Route path="candidate-list" element={<AdminCandidateList />} />
           <Route path="requirement" element={<AdminRequirement />} />
           <Route path="settings" element={<AdminSettings />} />

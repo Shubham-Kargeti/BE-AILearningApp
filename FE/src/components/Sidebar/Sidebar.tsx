@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Drawer,
   List,
@@ -28,10 +28,11 @@ import {
   AssignmentTurnedIn,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
+import { isOnboardingCandidate } from "../../utils/adminUsers";
 import "./Sidebar.scss";
 
 const Sidebar = () => {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(() => localStorage.getItem("sidebarOpen") !== "false");
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -125,7 +126,7 @@ const Sidebar = () => {
           </Box>
 
           {/* User Profile Section */}
-          {open && (
+          {open && !onboardingMode && (
             <Box sx={{ 
               padding: '1.5rem 1rem',
               borderBottom: '1px solid rgba(255,255,255,0.1)'

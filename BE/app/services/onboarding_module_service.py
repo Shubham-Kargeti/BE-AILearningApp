@@ -6,7 +6,7 @@ import random
 import re
 from urllib.parse import quote
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -23,7 +23,7 @@ from app.db.models import (
     QuestionType,
     Candidate,
 )
-from app.core.email import send_email
+# from app.core.email import send_email
 from app.core.storage import get_s3_service
 from config import get_settings
 settings = get_settings()
@@ -92,13 +92,18 @@ Candidate answer:
 """.strip()
 
     llm = _get_llm()
-    response = await asyncio.to_thread(
-        llm.invoke,
-        [
-            {"role": "system", "content": "You are a strict, fair onboarding quiz evaluator."},
-            {"role": "user", "content": prompt},
-        ],
-    )
+    try:
+        response = await asyncio.to_thread(
+            llm.invoke,
+            [
+                {"role": "system", "content": "You are a strict, fair onboarding quiz evaluator."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+    except Exception as exc:
+        print(f"LLM evaluation failed, falling back to score 0: {exc}")
+        return 0
+
     content = response.content if hasattr(response, "content") else str(response)
     parsed = _parse_json_object(content)
     score = int(round(float(parsed.get("score", 0))))
@@ -409,6 +414,7 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
             OnboardingModuleEmployeeProgress.started_date,
             OnboardingModuleEmployeeProgress.video_completed_date,
             OnboardingModuleEmployeeProgress.completed_date,
+            OnboardingModuleEmployeeProgress.id.label("employee_progress_id"),
         )
         .join(
             OnboardingModuleEmployeeProgress,
@@ -423,12 +429,46 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
     result = await db.execute(stmt)
     rows = result.all()
 
+    progress_ids = [row.employee_progress_id for row in rows if row.employee_progress_id is not None]
+
+    latest_scores: dict = {}
+    if progress_ids:
+        max_attempts_subq = (
+            select(
+                OnboardingModuleQuizAttempt.employee_progress_id,
+                func.max(OnboardingModuleQuizAttempt.attempt_number).label("max_attempt"),
+            )
+            .group_by(OnboardingModuleQuizAttempt.employee_progress_id)
+            .subquery()
+        )
+        score_rows = await db.execute(
+            select(
+                OnboardingModuleQuizAttempt.employee_progress_id,
+                OnboardingModuleQuizAttempt.score,
+                OnboardingModuleQuizAttempt.passing_status,
+            )
+            .join(
+                max_attempts_subq,
+                (OnboardingModuleQuizAttempt.employee_progress_id == max_attempts_subq.c.employee_progress_id)
+                & (OnboardingModuleQuizAttempt.attempt_number == max_attempts_subq.c.max_attempt),
+            )
+            .where(OnboardingModuleQuizAttempt.employee_progress_id.in_(progress_ids))
+        )
+        for row in score_rows.all():
+            latest_scores[row.employee_progress_id] = {
+                "score": float(row.score) if row.score is not None else None,
+                "passing_status": row.passing_status,
+            }
+
     modules = []
     completed_modules = 0
     for index, row in enumerate(rows):
         status = row.status or "LOCKED"
         previous_status = rows[index - 1].status if index > 0 else None
         is_unlocked = index == 0 or (previous_status or "LOCKED") == "COMPLETED"
+
+        progress_data = latest_scores.get(row.employee_progress_id, {}) if row.employee_progress_id else {}
+
         modules.append({
             "module_id": row.id,
             "title": row.title,
@@ -440,6 +480,8 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
             "started_date": row.started_date,
             "video_completed_date": row.video_completed_date,
             "completed_date": row.completed_date,
+            "score": progress_data.get("score"),
+            "passing_status": progress_data.get("passing_status"),
         })
         if status == "COMPLETED":
             completed_modules += 1
@@ -471,6 +513,7 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
         )
         .where(
             OnboardingModuleKeyConcept.link_url.is_not(None),
+            OnboardingModuleKeyConcept.link_url.notlike("%url-to-be-added%"),
             OnboardingModule.deleted_date.is_(None),
         )
         .order_by(OnboardingModule.rank, OnboardingModuleKeyConcept.display_order)
@@ -496,6 +539,90 @@ async def get_employee_onboarding_progress_summary(db: AsyncSession, candidate_i
     }
 
 
+async def get_onboarding_candidates_with_status(db: AsyncSession):
+    """Return all onboarding-sourced candidates with their aggregated module status.
+
+    Status values:
+    - "completed": every assigned module is COMPLETED
+    - "in_progress": at least one module is actively being worked on
+    - "not_started": no modules started yet
+    """
+    stmt = (
+        select(
+            Candidate.candidate_id,
+            Candidate.email,
+            Candidate.full_name,
+            Candidate.created_at,
+            Candidate.experience_level,
+            Candidate.onboarding_email_sent,
+            func.coalesce(
+                case(
+                    (func.count(OnboardingModuleEmployeeProgress.id) == 0, "not_started"),
+                    (
+                        func.sum(
+                            case(
+                                (OnboardingModuleEmployeeProgress.status == "COMPLETED", 1),
+                                else_=0,
+                            )
+                        )
+                        == func.count(OnboardingModuleEmployeeProgress.id),
+                        "completed",
+                    ),
+                    (
+                        func.sum(
+                            case(
+                                (
+                                    OnboardingModuleEmployeeProgress.status.in_(
+                                        [
+                                            "VIDEO_IN_PROGRESS",
+                                            "VIDEO_COMPLETED",
+                                            "QUIZ_IN_PROGRESS",
+                                        ]
+                                    ),
+                                    1,
+                                ),
+                                else_=0,
+                            )
+                        )
+                        > 0,
+                        "in_progress",
+                    ),
+                    else_="not_started",
+                ),
+                "not_started",
+            ).label("overall_status"),
+        )
+        .select_from(Candidate)
+        .outerjoin(
+            OnboardingModuleEmployeeProgress,
+            (Candidate.id == OnboardingModuleEmployeeProgress.candidate_id),
+        )
+        .where(Candidate.source == "onboarding")
+        .group_by(
+            Candidate.candidate_id,
+            Candidate.email,
+            Candidate.full_name,
+            Candidate.created_at,
+            Candidate.experience_level,
+            Candidate.onboarding_email_sent,
+        )
+        .order_by(Candidate.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    return [
+        {
+            "candidate_id": row.candidate_id,
+            "email": row.email,
+            "full_name": row.full_name,
+            "created_at": row.created_at,
+            "experience_level": row.experience_level,
+            "onboarding_email_sent": row.onboarding_email_sent,
+            "overall_status": row.overall_status,
+        }
+        for row in result.all()
+    ]
+
+
 VIDEO_URL_MAP = {
     "Engagement Context & Structure": "onboarding-module/module-1.mp4",
     "Legal, Compliance & Data Security": "onboarding-module/module-2.mp4",
@@ -515,6 +642,26 @@ STATIC_VIDEO_URL_MAP = {
 }
 
 
+def _normalize_module_title_for_video_lookup(module_title: str) -> str:
+    """Normalize titles that get a trailing numeric suffix during Excel imports.
+
+    Excel import paths sometimes produce titles like "Engagement Context & Structure1"
+    while the canonical module titles in the app are exact strings without the stray
+    numeric suffix. Trim the trailing numeric suffix before lookup so the default
+    module videos remain stable.
+    """
+    if not module_title:
+        return ""
+
+    normalized = str(module_title).strip()
+    if normalized.endswith("1") and normalized[:-1].rstrip().endswith("Structure"):
+        normalized = normalized[:-1].rstrip()
+    elif normalized and normalized[-1].isdigit():
+        normalized = re.sub(r"\s*\d+$", "", normalized)
+
+    return normalized
+
+
 def _get_module_video_url(module_title: str) -> str:
     """Resolve the onboarding video URL for a module.
 
@@ -522,9 +669,10 @@ def _get_module_video_url(module_title: str) -> str:
     later turned into a presigned URL). When False, returns the static
     GitHub-hosted URL directly.
     """
+    lookup_title = _normalize_module_title_for_video_lookup(module_title)
     if settings.FETCH_VIDEOS_FROM_S3:
-        return VIDEO_URL_MAP.get(module_title, "")
-    return STATIC_VIDEO_URL_MAP.get(module_title, "")
+        return VIDEO_URL_MAP.get(lookup_title, VIDEO_URL_MAP.get(module_title, ""))
+    return STATIC_VIDEO_URL_MAP.get(lookup_title, STATIC_VIDEO_URL_MAP.get(module_title, ""))
 
 
 def _get_video_presigned_url(s3_key: str, expiration: int = 3600) -> str:
@@ -713,7 +861,8 @@ async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: in
     await db.flush()
 
     if passing_status == "PASS":
-        await _check_and_send_onboarding_completion_email(db, candidate_id)
+        # await _check_and_send_onboarding_completion_email(db, candidate_id)
+        pass
 
     return {
         "attempt_id": quiz_attempt.id,
@@ -738,71 +887,71 @@ async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: in
     }
 
 
-async def _check_and_send_onboarding_completion_email(db: AsyncSession, candidate_id: int) -> None:
-    """Check if all onboarding modules are completed and send auto-email if so."""
-    total_result = await db.execute(
-        select(func.count(OnboardingModule.id))
-        .where(OnboardingModule.deleted_date.is_(None))
-    )
-    total_modules = total_result.scalar_one() or 0
-
-    if total_modules == 0:
-        return
-
-    completed_result = await db.execute(
-        select(func.count(OnboardingModuleEmployeeProgress.id))
-        .join(OnboardingModule, OnboardingModuleEmployeeProgress.module_id == OnboardingModule.id)
-        .where(
-            OnboardingModuleEmployeeProgress.candidate_id == candidate_id,
-            OnboardingModuleEmployeeProgress.status == "COMPLETED",
-            OnboardingModule.deleted_date.is_(None),
-        )
-    )
-    completed_modules = completed_result.scalar_one() or 0
-
-    if completed_modules != total_modules:
-        return
-
-    all_modules = await db.execute(
-        select(OnboardingModule)
-        .where(OnboardingModule.deleted_date.is_(None))
-        .order_by(OnboardingModule.rank)
-    )
-    last_module = all_modules.scalars().all()[-1]
-
-    checklist_result = await db.execute(
-        select(OnboardingModuleCandidateChecklist).where(
-            OnboardingModuleCandidateChecklist.candidate_id == candidate_id,
-            OnboardingModuleCandidateChecklist.module_id == last_module.id,
-        )
-    )
-    checklist = checklist_result.scalar_one_or_none()
-
-    if checklist and checklist.certificate_email_sent:
-        return
-
-    email_result = await send_certificate_email_auto(db, candidate_id, last_module.id)
-    if email_result is None:
-        return
-
-    email_sent = email_result.get("sent", False)
-
-    if checklist:
-        checklist.certificate_email_sent = email_sent
-    else:
-        checklist = OnboardingModuleCandidateChecklist(
-            candidate_id=candidate_id,
-            module_id=last_module.id,
-            completed_item_ids=None,
-            all_completed=True,
-            certificate_generated=True,
-            certificate_generated_date=func.now(),
-            certificate_email_sent=email_sent,
-            completed_date=func.now(),
-        )
-        db.add(checklist)
-
-    await db.flush()
+# async def _check_and_send_onboarding_completion_email(db: AsyncSession, candidate_id: int) -> None:
+#     """Check if all onboarding modules are completed and send auto-email if so."""
+#     total_result = await db.execute(
+#         select(func.count(OnboardingModule.id))
+#         .where(OnboardingModule.deleted_date.is_(None))
+#     )
+#     total_modules = total_result.scalar_one() or 0
+#
+#     if total_modules == 0:
+#         return
+#
+#     completed_result = await db.execute(
+#         select(func.count(OnboardingModuleEmployeeProgress.id))
+#         .join(OnboardingModule, OnboardingModuleEmployeeProgress.module_id == OnboardingModule.id)
+#         .where(
+#             OnboardingModuleEmployeeProgress.candidate_id == candidate_id,
+#             OnboardingModuleEmployeeProgress.status == "COMPLETED",
+#             OnboardingModule.deleted_date.is_(None),
+#         )
+#     )
+#     completed_modules = completed_result.scalar_one() or 0
+#
+#     if completed_modules != total_modules:
+#         return
+#
+#     all_modules = await db.execute(
+#         select(OnboardingModule)
+#         .where(OnboardingModule.deleted_date.is_(None))
+#         .order_by(OnboardingModule.rank)
+#     )
+#     last_module = all_modules.scalars().all()[-1]
+#
+#     checklist_result = await db.execute(
+#         select(OnboardingModuleCandidateChecklist).where(
+#             OnboardingModuleCandidateChecklist.candidate_id == candidate_id,
+#             OnboardingModuleCandidateChecklist.module_id == last_module.id,
+#         )
+#     )
+#     checklist = checklist_result.scalar_one_or_none()
+#
+#     if checklist and checklist.certificate_email_sent:
+#         return
+#
+#     email_result = await send_certificate_email_auto(db, candidate_id, last_module.id)
+#     if email_result is None:
+#         return
+#
+#     email_sent = email_result.get("sent", False)
+#
+#     if checklist:
+#         checklist.certificate_email_sent = email_sent
+#     else:
+#         checklist = OnboardingModuleCandidateChecklist(
+#             candidate_id=candidate_id,
+#             module_id=last_module.id,
+#             completed_item_ids=None,
+#             all_completed=True,
+#             certificate_generated=True,
+#             certificate_generated_date=func.now(),
+#             certificate_email_sent=email_sent,
+#             completed_date=func.now(),
+#         )
+#         db.add(checklist)
+#
+#     await db.flush()
 
 
 async def get_action_checklist(db: AsyncSession, module_id: int):
@@ -978,73 +1127,73 @@ Please find this email as confirmation of my onboarding completion. I look forwa
     return {"mailto_url": mailto_url}
 
 
-async def send_certificate_email_auto(db: AsyncSession, candidate_id: int, module_id: int):
-    """Automatically send onboarding completion email to project coordinators."""
-    certificate_data = await get_certificate_data(db, candidate_id, module_id)
-    if not certificate_data:
-        return None
-
-    candidate = await db.get(Candidate, candidate_id)
-    if not candidate:
-        return None
-
-    completion_date = certificate_data["completed_date"]
-    if completion_date:
-        completion_date_str = datetime.fromisoformat(str(completion_date).replace("Z", "+00:00")).strftime("%B %d, %Y")
-    else:
-        completion_date_str = datetime.now().strftime("%B %d, %Y")
-
-    subject = "Onboarding Completion Confirmation"
-    text_body = f"""Hello Everyone,
-
-I am pleased to inform you that I have successfully completed all required onboarding modules and passed the associated assessments.
-
-Candidate Details
-
-* Name: {certificate_data["candidate_name"] or "N/A"}
-* Email: {candidate.email}
-* Completion Date: {completion_date_str}
-
-Please find this email as confirmation of my onboarding completion. I look forward to the next steps in the onboarding process.""".strip()
-
-    html_body = f"""<html>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4;">
-<div style="max-width: 600px; margin: 20px auto; background-color: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
-<h1 style="color: white; margin: 0; font-size: 28px;">Onboarding Completion</h1>
-</div>
-<div style="padding: 30px;">
-<p style="font-size: 16px;">A candidate has successfully completed all onboarding modules.</p>
-<div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-<h2 style="margin-top: 0; color: #667eea;">Candidate Details</h2>
-<p style="margin: 10px 0;"><strong>Name:</strong> {certificate_data["candidate_name"] or "N/A"}</p>
-<p style="margin: 10px 0;"><strong>Email:</strong> {candidate.email}</p>
-<p style="margin: 10px 0;"><strong>Completion Date:</strong> {completion_date_str}</p>
-<p style="margin: 10px 0;"><strong>Certificate Status:</strong> Issued</p>
-</div>
-<p style="margin-top: 30px;">Best regards,<br><strong>AI Learning App Team</strong></p>
-</div>
-<div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0;">
-<p style="color: #999; font-size: 12px; margin: 5px 0;">This is an automated email from AI Learning App.</p>
-<p style="color: #999; font-size: 12px; margin: 5px 0;">© {datetime.now().year} AI Learning App. All rights reserved.</p>
-</div>
-</div>
-</body>
-</html>"""
-
-    to_emails = settings.ONBOARDING_EMAILS
-    try:
-        await send_email(
-            to_email=to_emails,
-            subject=subject,
-            html_body=html_body,
-            text_body=text_body,
-        )
-    except Exception as exc:
-        print(f"Failed to send certificate email: {exc}")
-        return {"sent": False, "message": "Failed to send onboarding completion email"}
-
-    return {"sent": True, "message": "Onboarding completion email sent successfully"}
+# async def send_certificate_email_auto(db: AsyncSession, candidate_id: int, module_id: int):
+#     """Automatically send onboarding completion email to project coordinators."""
+#     certificate_data = await get_certificate_data(db, candidate_id, module_id)
+#     if not certificate_data:
+#         return None
+#
+#     candidate = await db.get(Candidate, candidate_id)
+#     if not candidate:
+#         return None
+#
+#     completion_date = certificate_data["completed_date"]
+#     if completion_date:
+#         completion_date_str = datetime.fromisoformat(str(completion_date).replace("Z", "+00:00")).strftime("%B %d, %Y")
+#     else:
+#         completion_date_str = datetime.now().strftime("%B %d, %Y")
+#
+#     subject = "Onboarding Completion Confirmation"
+#     text_body = f"""Hello Everyone,
+#
+# I am pleased to inform you that I have successfully completed all required onboarding modules and passed the associated assessments.
+#
+# Candidate Details
+#
+# * Name: {certificate_data["candidate_name"] or "N/A"}
+# * Email: {candidate.email}
+# * Completion Date: {completion_date_str}
+#
+# Please find this email as confirmation of my onboarding completion. I look forward to the next steps in the onboarding process.""".strip()
+#
+#     html_body = f"""<html>
+# <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4;">
+# <div style="max-width: 600px; margin: 20px auto; background-color: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+# <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+# <h1 style="color: white; margin: 0; font-size: 28px;">Onboarding Completion</h1>
+# </div>
+# <div style="padding: 30px;">
+# <p style="font-size: 16px;">A candidate has successfully completed all onboarding modules.</p>
+# <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+# <h2 style="margin-top: 0; color: #667eea;">Candidate Details</h2>
+# <p style="margin: 10px 0;"><strong>Name:</strong> {certificate_data["candidate_name"] or "N/A"}</p>
+# <p style="margin: 10px 0;"><strong>Email:</strong> {candidate.email}</p>
+# <p style="margin: 10px 0;"><strong>Completion Date:</strong> {completion_date_str}</p>
+# <p style="margin: 10px 0;"><strong>Certificate Status:</strong> Issued</p>
+# </div>
+# <p style="margin-top: 30px;">Best regards,<br><strong>AI Learning App Team</strong></p>
+# </div>
+# <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+# <p style="color: #999; font-size: 12px; margin: 5px 0;">This is an automated email from AI Learning App.</p>
+# <p style="color: #999; font-size: 12px; margin: 5px 0;">© {datetime.now().year} AI Learning App. All rights reserved.</p>
+# </div>
+# </div>
+# </body>
+# </html>"""
+#
+#     to_emails = settings.ONBOARDING_EMAILS
+#     try:
+#         await send_email(
+#             to_email=to_emails,
+#             subject=subject,
+#             html_body=html_body,
+#             text_body=text_body,
+#         )
+#     except Exception as exc:
+#         print(f"Failed to send certificate email: {exc}")
+#         return {"sent": False, "message": "Failed to send onboarding completion email"}
+#
+#     return {"sent": True, "message": "Onboarding completion email sent successfully"}
 
 
 async def update_certificate_email_status(
