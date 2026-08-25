@@ -650,7 +650,7 @@ const ModuleDetailContainer = () => {
                     <>
                       {isVideoAvailable ? (
                          isDirectMedia ? (
-                            <Box ref={videoWrapperRef} className={`module-detail-video-wrapper ${theaterMode ? "module-detail-video-wrapper--theater" : ""}`}>
+                             <Box ref={videoWrapperRef} className={`module-detail-video-wrapper ${theaterMode ? "module-detail-video-wrapper--theater" : ""}`} onContextMenu={(e) => e.preventDefault()}>
                               <video
                                ref={videoRef}
                                className="module-detail-video"
