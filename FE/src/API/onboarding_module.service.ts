@@ -254,10 +254,10 @@ export const onboardingModuleService = {
       return response.data;
     },
 
-    saveAdminQuiz: async (questions: any[], deleteMissing: boolean = true): Promise<{ saved: number; modules: number[] }> => {
+    saveAdminQuiz: async (questions: any[], deleteMissing: boolean = true, moduleIds?: number[]): Promise<{ saved: number; modules: number[] }> => {
       const response = await apiClient.post<{ saved: number; modules: number[] }>(
         "/onboarding-modules/admin/onboarding-module-quiz-save",
-        { questions, delete_missing: deleteMissing }
+        { questions, delete_missing: deleteMissing, module_ids: moduleIds }
       );
       return response.data;
     },

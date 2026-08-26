@@ -194,23 +194,25 @@ const AdminOnboardingQuizUpload = () => {
     const variant = module.variants[variantIndex];
     if (!confirm(`Delete variant ${variant.variant} and all its questions?`)) return;
 
+    const remainingVariants = module.variants.filter((_, i) => i !== variantIndex);
+    const allQuestions = remainingVariants.flatMap((v) =>
+      v.questions.map((q, idx) => ({
+        ...q,
+        module_id: module.id,
+        display_order: idx + 1,
+      }))
+    );
+
     setModules((prev) => {
       const next = [...prev];
       const mod = { ...next[moduleIndex] };
-      mod.variants = mod.variants.filter((_, i) => i !== variantIndex);
+      mod.variants = remainingVariants;
       next[moduleIndex] = mod;
       return next;
     });
 
     try {
-      const allQuestions = module.variants.flatMap((v) =>
-        v.questions.map((q, idx) => ({
-          ...q,
-          module_id: module.id,
-          display_order: idx + 1,
-        }))
-      );
-      await onboardingModuleService.saveAdminQuiz(allQuestions, true);
+      await onboardingModuleService.saveAdminQuiz(allQuestions, true, [module.id]);
       showMessage(`Variant ${variant.variant} deleted successfully`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete variant");

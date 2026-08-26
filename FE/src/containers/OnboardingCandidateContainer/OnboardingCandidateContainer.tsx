@@ -259,7 +259,7 @@ const OnboardingCandidateContainer = () => {
                   All required onboarding modules have been completed successfully.
                 </Typography>
 
-                <Button
+                {/* <Button
                   variant="contained"
                   size="large"
                   startIcon={<MailOutlineIcon />}
@@ -267,7 +267,7 @@ const OnboardingCandidateContainer = () => {
                   disabled={!emailCanRetry}
                 >
                   {isResendingEmail ? "Sending..." : "Email Manually"}
-                </Button>
+                </Button> */}
               </CardContent>
             </Card>
 

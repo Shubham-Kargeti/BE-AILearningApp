@@ -34,6 +34,7 @@ from app.models.schemas import (
     EmployeeModuleProgressDetailResponse,
     EmployeeModuleVideoProgressResponse,
     EmployeeQuizAttemptResponse,
+    EmployeeQuizResponseItemResponse,
     EmployeeOnboardingProgressSummaryResponse,
     ModuleDetailResponse,
     QuizSubmitResponse,
@@ -518,7 +519,8 @@ async def save_admin_onboarding_module_quiz(
     """Persist confirmed onboarding quiz questions for one or more modules."""
     records = payload.get("questions") or []
     delete_missing = payload.get("delete_missing", True)
-    if not records and not delete_missing:
+    module_ids = payload.get("module_ids") or []
+    if not records and not delete_missing and not module_ids:
         raise HTTPException(status_code=400, detail="No questions were selected for save")
 
     grouped: dict[int, list[dict[str, Any]]] = {}
@@ -530,16 +532,22 @@ async def save_admin_onboarding_module_quiz(
         local_key = int(module_id) if module_id is not None else int(module_no)
         grouped.setdefault(local_key, []).append(row)
 
+    touched_module_keys = set(grouped.keys())
+    for raw_module_id in module_ids:
+        try:
+            touched_module_keys.add(int(raw_module_id))
+        except (TypeError, ValueError):
+            continue
+
     saved = 0
-    for module_key, rows in grouped.items():
+    for module_key in touched_module_keys:
+        rows = grouped.get(module_key, [])
         module = await db.get(OnboardingModule, module_key) if isinstance(module_key, int) and module_key > 0 else None
         if module is None:
             module_result = await db.execute(select(OnboardingModule).where(OnboardingModule.rank == module_key))
             module = module_result.scalar_one_or_none()
         if module is None:
-            module = OnboardingModule(rank=int(module_key) if isinstance(module_key, int) else 0)
-            db.add(module)
-            await db.flush()
+            continue
 
         existing_questions_result = await db.execute(
             select(OnboardingModuleQuiz)
@@ -583,7 +591,7 @@ async def save_admin_onboarding_module_quiz(
                     await db.delete(question)
 
     await db.commit()
-    return {"saved": saved, "modules": list(grouped.keys())}
+    return {"saved": saved, "modules": list(touched_module_keys)}
 
 
 @router.delete("/admin/onboarding-module-quiz/{question_id}")
@@ -739,24 +747,42 @@ async def get_employee_module_detail(
     """Get detailed progress for a specific module including video and quiz data."""
     internal_candidate_id = await resolve_candidate_id(db, candidate_id)
     progress = await get_employee_module_progress(db, internal_candidate_id, module_id)
-    
+
     if not progress:
         raise HTTPException(404, "Module progress not found")
-    
-    # Get module info
+
     module = await db.get(OnboardingModule, module_id)
-    
-    # Get video progress
+
     video_progress = await get_employee_video_progress(db, progress.id)
-    
-    # Get quiz attempts
-    quiz_attempts = await get_employee_quiz_attempts(db, progress.id)
-    
-    # Enrich quiz attempts with responses
-    for attempt in quiz_attempts:
+
+    quiz_attempts = []
+    attempts = await get_employee_quiz_attempts(db, progress.id)
+    for attempt in attempts:
         responses = await get_quiz_attempt_responses(db, attempt.id)
-        attempt.responses = responses
-    
+        quiz_attempts.append({
+            "id": attempt.id,
+            "employee_progress_id": attempt.employee_progress_id,
+            "quiz_id": attempt.quiz_id,
+            "score": attempt.score,
+            "passing_status": attempt.passing_status,
+            "attempt_number": attempt.attempt_number,
+            "time_spent_seconds": attempt.time_spent_seconds,
+            "attempted_date": attempt.attempted_date,
+            "responses": [
+                {
+                    "id": r.id,
+                    "quiz_attempt_id": r.quiz_attempt_id,
+                    "question_id": r.question_id,
+                    "question_text": r.question_text,
+                    "employee_answer": r.employee_answer,
+                    "correct_answer": r.correct_answer,
+                    "is_correct": r.is_correct,
+                    "time_spent_seconds": r.time_spent_seconds,
+                }
+                for r in responses
+            ],
+        })
+
     return {
         "id": progress.id,
         "candidate_id": progress.candidate_id,
@@ -797,14 +823,36 @@ async def get_module_quiz_attempts(
     db: AsyncSession = Depends(get_db),
 ):
     """Get all quiz attempts for an employee module."""
-    quiz_attempts = await get_employee_quiz_attempts(db, employee_progress_id)
-    
-    # Enrich quiz attempts with responses
-    for attempt in quiz_attempts:
+    attempts = await get_employee_quiz_attempts(db, employee_progress_id)
+
+    result = []
+    for attempt in attempts:
         responses = await get_quiz_attempt_responses(db, attempt.id)
-        attempt.responses = responses
-    
-    return quiz_attempts
+        result.append({
+            "id": attempt.id,
+            "employee_progress_id": attempt.employee_progress_id,
+            "quiz_id": attempt.quiz_id,
+            "score": attempt.score,
+            "passing_status": attempt.passing_status,
+            "attempt_number": attempt.attempt_number,
+            "time_spent_seconds": attempt.time_spent_seconds,
+            "attempted_date": attempt.attempted_date,
+            "responses": [
+                {
+                    "id": r.id,
+                    "quiz_attempt_id": r.quiz_attempt_id,
+                    "question_id": r.question_id,
+                    "question_text": r.question_text,
+                    "employee_answer": r.employee_answer,
+                    "correct_answer": r.correct_answer,
+                    "is_correct": r.is_correct,
+                    "time_spent_seconds": r.time_spent_seconds,
+                }
+                for r in responses
+            ],
+        })
+
+    return result
 
 
 @router.patch(
@@ -870,11 +918,39 @@ async def read_module_detail(
     """Get full module detail including video, key concepts, and quiz questions."""
     internal_candidate_id = await resolve_candidate_id(db, candidate_id)
     data = await get_module_detail(db, internal_candidate_id, module_id)
-    
+
     if not data:
         raise HTTPException(404, "Module not found")
-    
-    return data
+
+    quiz_attempts = []
+    for attempt in data.get("quiz_attempts", []):
+        attempted_date = attempt.get("attempted_date")
+        if isinstance(attempted_date, str):
+            attempted_date = datetime.fromisoformat(attempted_date)
+
+        quiz_attempts.append(EmployeeQuizAttemptResponse(
+            id=attempt["id"],
+            employee_progress_id=attempt["employee_progress_id"],
+            quiz_id=attempt.get("quiz_id"),
+            score=attempt.get("score"),
+            passing_status=attempt.get("passing_status"),
+            attempt_number=attempt["attempt_number"],
+            time_spent_seconds=attempt.get("time_spent_seconds"),
+            attempted_date=attempted_date,
+            responses=[
+                EmployeeQuizResponseItemResponse(**r)
+                for r in attempt.get("responses", [])
+            ],
+        ))
+
+    return ModuleDetailResponse(
+        module=data["module"],
+        video_url=data.get("video_url"),
+        video_completed=data.get("video_completed", False),
+        key_concepts=data.get("key_concepts", []),
+        quiz_questions=data.get("quiz_questions", []),
+        quiz_attempts=quiz_attempts,
+    )
 
 
 @router.get(

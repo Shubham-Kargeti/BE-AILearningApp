@@ -27,10 +27,10 @@ from app.db.models import (
 from app.core.storage import get_s3_service
 from config import get_settings
 settings = get_settings()
-from app.utils.generate_questions import _get_llm
+# from app.utils.generate_questions import _get_llm
 
 
-SCENARIO_PASSING_SCORE = 80
+# SCENARIO_PASSING_SCORE = 80
 
 
 def _parse_json_object(content: str) -> dict:
@@ -51,65 +51,65 @@ def _parse_json_object(content: str) -> dict:
     return parsed
 
 
-def _format_key_concepts_for_prompt(key_concepts: list[OnboardingModuleKeyConcept]) -> str:
-    if not key_concepts:
-        return "No key concepts were provided for this module."
-
-    return "\n".join(
-        f"- {concept.title}: {concept.description or ''}".strip()
-        for concept in key_concepts
-    )
-
-
-async def _evaluate_scenario_answer_with_llm(
-    question_text: str,
-    candidate_answer: str,
-    key_concepts: list[OnboardingModuleKeyConcept],
-) -> int:
-    prompt = f"""
-You are evaluating a candidate's answer to an onboarding scenario question.
-
-Grade only against the provided module key concepts and the question. Award a score from 0 to 100.
-
-Scoring guidance:
-- 90-100: Complete, practical, and aligned with the key concepts.
-- 80-89: Mostly correct with only minor omissions.
-- 60-79: Partially correct but missing important details or judgment.
-- 1-59: Weak, vague, risky, or mostly misaligned.
-- 0: Empty, irrelevant, or unsafe answer.
-
-Return ONLY valid JSON in this exact shape:
-{{"score": 0}}
-
-Module key concepts:
-{_format_key_concepts_for_prompt(key_concepts)}
-
-Question:
-{question_text}
-
-Candidate answer:
-{candidate_answer}
-""".strip()
-
-    llm = _get_llm()
-    try:
-        response = await asyncio.to_thread(
-            llm.invoke,
-            [
-                {"role": "system", "content": "You are a strict, fair onboarding quiz evaluator."},
-                {"role": "user", "content": prompt},
-            ],
-        )
-    except Exception as exc:
-        print(f"LLM evaluation failed, falling back to score 0: {exc}")
-        return 0
-
-    content = response.content if hasattr(response, "content") else str(response)
-    parsed = _parse_json_object(content)
-    score = int(round(float(parsed.get("score", 0))))
-    return max(0, min(100, score))
-
-
+# def _format_key_concepts_for_prompt(key_concepts: list[OnboardingModuleKeyConcept]) -> str:
+#     if not key_concepts:
+#         return "No key concepts were provided for this module."
+# 
+#     return "\n".join(
+#         f"- {concept.title}: {concept.description or ''}".strip()
+#         for concept in key_concepts
+#     )
+# 
+# 
+# async def _evaluate_scenario_answer_with_llm(
+#     question_text: str,
+#     candidate_answer: str,
+#     key_concepts: list[OnboardingModuleKeyConcept],
+# ) -> int:
+#     prompt = f"""
+# You are evaluating a candidate's answer to an onboarding scenario question.
+# 
+# Grade only against the provided module key concepts and the question. Award a score from 0 to 100.
+# 
+# Scoring guidance:
+# - 90-100: Complete, practical, and aligned with the key concepts.
+# - 80-89: Mostly correct with only minor omissions.
+# - 60-79: Partially correct but missing important details or judgment.
+# - 1-59: Weak, vague, risky, or mostly misaligned.
+# - 0: Empty, irrelevant, or unsafe answer.
+# 
+# Return ONLY valid JSON in this exact shape:
+# {{"score": 0}}
+# 
+# Module key concepts:
+# {_format_key_concepts_for_prompt(key_concepts)}
+# 
+# Question:
+# {question_text}
+# 
+# Candidate answer:
+# {candidate_answer}
+# """.strip()
+# 
+#     llm = _get_llm()
+#     try:
+#         response = await asyncio.to_thread(
+#             llm.invoke,
+#             [
+#                 {"role": "system", "content": "You are a strict, fair onboarding quiz evaluator."},
+#                 {"role": "user", "content": prompt},
+#             ],
+#         )
+#     except Exception as exc:
+#         print(f"LLM evaluation failed, falling back to score 0: {exc}")
+#         return 0
+# 
+#     content = response.content if hasattr(response, "content") else str(response)
+#     parsed = _parse_json_object(content)
+#     score = int(round(float(parsed.get("score", 0))))
+#     return max(0, min(100, score))
+# 
+# 
 async def get_onboarding_modules(db: AsyncSession):
     result = await db.execute(
         select(OnboardingModule)
@@ -138,6 +138,13 @@ async def get_onboarding_module_quiz(
         q for q in all_questions
         if q.variant is None or q.variant == selected_variant
     ]
+
+    if not filtered_questions:
+        other_variant = "2" if selected_variant == "1" else "1"
+        filtered_questions = [
+            q for q in all_questions
+            if q.variant is None or q.variant == other_variant
+        ]
 
     return filtered_questions
 
@@ -192,6 +199,13 @@ async def get_retry_quiz(
         q for q in all_questions
         if q.variant is None or q.variant == selected_variant
     ]
+
+    if not questions:
+        other_variant = "2" if selected_variant == "1" else "1"
+        questions = [
+            q for q in all_questions
+            if q.variant is None or q.variant == other_variant
+        ]
 
     scenario = [q for q in questions if (q.question_type or "").upper() == "SCENARIO"]
     mcq = [q for q in questions if (q.question_type or "").upper() != "SCENARIO"]
@@ -758,8 +772,28 @@ async def get_module_detail(db: AsyncSession, candidate_id: int, module_id: int)
     attempts = await get_employee_quiz_attempts(db, progress.id)
     for attempt in attempts:
         responses = await get_quiz_attempt_responses(db, attempt.id)
-        attempt.responses = responses
-        quiz_attempts.append(attempt)
+        quiz_attempts.append({
+            "id": attempt.id,
+            "employee_progress_id": attempt.employee_progress_id,
+            "quiz_id": attempt.quiz_id,
+            "score": attempt.score,
+            "passing_status": attempt.passing_status,
+            "attempt_number": attempt.attempt_number,
+            "time_spent_seconds": attempt.time_spent_seconds,
+            "attempted_date": attempt.attempted_date.isoformat() if attempt.attempted_date else None,
+            "responses": [
+                {
+                    "id": r.id,
+                    "quiz_attempt_id": r.quiz_attempt_id,
+                    "question_id": r.question_id,
+                    "question_text": r.question_text,
+                    "employee_answer": r.employee_answer,
+                    "correct_answer": r.correct_answer,
+                    "is_correct": r.is_correct,
+                }
+                for r in responses
+            ],
+        })
 
     return {
         "module": module,
@@ -790,7 +824,6 @@ async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: in
 
     quiz_questions = await get_all_onboarding_module_quiz(db, module_id)
     questions_by_id = {q.id: q for q in quiz_questions}
-    key_concepts = await get_onboarding_module_key_concepts(db, module_id)
 
     last_attempt = await get_employee_quiz_attempts(db, progress.id)
     attempt_number = (last_attempt[0].attempt_number + 1) if last_attempt else 1
@@ -814,13 +847,7 @@ async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: in
         llm_score = None
         is_correct = False
         if question and question.question_type == QuestionType.SCENARIO:
-            if candidate_answer:
-                llm_score = await _evaluate_scenario_answer_with_llm(
-                    question_text=question.question_text,
-                    candidate_answer=str(candidate_answer),
-                    key_concepts=key_concepts,
-                )
-                is_correct = llm_score >= SCENARIO_PASSING_SCORE
+            is_correct = False
         elif correct_answer is not None and candidate_answer is not None:
             is_correct = str(candidate_answer).strip().lower() == str(correct_answer).strip().lower()
 

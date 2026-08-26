@@ -965,7 +965,7 @@ const ModuleDetailContainer = () => {
                   <Card className="module-detail-card">
                    <CardContent>
                      <Typography component="h2" className="module-detail-card__title">
-                       Key Concepts
+                        Key Links
                      </Typography>
 
                    {conceptsWithLinks.length > 0 ? (
@@ -1083,6 +1083,18 @@ const ModuleDetailContainer = () => {
             navigate("/app/onboarding-candidate");
           }}
           className="certificate-action-btn"
+          sx={{
+            background: '#47d7ac',
+            color: '#000',
+            textTransform: 'none',
+            fontWeight: 800,
+            borderRadius: '8px',
+            padding: '0.75rem 2rem',
+            boxShadow: '0 8px 18px rgba(71, 215, 172, 0.24)',
+            '&:hover': {
+              background: '#3bc49f',
+            },
+          }}
         >
           Go to Dashboard
         </Button>
