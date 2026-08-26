@@ -1,232 +1,315 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Box,
   Button,
   Card,
   CardContent,
-  Checkbox,
-  CircularProgress,
-  FormControlLabel,
-  Tab,
-  Tabs,
+  TextField,
   Typography,
   Snackbar,
   Backdrop,
+  CircularProgress,
+  IconButton,
+  Collapse,
+  Divider,
+  Tabs,
+  Tab,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
-import axios from "axios";
-import apiClient from "../../API/services";
+import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/Delete";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import { AxiosError } from "axios";
+import { onboardingModuleService } from "../../API/onboarding_module.service";
+import "./AdminOnboardingQuizUpload.scss";
 
-type QuizQuestionPreview = {
-  module_no: number;
-  module_id: number;
+type QuestionForm = {
+  id?: number;
   question_text: string;
   question_type: string;
   choices: string[];
   correct_answer: string;
   variant: string;
+  priority: number;
+  saving: boolean;
 };
 
-type ModuleVariantPreview = {
+type VariantForm = {
   variant: string;
-  questions: QuizQuestionPreview[];
+  questions: QuestionForm[];
 };
 
-type ModulePreview = {
-  module_no: number;
-  module_id: number;
+type ModuleForm = {
+  id: number;
   title: string;
-  variants: ModuleVariantPreview[];
+  rank: number;
+  expanded: boolean;
+  variants: VariantForm[];
 };
+
+const emptyQuestion = (variant: string): QuestionForm => ({
+  question_text: "",
+  question_type: "MCQ",
+  choices: ["", "", "", ""],
+  correct_answer: "",
+  variant,
+  priority: 0,
+  saving: false,
+});
 
 const AdminOnboardingQuizUpload = () => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [modules, setModules] = useState<ModulePreview[]>([]);
-  const [selectedModuleNo, setSelectedModuleNo] = useState<number | null>(null);
-  const [activeVariant, setActiveVariant] = useState<string>("1");
-  const [reviewConfirmed, setReviewConfirmed] = useState(false);
+  const [modules, setModules] = useState<ModuleForm[]>([]);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [isExistingData, setIsExistingData] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [snackOpen, setSnackOpen] = useState(false);
 
-  useEffect(() => {
-    if (!modules.length) {
-      setSelectedModuleNo(null);
-      setActiveVariant("1");
-      return;
-    }
-
-    const firstModule = modules[0];
-    if (selectedModuleNo === null || !modules.some((m) => m.module_no === selectedModuleNo)) {
-      setSelectedModuleNo(firstModule.module_no);
-      setActiveVariant(firstModule.variants[0]?.variant || "1");
-    }
-  }, [modules, selectedModuleNo]);
-
-  const activeModule = useMemo(
-    () => modules.find((module) => module.module_no === selectedModuleNo) ?? modules[0] ?? null,
-    [modules, selectedModuleNo]
-  );
-
-  const activeVariantQuestions = useMemo(() => {
-    if (!activeModule) return [];
-    const variant = activeModule.variants.find((item) => item.variant === activeVariant);
-    return variant?.questions ?? [];
-  }, [activeModule, activeVariant]);
-
-  const variantTabOptions = activeModule?.variants.map((item) => item.variant) ?? [];
-
-  const loadCurrentModules = async () => {
-    try {
-      const response = await apiClient.get<{ modules: ModulePreview[] }>(
-        "/onboarding-modules/admin/onboarding-module-quiz-current"
-      );
-      setModules(response.data.modules);
-      setIsExistingData(true);
-      setReviewConfirmed(false);
-      if (response.data.modules.length > 0) {
-        setSelectedModuleNo(response.data.modules[0].module_no);
-        setActiveVariant(response.data.modules[0].variants[0]?.variant || "1");
-      }
-    } catch (err) {
-      setModules([]);
-      setIsExistingData(false);
-    }
-  };
-
-  useEffect(() => {
-    loadCurrentModules();
-  }, []);
-
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      setError("Please choose an Excel file first.");
-      return;
-    }
-
+  const loadModules = async () => {
     setLoading(true);
     setError(null);
-    setSuccess(null);
-
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-
     try {
-      const response = await apiClient.post<{ modules: ModulePreview[] }>(
-        "/onboarding-modules/admin/onboarding-module-quiz-preview",
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
-      setModules(response.data.modules);
-      setIsExistingData(false);
-      setReviewConfirmed(false);
-      if (response.data.modules.length > 0) {
-        setSelectedModuleNo(response.data.modules[0].module_no);
-        setActiveVariant(response.data.modules[0].variants[0]?.variant || "1");
-      }
+      const [modulesData, quizData] = await Promise.all([
+        onboardingModuleService.listOnboardingModules(),
+        onboardingModuleService.getCurrentAdminQuiz(),
+      ]);
+
+      const moduleForms: ModuleForm[] = modulesData.map((m) => {
+        const quizModule = quizData.modules.find((qm) => qm.module_id === m.id);
+        const variants: VariantForm[] = [];
+        if (quizModule && quizModule.variants.length > 0) {
+          for (const v of quizModule.variants) {
+            variants.push({
+              variant: v.variant,
+              questions: v.questions.map((q) => ({
+                id: q.id,
+                question_text: q.question_text,
+                question_type: q.question_type,
+                choices: q.choices && q.choices.length > 0 ? q.choices : ["", "", "", ""],
+                correct_answer: q.correct_answer || "",
+                variant: q.variant,
+                priority: q.priority ?? 0,
+                saving: false,
+              })),
+            });
+          }
+        }
+        return {
+          id: m.id,
+          title: m.title,
+          rank: m.rank,
+          expanded: false,
+          variants,
+        };
+      });
+
+      setModules(moduleForms);
     } catch (err) {
-      const message = axios.isAxiosError(err)
-        ? err.response?.data?.detail || "Failed to parse the uploaded Excel file"
-        : "Failed to parse the uploaded Excel file";
-      setError(message);
-      setModules([]);
+      setError("Failed to load modules and quiz data");
     } finally {
       setLoading(false);
     }
   };
 
-  const totalQuestions = modules.reduce(
-    (count, module) =>
-      count + module.variants.reduce((variantTotal, variant) => variantTotal + variant.questions.length, 0),
-    0
-  );
+  useEffect(() => {
+    loadModules();
+  }, []);
 
-  const saveConfirmedQuestions = async () => {
-    if (!modules.length) {
-      setError("Upload a file first to save questions.");
-      return;
-    }
+  const showMessage = (message: string) => {
+    setSuccess(message);
+    setSnackOpen(true);
+  };
 
-    if (!reviewConfirmed) {
-      setError("Please confirm that you have reviewed all uploaded questions before saving.");
-      return;
-    }
+  const updateModule = (index: number, updates: Partial<ModuleForm>) => {
+    setModules((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...updates };
+      return next;
+    });
+  };
 
-    const toSave = modules.flatMap((module) =>
-      module.variants.flatMap((variant) =>
-        variant.questions.map((question) => ({
-          ...question,
-          module_id: module.module_id,
-          module_no: module.module_no,
-          variant: variant.variant,
-        }))
-      )
-    );
+  const updateVariant = (moduleIndex: number, variantIndex: number, updates: Partial<VariantForm>) => {
+    setModules((prev) => {
+      const next = [...prev];
+      const module = { ...next[moduleIndex] };
+      const variants = module.variants.map((v, i) => (i === variantIndex ? { ...v, ...updates } : v));
+      module.variants = variants;
+      next[moduleIndex] = module;
+      return next;
+    });
+  };
 
-    if (!toSave.length) {
-      setError("No questions were found in the uploaded file.");
-      return;
-    }
+  const updateQuestion = (
+    moduleIndex: number,
+    variantIndex: number,
+    questionIndex: number,
+    updates: Partial<QuestionForm>
+  ) => {
+    setModules((prev) => {
+      const next = [...prev];
+      const module = { ...next[moduleIndex] };
+      const variants = module.variants.map((v, vi) => {
+        if (vi !== variantIndex) return v;
+        const questions = v.questions.map((q, qi) => (qi === questionIndex ? { ...q, ...updates } : q));
+        return { ...v, questions };
+      });
+      module.variants = variants;
+      next[moduleIndex] = module;
+      return next;
+    });
+  };
 
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
+  const addVariant = (moduleIndex: number) => {
+    setModules((prev) => {
+      const next = [...prev];
+      const module = { ...next[moduleIndex] };
+      const existingVariants = module.variants.map((v) => parseInt(v.variant, 10)).filter((n) => !isNaN(n));
+      const nextVariant = existingVariants.length > 0 ? String(Math.max(...existingVariants) + 1) : "1";
+      module.variants = [...module.variants, { variant: nextVariant, questions: [] }];
+      next[moduleIndex] = module;
+      return next;
+    });
+  };
+
+  const addQuestion = (moduleIndex: number, variantIndex: number) => {
+    setModules((prev) => {
+      const next = [...prev];
+      const module = { ...next[moduleIndex] };
+      const variants = module.variants.map((v, vi) => {
+        if (vi !== variantIndex) return v;
+        return { ...v, questions: [...v.questions, emptyQuestion(v.variant)] };
+      });
+      module.variants = variants;
+      next[moduleIndex] = module;
+      return next;
+    });
+  };
+
+  const deleteVariant = async (moduleIndex: number, variantIndex: number) => {
+    const module = modules[moduleIndex];
+    const variant = module.variants[variantIndex];
+    if (!confirm(`Delete variant ${variant.variant} and all its questions?`)) return;
+
+    setModules((prev) => {
+      const next = [...prev];
+      const mod = { ...next[moduleIndex] };
+      mod.variants = mod.variants.filter((_, i) => i !== variantIndex);
+      next[moduleIndex] = mod;
+      return next;
+    });
 
     try {
-      const response = await apiClient.post<{ saved: number; modules: number[] }>(
-        "/onboarding-modules/admin/onboarding-module-quiz-save",
-        { questions: toSave }
+      const allQuestions = module.variants.flatMap((v) =>
+        v.questions.map((q, idx) => ({
+          ...q,
+          module_id: module.id,
+          display_order: idx + 1,
+        }))
       );
-      setSuccess(`Saved ${response.data.saved} questions across ${response.data.modules.length} module(s).`);
-      setReviewConfirmed(false);
-      // After a successful save, switch back to view mode by loading the
-      // currently saved quiz data and mark it as existing so the Save
-      // checkbox/button are hidden until a new file is uploaded.
-      setIsExistingData(true);
-      setSelectedFile(null);
-      await loadCurrentModules();
-      setSnackOpen(true);
+      await onboardingModuleService.saveAdminQuiz(allQuestions, true);
+      showMessage(`Variant ${variant.variant} deleted successfully`);
     } catch (err) {
-      const message = axios.isAxiosError(err)
-        ? err.response?.data?.detail || "Failed to save questions"
-        : "Failed to save questions";
-      setError(message);
-    } finally {
-      setSaving(false);
+      setError(err instanceof Error ? err.message : "Failed to delete variant");
     }
   };
 
-  return (
-    <div className="admin-onboarding-module" style={{ padding: 32 }}>
-      <div className="candidate-container" style={{ maxWidth: 1200 }}>
-        <h1>Onboarding Quiz Upload</h1>
-        <p className="subtitle">
-          Upload the Excel workbook, review all module questions by variant, and confirm once you have checked everything before saving to the database.
-        </p>
+  const deleteQuestion = async (moduleIndex: number, variantIndex: number, questionIndex: number) => {
+    const question = modules[moduleIndex].variants[variantIndex].questions[questionIndex];
+    if (!question.id) {
+      setModules((prev) => {
+        const next = [...prev];
+        const module = { ...next[moduleIndex] };
+        const variants = module.variants.map((v, vi) => {
+          if (vi !== variantIndex) return v;
+          return { ...v, questions: v.questions.filter((_, qi) => qi !== questionIndex) };
+        });
+        module.variants = variants;
+        next[moduleIndex] = module;
+        return next;
+      });
+      return;
+    }
 
-        <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 24, flexWrap: "wrap" }}>
-          <input
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-          />
-          <Button variant="contained" onClick={handleUpload} disabled={!selectedFile || loading}>
-            {loading ? "Parsing..." : "Upload Excel"}
-          </Button>
+    if (!confirm("Delete this question permanently?")) return;
+
+    try {
+      await onboardingModuleService.deleteAdminQuizQuestion(question.id);
+      setModules((prev) => {
+        const next = [...prev];
+        const module = { ...next[moduleIndex] };
+        const variants = module.variants.map((v, vi) => {
+          if (vi !== variantIndex) return v;
+          return { ...v, questions: v.questions.filter((_, qi) => qi !== questionIndex) };
+        });
+        module.variants = variants;
+        next[moduleIndex] = module;
+        return next;
+      });
+      showMessage("Question deleted successfully");
+    } catch (err) {
+      const message = err instanceof AxiosError ? err.response?.data?.detail || "Failed to delete question" : "Failed to delete question";
+      setError(message);
+    }
+  };
+
+  const saveQuestion = async (moduleIndex: number, variantIndex: number, questionIndex: number) => {
+    const module = modules[moduleIndex];
+    const question = module.variants[variantIndex].questions[questionIndex];
+
+    if (!question.question_text.trim()) {
+      setError("Question text is required");
+      return;
+    }
+
+    updateQuestion(moduleIndex, variantIndex, questionIndex, { saving: true });
+
+    try {
+      const payload = {
+        module_id: module.id,
+        question_text: question.question_text,
+        question_type: question.question_type,
+        choices: question.choices,
+        correct_answer: question.correct_answer,
+        variant: question.variant,
+        priority: question.priority,
+      };
+
+      let savedQuestion: any;
+      if (question.id) {
+        savedQuestion = await onboardingModuleService.updateAdminQuizQuestion(question.id, payload);
+      } else {
+        savedQuestion = await onboardingModuleService.createAdminQuizQuestion(payload);
+      }
+
+      updateQuestion(moduleIndex, variantIndex, questionIndex, { id: savedQuestion.id, saving: false });
+      showMessage("Question saved successfully");
+    } catch (err) {
+      const message = err instanceof AxiosError ? err.response?.data?.detail || "Failed to save question" : "Failed to save question";
+      setError(message);
+      updateQuestion(moduleIndex, variantIndex, questionIndex, { saving: false });
+    }
+  };
+
+  const getModuleQuestionCount = (module: ModuleForm) =>
+    module.variants.reduce((variantTotal, variant) => variantTotal + variant.questions.length, 0);
+
+  return (
+    <div className="admin-onboarding-quiz" style={{ padding: 32 }}>
+      <div className="candidate-container" style={{ maxWidth: 1200 }}>
+        <div style={{ marginBottom: 24 }}>
+          <h1>Onboarding Quiz Management</h1>
+          <p className="subtitle">
+            Manage quiz questions for all modules. Expand a module to view and edit its variants and questions.
+          </p>
         </div>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}
-          </Alert>
-        )}
-
-        {success && (
-          <Alert severity="success" sx={{ mb: 2 }}>
-            {success}
           </Alert>
         )}
 
@@ -243,132 +326,215 @@ const AdminOnboardingQuizUpload = () => {
 
         <Backdrop
           sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1 }}
-          open={loading || saving}
+          open={loading}
         >
           <CircularProgress color="inherit" />
         </Backdrop>
 
-        {modules.length > 0 && (
-          <>
-            {isExistingData && (
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Current saved questionnaire is loaded. Upload a new Excel file to review and replace it.
-              </Alert>
-            )}
+        {modules.length === 0 && !loading && (
+          <Alert severity="info">No modules found.</Alert>
+        )}
 
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2, mb: 2, flexWrap: "wrap" }}>
-              <Tabs
-                value={selectedModuleNo ?? 0}
-                onChange={(_, value) => {
-                  setSelectedModuleNo(value);
-                  const module = modules.find((item) => item.module_no === value);
-                  setActiveVariant(module?.variants[0]?.variant || "1");
-                }}
-                variant="scrollable"
-                scrollButtons="auto"
-              >
-                {modules.map((module) => (
-                  <Tab key={module.module_no} label={`${module.module_no}. ${module.title}`} value={module.module_no} />
-                ))}
-              </Tabs>
-            </Box>
-
-            {activeModule && (
-              <>
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="h6">Module: {activeModule.title}</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total questions in upload: {totalQuestions}
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {modules.map((module, moduleIndex) => (
+            <Card key={module.id} sx={{ border: "1px solid #e2e8f0" }}>
+              <CardContent>
+                <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap", mb: 1 }}>
+                  <Typography variant="subtitle1" fontWeight={700} sx={{ flex: 1 }}>
+                    {module.rank}. {module.title}
                   </Typography>
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={() => updateModule(moduleIndex, { expanded: !module.expanded })}
+                    startIcon={module.expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    sx={{ textTransform: "none", fontWeight: 600 }}
+                  >
+                    {module.expanded ? "Hide" : "View"} Questions ({getModuleQuestionCount(module)})
+                  </Button>
                 </Box>
 
-                <Tabs
-                  value={activeVariant}
-                  onChange={(_, value) => setActiveVariant(value)}
-                  sx={{ mb: 2 }}
-                >
-                  {variantTabOptions.map((variant) => (
-                    <Tab key={variant} label={`Variant ${variant}`} value={variant} />
-                  ))}
-                </Tabs>
+                <Collapse in={module.expanded}>
+                  <Divider sx={{ my: 2 }} />
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                    <Typography variant="subtitle1" fontWeight={700}>
+                      Variants
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<AddIcon />}
+                      onClick={() => addVariant(moduleIndex)}
+                      sx={{ textTransform: "none", fontWeight: 600 }}
+                    >
+                      Add Variant
+                    </Button>
+                  </Box>
 
-                <Card>
-                  <CardContent>
-                    {activeVariantQuestions.length === 0 ? (
-                      <Typography>No questions found for this variant.</Typography>
-                    ) : (
-                      activeVariantQuestions.map((question, index) => {
-                        return (
-                          <Box
-                            key={`${question.question_text}-${index}`}
-                            sx={{ border: "1px solid #e2e8f0", borderRadius: 2, p: 2, mb: 2 }}
-                          >
-                            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
-                              Q{index + 1}. {question.question_text}
-                            </Typography>
+                  <Tabs
+                    value={module.variants.map((v) => v.variant)}
+                    onChange={(_, value) => {
+                      const idx = module.variants.findIndex((v) => v.variant === value);
+                      if (idx >= 0) {
+                        updateModule(moduleIndex, {
+                          expanded: true,
+                          variants: module.variants.map((v, i) => ({
+                            ...v,
+                            active: i === idx,
+                          })),
+                        });
+                      }
+                    }}
+                    sx={{ mb: 2 }}
+                  >
+                    {module.variants.map((variant) => (
+                      <Tab
+                        key={variant.variant}
+                        label={`Variant ${variant.variant}`}
+                        value={variant.variant}
+                      />
+                    ))}
+                  </Tabs>
 
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                              Type: {question.question_type} | Variant: {question.variant}
-                            </Typography>
-
-                            {question.choices && question.choices.length > 0 && (
-                              <Box sx={{ ml: 2, mb: 1 }}>
-                                {question.choices.map((choice, choiceIndex) => (
-                                  <Typography key={`${choice}-${choiceIndex}`} variant="body2">
-                                    {String.fromCharCode(65 + choiceIndex)}. {choice}
-                                  </Typography>
-                                ))}
+                  {module.variants
+                    .filter((v) => module.variants.find((mv) => mv.variant === v.variant && mv.active))
+                    .map((variant) => {
+                      const actualVariantIndex = module.variants.findIndex((v) => v.variant === variant.variant);
+                      return (
+                        <Card key={variant.variant} variant="outlined" sx={{ border: "1px solid #e2e8f0", backgroundColor: "#fafbfc" }}>
+                          <CardContent>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                              <Typography variant="subtitle1" fontWeight={700}>
+                                Variant {variant.variant}
+                              </Typography>
+                              <Box sx={{ display: "flex", gap: 1 }}>
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  startIcon={<AddIcon />}
+                                  onClick={() => addQuestion(moduleIndex, actualVariantIndex)}
+                                  sx={{ textTransform: "none", fontWeight: 600 }}
+                                >
+                                  Add Question
+                                </Button>
+                                {module.variants.length > 1 && (
+                                  <IconButton
+                                    color="error"
+                                    onClick={() => deleteVariant(moduleIndex, actualVariantIndex)}
+                                    size="small"
+                                  >
+                                    <DeleteIcon />
+                                  </IconButton>
+                                )}
                               </Box>
+                            </Box>
+
+                            {variant.questions.length === 0 && (
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                No questions yet. Click "Add Question" to create one.
+                              </Typography>
                             )}
 
-                            <Typography variant="body2">
-                              Correct answer: <strong>{question.correct_answer || "—"}</strong>
-                            </Typography>
+                            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                              {variant.questions.map((question, questionIndex) => (
+                                <Card key={question.id ?? `new-q-${questionIndex}`} variant="outlined" sx={{ border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
+                                  <CardContent>
+                                    <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start", flexWrap: "wrap", mb: 2 }}>
+                                      <Typography sx={{ minWidth: 32, fontWeight: 700, fontSize: '0.875rem' }}>
+                                        Q{questionIndex + 1}.
+                                      </Typography>
+                                      <FormControl size="small" sx={{ minWidth: 120 }}>
+                                        <InputLabel>Type</InputLabel>
+                                        <Select
+                                          value={question.question_type}
+                                          label="Type"
+                                          onChange={(e) => updateQuestion(moduleIndex, actualVariantIndex, questionIndex, { question_type: e.target.value })}
+                                          disabled={question.saving}
+                                        >
+                                          <MenuItem value="MCQ">MCQ</MenuItem>
+                                          <MenuItem value="SCENARIO">Scenario</MenuItem>
+                                        </Select>
+                                      </FormControl>
+                                      <TextField
+                                        label="Question Text"
+                                        size="small"
+                                        value={question.question_text}
+                                        onChange={(e) => updateQuestion(moduleIndex, actualVariantIndex, questionIndex, { question_text: e.target.value })}
+                                        sx={{ flex: 1, minWidth: 200 }}
+                                        disabled={question.saving}
+                                      />
+                                      <TextField
+                                        label="Priority"
+                                        type="number"
+                                        size="small"
+                                        value={question.priority}
+                                        onChange={(e) => updateQuestion(moduleIndex, actualVariantIndex, questionIndex, { priority: parseInt(e.target.value) || 0 })}
+                                        sx={{ width: 80 }}
+                                        disabled={question.saving}
+                                      />
+                                      <Button
+                                        variant="outlined"
+                                        size="small"
+                                        onClick={() => saveQuestion(moduleIndex, actualVariantIndex, questionIndex)}
+                                        disabled={question.saving}
+                                        sx={{ textTransform: "none", fontWeight: 600 }}
+                                      >
+                                        {question.saving ? "Saving..." : "Save"}
+                                      </Button>
+                                      <IconButton
+                                        color="error"
+                                        onClick={() => deleteQuestion(moduleIndex, actualVariantIndex, questionIndex)}
+                                        size="small"
+                                      >
+                                        <DeleteIcon />
+                                      </IconButton>
+                                    </Box>
+
+                                  {(question.question_type === "MCQ" || !question.question_type) && (
+                                    <Box sx={{ mb: 2 }}>
+                                      <Typography variant="subtitle2" sx={{ mb: 1 }}>Options</Typography>
+                                      {question.choices.map((choice, choiceIndex) => (
+                                        <Box key={choiceIndex} sx={{ display: "flex", gap: 1, mb: 1, alignItems: "center" }}>
+                                          <Typography sx={{ minWidth: 24, fontWeight: 600 }}>
+                                            {String.fromCharCode(65 + choiceIndex)}.
+                                          </Typography>
+                                          <TextField
+                                            size="small"
+                                            value={choice}
+                                            onChange={(e) => {
+                                              const newChoices = [...question.choices];
+                                              newChoices[choiceIndex] = e.target.value;
+                                                updateQuestion(moduleIndex, actualVariantIndex, questionIndex, { choices: newChoices });
+                                            }}
+                                            disabled={question.saving}
+                                            sx={{ flex: 1 }}
+                                          />
+                                        </Box>
+                                      ))}
+                                    </Box>
+                                  )}
+
+                                  <TextField
+                                    label="Correct Answer"
+                                    size="small"
+                                    value={question.correct_answer}
+                                    onChange={(e) => updateQuestion(moduleIndex, actualVariantIndex, questionIndex, { correct_answer: e.target.value })}
+                                    sx={{ width: "100%" }}
+                                    disabled={question.saving}
+                                  />
+                                </CardContent>
+                              </Card>
+                            ))}
                           </Box>
-                        );
-                      })
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            )}
-
-            {!isExistingData && (
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  alignItems: "center",
-                  gap: 2,
-                  mt: 3,
-                  flexWrap: "wrap",
-                  borderTop: "1px solid #e2e8f0",
-                  pt: 3,
-                }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={reviewConfirmed}
-                      onChange={(event) => setReviewConfirmed(event.target.checked)}
-                    />
-                  }
-                  label="I have reviewed all uploaded questions across all modules and am ready to save them."
-                />
-
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={saveConfirmedQuestions}
-                  disabled={saving || !reviewConfirmed}
-                >
-                  {saving ? <CircularProgress size={18} color="inherit" sx={{ mr: 1 }} /> : null}
-                  Save All Questions
-                </Button>
-              </Box>
-            )}
-          </>
-        )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </Collapse>
+              </CardContent>
+            </Card>
+          ))}
+        </Box>
       </div>
     </div>
   );

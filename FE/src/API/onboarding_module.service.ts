@@ -230,4 +230,71 @@ export const onboardingModuleService = {
       );
       return response.data;
     },
+
+    getCurrentAdminQuiz: async (): Promise<{ modules: Array<{
+      module_no: number;
+      module_id: number;
+      title: string;
+      variants: Array<{
+        variant: string;
+        questions: Array<{
+          id?: number;
+          question_text: string;
+          question_type: string;
+          choices: string[];
+          correct_answer: string;
+          variant: string;
+          priority: number;
+        }>;
+      }>;
+    }> }> => {
+      const response = await apiClient.get<{ modules: any[] }>(
+        "/onboarding-modules/admin/onboarding-module-quiz-current"
+      );
+      return response.data;
+    },
+
+    saveAdminQuiz: async (questions: any[], deleteMissing: boolean = true): Promise<{ saved: number; modules: number[] }> => {
+      const response = await apiClient.post<{ saved: number; modules: number[] }>(
+        "/onboarding-modules/admin/onboarding-module-quiz-save",
+        { questions, delete_missing: deleteMissing }
+      );
+      return response.data;
+    },
+
+    deleteAdminQuizQuestion: async (questionId: number): Promise<{ deleted: boolean }> => {
+      const response = await apiClient.delete<{ deleted: boolean }>(
+        `/onboarding-modules/admin/onboarding-module-quiz/${questionId}`
+      );
+      return response.data;
+    },
+
+    updateAdminQuizQuestion: async (questionId: number, data: {
+      question_text?: string;
+      question_type?: string;
+      choices?: string[];
+      correct_answer?: string;
+      variant?: string;
+    }): Promise<any> => {
+      const response = await apiClient.patch<any>(
+        `/onboarding-modules/admin/onboarding-module-quiz/${questionId}`,
+        data
+      );
+      return response.data;
+    },
+
+    createAdminQuizQuestion: async (data: {
+      module_id: number;
+      question_text: string;
+      question_type: string;
+      choices: string[];
+      correct_answer: string;
+      variant: string;
+    }): Promise<any> => {
+      const response = await apiClient.post<any>(
+        "/onboarding-modules/admin/onboarding-module-quiz",
+        data
+      );
+      return response.data;
+    },
   };

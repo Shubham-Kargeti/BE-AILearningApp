@@ -1217,3 +1217,20 @@ async def update_certificate_email_status(
     if checklist:
         checklist.certificate_email_sent = email_sent
         await db.flush()
+
+
+async def delete_admin_quiz_question(
+    db: AsyncSession,
+    question_id: int,
+) -> bool:
+    """Delete a single onboarding quiz question by ID."""
+    result = await db.execute(
+        select(OnboardingModuleQuiz).where(OnboardingModuleQuiz.id == question_id)
+    )
+    question = result.scalar_one_or_none()
+    if not question:
+        return False
+
+    await db.delete(question)
+    await db.flush()
+    return True

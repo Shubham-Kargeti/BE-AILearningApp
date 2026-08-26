@@ -66,6 +66,7 @@ from app.services.onboarding_module_service import (
     # send_certificate_email_auto,
     update_certificate_email_status,
     get_retry_quiz,
+    delete_admin_quiz_question,
 )
 
 
@@ -480,6 +481,7 @@ async def get_current_admin_onboarding_module_quiz(
         for question in questions:
             variant = str(question.variant or "1").strip() or "1"
             grouped_variants.setdefault(variant, []).append({
+                "id": question.id,
                 "module_no": module.rank,
                 "module_id": module.id,
                 "question_text": question.question_text,
@@ -487,6 +489,7 @@ async def get_current_admin_onboarding_module_quiz(
                 "choices": question.choices or [],
                 "correct_answer": question.correct_answer,
                 "variant": variant,
+                "priority": question.priority or 0,
             })
 
         variants = []
@@ -514,7 +517,8 @@ async def save_admin_onboarding_module_quiz(
 ):
     """Persist confirmed onboarding quiz questions for one or more modules."""
     records = payload.get("questions") or []
-    if not records:
+    delete_missing = payload.get("delete_missing", True)
+    if not records and not delete_missing:
         raise HTTPException(status_code=400, detail="No questions were selected for save")
 
     grouped: dict[int, list[dict[str, Any]]] = {}
@@ -533,7 +537,6 @@ async def save_admin_onboarding_module_quiz(
             module_result = await db.execute(select(OnboardingModule).where(OnboardingModule.rank == module_key))
             module = module_result.scalar_one_or_none()
         if module is None:
-            # Create the module if it does not exist yet (use module_key as the rank)
             module = OnboardingModule(rank=int(module_key) if isinstance(module_key, int) else 0)
             db.add(module)
             await db.flush()
@@ -548,10 +551,12 @@ async def save_admin_onboarding_module_quiz(
         for question in existing_questions:
             existing_by_index[(str(question.variant or "1"), int(question.display_order))] = question
 
+        submitted_keys: set[tuple[str, int]] = set()
         for index, row in enumerate(rows, start=1):
             question_type = str(row.get("question_type") or "MCQ").strip().upper()
             mapped_type = QuestionType.MCQ if question_type == "MCQ" else QuestionType.SCENARIO
             variant = str(row.get("variant") or "").strip() or "1"
+            submitted_keys.add((variant, index))
             question = existing_by_index.get((variant, index))
             if question is None:
                 question = OnboardingModuleQuiz(
@@ -569,10 +574,96 @@ async def save_admin_onboarding_module_quiz(
             question.display_order = index
             question.variant = variant
             question.points = 1
+            question.priority = int(row.get("priority") or 0)
             saved += 1
+
+        if delete_missing:
+            for key, question in existing_by_index.items():
+                if key not in submitted_keys:
+                    await db.delete(question)
 
     await db.commit()
     return {"saved": saved, "modules": list(grouped.keys())}
+
+
+@router.delete("/admin/onboarding-module-quiz/{question_id}")
+async def delete_admin_onboarding_module_quiz(
+    question_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    """Delete a single onboarding quiz question."""
+    deleted = await delete_admin_quiz_question(db, question_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Question not found")
+    return {"deleted": True}
+
+
+@router.patch("/admin/onboarding-module-quiz/{question_id}", response_model=OnboardingModuleQuizResponse)
+async def update_admin_onboarding_module_quiz(
+    question_id: int,
+    payload: dict[str, Any] = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    """Update a single onboarding quiz question."""
+    result = await db.execute(select(OnboardingModuleQuiz).where(OnboardingModuleQuiz.id == question_id))
+    question = result.scalar_one_or_none()
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+
+    if "question_text" in payload:
+        question.question_text = str(payload["question_text"]).strip()
+    if "question_type" in payload:
+        question_type = str(payload["question_type"] or "MCQ").strip().upper()
+        question.question_type = QuestionType.MCQ if question_type == "MCQ" else QuestionType.SCENARIO
+    if "choices" in payload:
+        question.choices = payload["choices"] or []
+    if "correct_answer" in payload:
+        question.correct_answer = str(payload["correct_answer"] or "").strip()
+    if "variant" in payload:
+        question.variant = str(payload["variant"] or "1").strip() or "1"
+    if "priority" in payload:
+        question.priority = int(payload["priority"] or 0)
+
+    await db.flush()
+    await db.refresh(question)
+    return question
+
+
+@router.post("/admin/onboarding-module-quiz", response_model=OnboardingModuleQuizResponse)
+async def create_admin_onboarding_module_quiz(
+    payload: dict[str, Any] = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(admin_required),
+):
+    """Create a new onboarding quiz question."""
+    module_id = payload.get("module_id")
+    if not module_id:
+        raise HTTPException(status_code=400, detail="module_id is required")
+
+    module = await db.get(OnboardingModule, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    question_type = str(payload.get("question_type") or "MCQ").strip().upper()
+    mapped_type = QuestionType.MCQ if question_type == "MCQ" else QuestionType.SCENARIO
+
+    question = OnboardingModuleQuiz(
+        module_id=module.id,
+        question_text=str(payload.get("question_text") or "").strip(),
+        question_type=mapped_type,
+        choices=payload.get("choices") or [],
+        correct_answer=str(payload.get("correct_answer") or "").strip(),
+        variant=str(payload.get("variant") or "1").strip() or "1",
+        display_order=1,
+        points=1,
+        priority=int(payload.get("priority") or 0),
+    )
+    db.add(question)
+    await db.flush()
+    await db.refresh(question)
+    return question
 
 
 @router.get(

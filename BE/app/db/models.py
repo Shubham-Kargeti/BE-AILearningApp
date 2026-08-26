@@ -1095,6 +1095,8 @@ class OnboardingModuleQuiz(Base):
 
     points = Column(Integer, nullable=False, default=1)
 
+    priority = Column(Integer, nullable=False, default=0)
+
     variant = Column(String(50), nullable=True)
 
     created_date = Column(

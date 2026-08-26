@@ -59,6 +59,7 @@ export interface ModuleDetailResponse {
     correct_answer: string | null;
     display_order: number;
     points: number;
+    priority: number;
   }>;
   quiz_attempts: Array<{
     id: number;
