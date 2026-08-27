@@ -429,17 +429,15 @@ const AdminOnboardingQuizUpload = () => {
                                   sx={{ textTransform: "none", fontWeight: 600 }}
                                 >
                                   Add Question
-                                </Button>
-                                {module.variants.length > 1 && (
-                                  <IconButton
-                                    color="error"
-                                    onClick={() => deleteVariant(moduleIndex, actualVariantIndex)}
-                                    size="small"
-                                  >
-                                    <DeleteIcon />
-                                  </IconButton>
-                                )}
-                              </Box>
+                                 </Button>
+                                 <IconButton
+                                   color="error"
+                                   onClick={() => deleteVariant(moduleIndex, actualVariantIndex)}
+                                   size="small"
+                                 >
+                                   <DeleteIcon />
+                                 </IconButton>
+                               </Box>
                             </Box>
 
                             {variant.questions.length === 0 && (
@@ -464,8 +462,9 @@ const AdminOnboardingQuizUpload = () => {
                                           onChange={(e) => updateQuestion(moduleIndex, actualVariantIndex, questionIndex, { question_type: e.target.value })}
                                           disabled={question.saving}
                                         >
-                                          <MenuItem value="MCQ">MCQ</MenuItem>
-                                          <MenuItem value="SCENARIO">Scenario</MenuItem>
+                                           <MenuItem value="MCQ">MCQ</MenuItem>
+                                           <MenuItem value="SCENARIO">Scenario</MenuItem>
+                                           <MenuItem value="SCENARIO-MCQ">Scenario-based MCQ</MenuItem>
                                         </Select>
                                       </FormControl>
                                       <TextField
@@ -511,7 +510,7 @@ const AdminOnboardingQuizUpload = () => {
                                       </IconButton>
                                     </Box>
 
-                                  {(question.question_type === "MCQ" || !question.question_type) && (
+                                  {(question.question_type === "MCQ" || question.question_type === "SCENARIO-MCQ" || !question.question_type) && (
                                     <Box sx={{ mb: 2 }}>
                                       <Typography variant="subtitle2" sx={{ mb: 1 }}>Options</Typography>
                                       {question.choices.map((choice, choiceIndex) => (

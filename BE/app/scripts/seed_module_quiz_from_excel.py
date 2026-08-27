@@ -19,7 +19,7 @@ MODULE_NO_TO_RANK = {
 
 QUESTION_TYPE_MAP = {
     "MCQ": "MCQ",
-    "Scenario-based MCQ": "MCQ",
+    "Scenario-based MCQ": "SCENARIO-MCQ",
     "Subjective": "SCENARIO",
 }
 

@@ -1063,6 +1063,7 @@ class OnboardingModule(Base):
 class QuestionType(str, enum.Enum):
     MCQ = "MCQ"
     SCENARIO = "SCENARIO"
+    SCENARIO_MCQ = "SCENARIO-MCQ"
 
 
 class OnboardingModuleQuiz(Base):

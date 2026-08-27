@@ -563,7 +563,7 @@ async def save_admin_onboarding_module_quiz(
         submitted_keys: set[tuple[str, int]] = set()
         for index, row in enumerate(rows, start=1):
             question_type = str(row.get("question_type") or "MCQ").strip().upper()
-            mapped_type = QuestionType.MCQ if question_type == "MCQ" else QuestionType.SCENARIO
+            mapped_type = QuestionType.SCENARIO_MCQ if question_type == "SCENARIO-MCQ" else (QuestionType.MCQ if question_type == "MCQ" else QuestionType.SCENARIO)
             variant = str(row.get("variant") or "").strip() or "1"
             submitted_keys.add((variant, index))
             question = existing_by_index.get((variant, index))
@@ -626,7 +626,7 @@ async def update_admin_onboarding_module_quiz(
         question.question_text = str(payload["question_text"]).strip()
     if "question_type" in payload:
         question_type = str(payload["question_type"] or "MCQ").strip().upper()
-        question.question_type = QuestionType.MCQ if question_type == "MCQ" else QuestionType.SCENARIO
+        question.question_type = QuestionType.SCENARIO_MCQ if question_type == "SCENARIO-MCQ" else (QuestionType.MCQ if question_type == "MCQ" else QuestionType.SCENARIO)
     if "choices" in payload:
         question.choices = payload["choices"] or []
     if "correct_answer" in payload:
@@ -659,7 +659,7 @@ async def create_admin_onboarding_module_quiz(
         raise HTTPException(status_code=404, detail="Module not found")
 
     question_type = str(payload.get("question_type") or "MCQ").strip().upper()
-    mapped_type = QuestionType.MCQ if question_type == "MCQ" else QuestionType.SCENARIO
+    mapped_type = QuestionType.SCENARIO_MCQ if question_type == "SCENARIO-MCQ" else (QuestionType.MCQ if question_type == "MCQ" else QuestionType.SCENARIO)
 
     question = OnboardingModuleQuiz(
         module_id=module.id,
