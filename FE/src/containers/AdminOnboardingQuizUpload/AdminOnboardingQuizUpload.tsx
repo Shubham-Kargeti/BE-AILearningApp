@@ -168,7 +168,14 @@ const AdminOnboardingQuizUpload = () => {
       const next = [...prev];
       const module = { ...next[moduleIndex] };
       const existingVariants = module.variants.map((v) => parseInt(v.variant, 10)).filter((n) => !isNaN(n));
-      const nextVariant = existingVariants.length > 0 ? String(Math.max(...existingVariants) + 1) : "1";
+      const existingSet = new Set(existingVariants);
+      let nextVariant = "1";
+      for (let i = 1; i <= existingVariants.length + 1; i++) {
+        if (!existingSet.has(i)) {
+          nextVariant = String(i);
+          break;
+        }
+      }
       module.variants = [...module.variants, { variant: nextVariant, questions: [] }];
       next[moduleIndex] = module;
       return next;

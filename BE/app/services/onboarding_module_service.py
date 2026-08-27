@@ -133,18 +133,24 @@ async def get_onboarding_module_quiz(
     )
 
     all_questions = result.scalars().all()
-    selected_variant = random.choice(["1", "2"])
+    existing_variants = sorted({str(q.variant) for q in all_questions if q.variant is not None})
+    if not existing_variants:
+        return all_questions
+
+    selected_variant = random.choice(existing_variants)
     filtered_questions = [
         q for q in all_questions
         if q.variant is None or q.variant == selected_variant
     ]
 
     if not filtered_questions:
-        other_variant = "2" if selected_variant == "1" else "1"
-        filtered_questions = [
-            q for q in all_questions
-            if q.variant is None or q.variant == other_variant
-        ]
+        other_variants = [v for v in existing_variants if v != selected_variant]
+        if other_variants:
+            selected_variant = random.choice(other_variants)
+            filtered_questions = [
+                q for q in all_questions
+                if q.variant is None or q.variant == selected_variant
+            ]
 
     return filtered_questions
 
@@ -178,6 +184,7 @@ async def get_retry_quiz(
       question fixed at the end, then reassign display_order (rank).
     """
     all_questions = await get_all_onboarding_module_quiz(db, module_id)
+    existing_variants = sorted({str(q.variant) for q in all_questions if q.variant is not None})
 
     # Determine the variant currently shown (from the excluded ids) so we can
     # switch to the other variant for this retry.
@@ -188,10 +195,11 @@ async def get_retry_quiz(
         if len(variants) == 1:
             current_variant = next(iter(variants))
 
-    if current_variant in ("1", "2"):
-        selected_variant = "2" if current_variant == "1" else "1"
+    if current_variant in existing_variants:
+        other_variants = [v for v in existing_variants if v != current_variant]
+        selected_variant = random.choice(other_variants) if other_variants else current_variant
     else:
-        selected_variant = random.choice(["1", "2"])
+        selected_variant = random.choice(existing_variants) if existing_variants else "1"
 
     # Single-variant filter (variant None questions are always included),
     # matching the logic used for the initial quiz load.
@@ -201,11 +209,13 @@ async def get_retry_quiz(
     ]
 
     if not questions:
-        other_variant = "2" if selected_variant == "1" else "1"
-        questions = [
-            q for q in all_questions
-            if q.variant is None or q.variant == other_variant
-        ]
+        other_variants = [v for v in existing_variants if v != selected_variant]
+        if other_variants:
+            selected_variant = random.choice(other_variants)
+            questions = [
+                q for q in all_questions
+                if q.variant is None or q.variant == selected_variant
+            ]
 
     scenario = [q for q in questions if (q.question_type or "").upper() == "SCENARIO"]
     mcq = [q for q in questions if (q.question_type or "").upper() != "SCENARIO"]
