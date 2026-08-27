@@ -36,7 +36,7 @@ export const onboardingModuleService = {
   ): Promise<ModuleDetailResponse> => {
     const response = await apiClient.get<ModuleDetailResponse>(
       "/onboarding-modules/module-detail/" + moduleId,
-      { params: { candidate_id: candidateId } }
+      { params: { candidate_id: candidateId, _t: Date.now() } }
     );
     return response.data;
   },

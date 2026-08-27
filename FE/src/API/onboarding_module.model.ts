@@ -61,6 +61,7 @@ export interface ModuleDetailResponse {
     points: number;
     priority: number;
     category: string | null;
+    variant: string | null;
   }>;
   quiz_attempts: Array<{
     id: number;

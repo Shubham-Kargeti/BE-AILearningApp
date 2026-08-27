@@ -566,6 +566,22 @@ async def save_admin_onboarding_module_quiz(
             continue
 
     saved = 0
+    variant_distribution = {}
+    for module_key in touched_module_keys:
+        rows = grouped.get(module_key, [])
+        module = await db.get(OnboardingModule, module_key) if isinstance(module_key, int) and module_key > 0 else None
+        if module is None:
+            module_result = await db.execute(select(OnboardingModule).where(OnboardingModule.rank == module_key))
+            module = module_result.scalar_one_or_none()
+        if module is None:
+            continue
+
+        for row in rows:
+            v = str(row.get("variant") or "").strip() or "1"
+            variant_distribution[v] = variant_distribution.get(v, 0) + 1
+
+    print(f"[DEBUG][save_admin_onboarding_module_quiz] module_ids={sorted(touched_module_keys)} variant_distribution={variant_distribution}")
+
     for module_key in touched_module_keys:
         rows = grouped.get(module_key, [])
         module = await db.get(OnboardingModule, module_key) if isinstance(module_key, int) and module_key > 0 else None

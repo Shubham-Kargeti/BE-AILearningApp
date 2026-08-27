@@ -57,6 +57,11 @@ def parse_bcg_quiz_excel(file_bytes: bytes, module_by_name: dict[str, Any]) -> d
     question_type_col = _canonical_column(columns, "Question Type", "question_type")
     question_text_col = _canonical_column(columns, "Question Text", "Question", "question_text")
 
+    print(f"[DEBUG][parse_bcg_quiz_excel] columns={columns}")
+    print(f"[DEBUG][parse_bcg_quiz_excel] variation_col={variation_col}")
+    print(f"[DEBUG][parse_bcg_quiz_excel] category_col={category_col}")
+    print(f"[DEBUG][parse_bcg_quiz_excel] question_type_col={question_type_col}")
+
     option_cols = []
     for letter in ["A", "B", "C", "D"]:
         col = _canonical_column(columns, f"Option {letter}", f"option_{letter.lower()}")
@@ -104,6 +109,8 @@ def parse_bcg_quiz_excel(file_bytes: bytes, module_by_name: dict[str, Any]) -> d
 
         variation = str(row.get(variation_col, "") or "").strip().upper()
         variant = VARIANT_MAP.get(variation, "1")
+        if variation:
+            print(f"[DEBUG][parse_bcg_quiz_excel] row question_text={question_text[:50]}... raw_variation={variation!r} mapped_variant={variant!r}")
 
         raw_type = str(row.get(question_type_col, "") or "").strip()
         mapped_type = QUESTION_TYPE_MAP.get(raw_type, "MCQ")

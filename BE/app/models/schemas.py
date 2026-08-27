@@ -534,6 +534,7 @@ class OnboardingModuleQuizResponse(BaseModel):
     points: int
     priority: int = 0
     category: Optional[str] = None
+    variant: Optional[str] = None
 
 class OnboardingModuleKeyConceptResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

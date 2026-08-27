@@ -133,10 +133,16 @@ async def get_onboarding_module_quiz(
 
     all_questions = result.scalars().all()
     existing_variants = sorted({str(q.variant) for q in all_questions if q.variant is not None})
+    variant_counts = {}
+    for q in all_questions:
+        if q.variant is not None:
+            variant_counts[str(q.variant)] = variant_counts.get(str(q.variant), 0) + 1
+    print(f"[DEBUG][get_onboarding_module_quiz] module_id={module_id} total={len(all_questions)} variants={existing_variants} counts={variant_counts}")
     if not existing_variants:
         return all_questions
 
     selected_variant = random.choice(existing_variants)
+    print(f"[DEBUG][get_onboarding_module_quiz] selected_variant={selected_variant}")
     filtered_questions = [
         q for q in all_questions
         if q.variant is None or q.variant == selected_variant
@@ -149,9 +155,82 @@ async def get_onboarding_module_quiz(
             filtered_questions = [
                 q for q in all_questions
                 if q.variant is None or q.variant == selected_variant
-            ]
+             ]
 
-    return filtered_questions
+    final = select_priority_balanced_questions(filtered_questions)
+    final_variant_counts = {}
+    for q in final:
+        final_variant_counts[str(q.variant)] = final_variant_counts.get(str(q.variant), 0) + 1
+    print(f"[DEBUG][get_onboarding_module_quiz] returned={len(final)} variant_distribution={final_variant_counts}")
+    return final
+
+
+def select_priority_balanced_questions(
+    questions: list[OnboardingModuleQuiz],
+    total_count: int | None = None,
+) -> list[OnboardingModuleQuiz]:
+    """
+    Select questions with balanced priority distribution.
+
+    - Groups questions by priority.
+    - Distributes selection equally across distinct priorities.
+    - If a priority bucket is exhausted, remaining slots are filled from the
+      lowest priority number first.
+    - Final list is shuffled so questions are not grouped by priority.
+    """
+    if not questions:
+        return []
+
+    total_available = len(questions)
+    if total_count is None:
+        total_count = total_available
+    total_count = min(total_count, total_available)
+
+    priority_groups: dict[int, list[OnboardingModuleQuiz]] = {}
+    for q in questions:
+        p = q.priority if q.priority is not None else 0
+        priority_groups.setdefault(p, []).append(q)
+
+    if not priority_groups or len(priority_groups) == 1:
+        result = questions[:total_count]
+        random.shuffle(result)
+        return result
+
+    sorted_priorities = sorted(priority_groups.keys())
+    num_priorities = len(sorted_priorities)
+
+    base_per_priority = total_count // num_priorities
+    remainder = total_count % num_priorities
+
+    selected: list[OnboardingModuleQuiz] = []
+    selected_ids: set[int] = set()
+
+    for i, priority in enumerate(sorted_priorities):
+        group = priority_groups[priority]
+        random.shuffle(group)
+
+        target = base_per_priority + (1 if i < remainder else 0)
+        take = min(target, len(group))
+
+        selected.extend(group[:take])
+        selected_ids.update(q.id for q in group[:take])
+
+    if len(selected) < total_count and sorted_priorities:
+        lowest_priority = sorted_priorities[0]
+        lowest_group = priority_groups[lowest_priority]
+        for q in lowest_group:
+            if q.id not in selected_ids and len(selected) < total_count:
+                selected.append(q)
+                selected_ids.add(q.id)
+
+    if len(selected) < total_count:
+        for q in questions:
+            if q.id not in selected_ids and len(selected) < total_count:
+                selected.append(q)
+                selected_ids.add(q.id)
+
+    random.shuffle(selected)
+    return selected[:total_count]
 
 
 async def get_all_onboarding_module_quiz(
@@ -219,9 +298,10 @@ async def get_retry_quiz(
     scenario = [q for q in questions if (q.question_type or "").upper() == "SCENARIO"]
     mcq = [q for q in questions if (q.question_type or "").upper() != "SCENARIO"]
 
-    random.shuffle(mcq)
+    balanced_mcq = select_priority_balanced_questions(mcq)
+    random.shuffle(balanced_mcq)
 
-    ordered = mcq + scenario
+    ordered = balanced_mcq + scenario
     for index, q in enumerate(ordered, start=1):
         q.display_order = index
 

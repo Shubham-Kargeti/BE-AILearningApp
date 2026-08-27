@@ -589,6 +589,9 @@ const AdminOnboardingQuizUpload = () => {
                                         sx={{ flex: 1, minWidth: 200 }}
                                         disabled={question.saving}
                                       />
+                                      <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.7 }}>
+                                        (priority:{question.priority ?? 0}, category:&quot;{question.category || ''}&quot;, variant:{question.variant || '1'}, type:&quot;{(question.question_type || 'MCQ').toLowerCase()}&quot;)
+                                      </Typography>
                                       <TextField
                                         label="Priority"
                                         type="number"
