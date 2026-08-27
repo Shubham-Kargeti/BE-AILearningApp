@@ -293,7 +293,7 @@ const ModuleDetailContainer = () => {
       if (!response.question_id || response.employee_answer == null) continue;
       const question = data.quiz_questions.find((q) => q.id === response.question_id);
       const type = (question?.question_type || "MCQ").toUpperCase();
-      if (type === "MCQ" || type === "SCENARIO") {
+      if (type === "MCQ" || type === "SCENARIO" || type === "SCENARIO-MCQ") {
         mapped[response.question_id] = { selected: response.employee_answer };
       } else {
         mapped[response.question_id] = { text: response.employee_answer };
@@ -421,7 +421,7 @@ const ModuleDetailContainer = () => {
   }, [loading, data, activeStep]);
 
   const handleAnswerChange = (questionId: number, value: string, type: string) => {
-    if (type === "MCQ" || type === "SCENARIO") {
+    if (type === "MCQ" || type === "SCENARIO" || type === "SCENARIO-MCQ") {
       setAnswers((prev) => ({ ...prev, [questionId]: { selected: value } }));
     } else {
       setAnswers((prev) => ({ ...prev, [questionId]: { text: value } }));
@@ -776,7 +776,7 @@ const ModuleDetailContainer = () => {
                       {data.quiz_questions.map((question, index) => {
                         const answerValue = getAnswerValue(question.id);
                         const questionType = (question.question_type || "MCQ").toUpperCase();
-                        const isRadio = questionType === "MCQ";
+                        const isRadio = questionType === "MCQ" || questionType === "SCENARIO-MCQ";
                         const displayChoices = question.choices && question.choices.length > 0
                           ? question.choices.map((choice, i) => ({ id: String(i + 1), text: choice }))
                           : [];
@@ -853,7 +853,7 @@ const ModuleDetailContainer = () => {
                               const response = quizResult?.responses.find(r => r.question_id === question.id);
                               const isCorrect = response?.is_correct;
                               const correctAnswer = response?.correct_answer;
-                              if (isCorrect === false && questionType !== "MCQ" && questionType !== "SCENARIO") {
+                              if (isCorrect === false && questionType !== "MCQ" && questionType !== "SCENARIO" && questionType !== "SCENARIO-MCQ") {
                                 return (
                                   <Box className="module-detail-correct-answer">
                                     <Typography variant="caption" className="module-detail-correct-answer__label">Correct answer:</Typography>

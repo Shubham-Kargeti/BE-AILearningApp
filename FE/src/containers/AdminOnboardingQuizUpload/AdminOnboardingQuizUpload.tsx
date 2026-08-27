@@ -70,8 +70,12 @@ const AdminOnboardingQuizUpload = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [snackOpen, setSnackOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [savingAll, setSavingAll] = useState(false);
+  const [excelUploaded, setExcelUploaded] = useState(false);
 
   const loadModules = async () => {
+    setExcelUploaded(false);
     setLoading(true);
     setError(null);
     try {
@@ -125,6 +129,85 @@ const AdminOnboardingQuizUpload = () => {
   const showMessage = (message: string) => {
     setSuccess(message);
     setSnackOpen(true);
+  };
+
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setError(null);
+    try {
+      const result = await onboardingModuleService.previewBcgQuizExcel(file);
+      const moduleForms: ModuleForm[] = result.modules.map((m: any) => ({
+        id: m.module_id,
+        title: m.title,
+        rank: m.module_no,
+        expanded: true,
+        variants: m.variants.map((v: any) => ({
+          variant: v.variant,
+          questions: v.questions.map((q: any) => ({
+            id: undefined,
+            question_text: q.question_text,
+            question_type: q.question_type,
+            choices: q.choices && q.choices.length > 0 ? q.choices : ["", "", "", ""],
+            correct_answer: q.correct_answer || "",
+            variant: q.variant,
+            priority: q.priority || 0,
+            category: q.category || "",
+            saving: false,
+          })),
+        })),
+      }));
+
+      setModules(moduleForms);
+      setExcelUploaded(true);
+      showMessage(`Loaded ${result.modules.length} module(s) from Excel`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload Excel");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+   };
+
+  const saveAllQuestions = async () => {
+    if (!window.confirm("This will save all questions across all modules and variants. Continue?")) {
+      return;
+    }
+
+    setSavingAll(true);
+    setError(null);
+    try {
+      const allQuestions: any[] = [];
+      const moduleIds = new Set<number>();
+
+      modules.forEach((module) => {
+        moduleIds.add(module.id);
+        module.variants.forEach((variant) => {
+          variant.questions.forEach((question) => {
+            allQuestions.push({
+              module_id: module.id,
+              question_text: question.question_text,
+              question_type: question.question_type,
+              choices: question.choices,
+              correct_answer: question.correct_answer,
+              variant: question.variant,
+              priority: question.priority,
+              category: question.category || null,
+            });
+          });
+        });
+      });
+
+      await onboardingModuleService.saveAdminQuiz(allQuestions, true, Array.from(moduleIds));
+      showMessage("All questions saved successfully");
+      await loadModules();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save all questions");
+    } finally {
+      setSavingAll(false);
+    }
   };
 
   const updateModule = (index: number, updates: Partial<ModuleForm>) => {
@@ -318,6 +401,37 @@ const AdminOnboardingQuizUpload = () => {
           <p className="subtitle">
             Manage quiz questions for all modules. Expand a module to view and edit its variants and questions.
           </p>
+          <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap", mt: 2 }}>
+            {excelUploaded && (
+              <Button
+                variant="contained"
+                onClick={saveAllQuestions}
+                disabled={savingAll || uploading || modules.length === 0}
+                sx={{ textTransform: "none", fontWeight: 600 }}
+              >
+                {savingAll ? "Saving All..." : "Save All"}
+              </Button>
+            )}
+            <Button
+              variant="outlined"
+              component="label"
+              disabled={uploading}
+              sx={{ textTransform: "none", fontWeight: 600 }}
+            >
+              {uploading ? "Uploading..." : "Upload Excel"}
+              <input
+                type="file"
+                hidden
+                accept=".xlsx,.xls"
+                onChange={handleExcelUpload}
+              />
+            </Button>
+            {modules.length > 0 && (
+              <Typography variant="body2" color="text.secondary">
+                {modules.reduce((total, m) => total + m.variants.reduce((vTotal, v) => vTotal + v.questions.length, 0), 0)} questions loaded
+              </Typography>
+            )}
+          </Box>
         </div>
 
         {error && (

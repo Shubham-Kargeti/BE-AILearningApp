@@ -255,6 +255,17 @@ export const onboardingModuleService = {
       return response.data;
     },
 
+    previewBcgQuizExcel: async (file: File): Promise<{ modules: any[]; skipped: number }> => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await apiClient.post<{ modules: any[]; skipped: number }>(
+        "/onboarding-modules/admin/onboarding-module-quiz-bcg-preview",
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      return response.data;
+    },
+
     saveAdminQuiz: async (questions: any[], deleteMissing: boolean = true, moduleIds?: number[]): Promise<{ saved: number; modules: number[] }> => {
       const response = await apiClient.post<{ saved: number; modules: number[] }>(
         "/onboarding-modules/admin/onboarding-module-quiz-save",

@@ -20,7 +20,6 @@ from app.db.models import (
     OnboardingModuleQuizResponseModel,
     OnboardingModuleActionItem,
     OnboardingModuleCandidateChecklist,
-    QuestionType,
     Candidate,
 )
 # from app.core.email import send_email
@@ -856,7 +855,7 @@ async def submit_quiz_attempt(db: AsyncSession, candidate_id: int, module_id: in
         candidate_answer = answer.get("answer")
         llm_score = None
         is_correct = False
-        if question and question.question_type == QuestionType.SCENARIO:
+        if question and question.question_type == "SCENARIO":
             is_correct = False
         elif correct_answer is not None and candidate_answer is not None:
             is_correct = str(candidate_answer).strip().lower() == str(correct_answer).strip().lower()

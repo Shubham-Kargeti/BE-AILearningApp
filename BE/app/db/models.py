@@ -1079,14 +1079,7 @@ class OnboardingModuleQuiz(Base):
 
     question_text = Column(Text, nullable=False)
 
-    question_type = Column(
-        Enum(
-            QuestionType,
-            name="question_type_enum",
-            create_type=False,  # IMPORTANT
-        ),
-        nullable=False,
-    )
+    question_type = Column(String(50), nullable=False)
 
     choices = Column(JSON, nullable=True)
 
