@@ -133,16 +133,10 @@ async def get_onboarding_module_quiz(
 
     all_questions = result.scalars().all()
     existing_variants = sorted({str(q.variant) for q in all_questions if q.variant is not None})
-    variant_counts = {}
-    for q in all_questions:
-        if q.variant is not None:
-            variant_counts[str(q.variant)] = variant_counts.get(str(q.variant), 0) + 1
-    print(f"[DEBUG][get_onboarding_module_quiz] module_id={module_id} total={len(all_questions)} variants={existing_variants} counts={variant_counts}")
     if not existing_variants:
         return all_questions
 
     selected_variant = random.choice(existing_variants)
-    print(f"[DEBUG][get_onboarding_module_quiz] selected_variant={selected_variant}")
     filtered_questions = [
         q for q in all_questions
         if q.variant is None or q.variant == selected_variant
@@ -157,12 +151,7 @@ async def get_onboarding_module_quiz(
                 if q.variant is None or q.variant == selected_variant
              ]
 
-    final = select_priority_balanced_questions(filtered_questions)
-    final_variant_counts = {}
-    for q in final:
-        final_variant_counts[str(q.variant)] = final_variant_counts.get(str(q.variant), 0) + 1
-    print(f"[DEBUG][get_onboarding_module_quiz] returned={len(final)} variant_distribution={final_variant_counts}")
-    return final
+    return select_priority_balanced_questions(filtered_questions)
 
 
 def select_priority_balanced_questions(

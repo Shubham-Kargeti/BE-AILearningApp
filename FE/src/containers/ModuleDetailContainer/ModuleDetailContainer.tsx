@@ -774,7 +774,6 @@ const ModuleDetailContainer = () => {
                    {data.quiz_questions.length > 0 ? (
                      <Box className="module-detail-quiz-list">
                        {data.quiz_questions.map((question, index) => {
-                         console.log("[DEBUG][ModuleDetailContainer] question=", question);
                          const answerValue = getAnswerValue(question.id);
                         const questionType = (question.question_type || "MCQ").toUpperCase();
                         const isRadio = questionType === "MCQ" || questionType === "SCENARIO-MCQ";
@@ -792,13 +791,8 @@ const ModuleDetailContainer = () => {
                             })()}`}
                           >
                              <Box className="module-detail-question__header">
-                               <span className="module-detail-question__number">Q{index + 1}</span>
-                                <span className="module-detail-question__text">
-                                  {question.question_text}
-                                  <span style={{ marginLeft: 8, opacity: 0.7, fontSize: '0.8em' }}>
-                                    (priority:{question.priority ?? 0}, category:&quot;{question.category || ''}&quot;, variant:{question.variant || '1'}, type:&quot;{(question.question_type || 'MCQ').toLowerCase()}&quot;)
-                                  </span>
-                                </span>
+                                <span className="module-detail-question__number">Q{index + 1}</span>
+                                <span className="module-detail-question__text">{question.question_text}</span>
                                {(quizResult || lastAttempt) && (
                                  <Chip
                                    size="small"
