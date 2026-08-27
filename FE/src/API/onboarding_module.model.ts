@@ -60,6 +60,7 @@ export interface ModuleDetailResponse {
     display_order: number;
     points: number;
     priority: number;
+    category: string | null;
   }>;
   quiz_attempts: Array<{
     id: number;

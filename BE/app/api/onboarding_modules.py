@@ -491,6 +491,7 @@ async def get_current_admin_onboarding_module_quiz(
                 "correct_answer": question.correct_answer,
                 "variant": variant,
                 "priority": question.priority or 0,
+                "category": question.category,
             })
 
         variants = []
@@ -583,6 +584,7 @@ async def save_admin_onboarding_module_quiz(
             question.variant = variant
             question.points = 1
             question.priority = int(row.get("priority") or 0)
+            question.category = row.get("category") or question.category or None
             saved += 1
 
         if delete_missing:
@@ -633,6 +635,8 @@ async def update_admin_onboarding_module_quiz(
         question.variant = str(payload["variant"] or "1").strip() or "1"
     if "priority" in payload:
         question.priority = int(payload["priority"] or 0)
+    if "category" in payload:
+        question.category = str(payload["category"] or "").strip() or None
 
     await db.flush()
     await db.refresh(question)
@@ -667,6 +671,7 @@ async def create_admin_onboarding_module_quiz(
         display_order=1,
         points=1,
         priority=int(payload.get("priority") or 0),
+        category=str(payload.get("category") or "").strip() or None,
     )
     db.add(question)
     await db.flush()

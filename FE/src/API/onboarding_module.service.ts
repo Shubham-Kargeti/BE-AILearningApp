@@ -245,6 +245,7 @@ export const onboardingModuleService = {
           correct_answer: string;
           variant: string;
           priority: number;
+          category?: string | null;
         }>;
       }>;
     }> }> => {
@@ -275,6 +276,8 @@ export const onboardingModuleService = {
       choices?: string[];
       correct_answer?: string;
       variant?: string;
+      priority?: number;
+      category?: string;
     }): Promise<any> => {
       const response = await apiClient.patch<any>(
         `/onboarding-modules/admin/onboarding-module-quiz/${questionId}`,
@@ -290,6 +293,8 @@ export const onboardingModuleService = {
       choices: string[];
       correct_answer: string;
       variant: string;
+      priority?: number;
+      category?: string;
     }): Promise<any> => {
       const response = await apiClient.post<any>(
         "/onboarding-modules/admin/onboarding-module-quiz",

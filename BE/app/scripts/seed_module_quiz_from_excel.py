@@ -68,11 +68,12 @@ def parse_excel_rows(excel_df: pd.DataFrame) -> list[dict[str, Any]]:
     question_type_col = _canonical_column(columns, "Question Type", "question_type")
     variation_col = _canonical_column(columns, "Variation", "variation")
     correct_answer_col = _canonical_column(columns, "Correct Answer", "correct_answer")
+    category_col = _canonical_column(columns, "Category", "category")
 
     if not module_col or not question_text_col:
         return []
 
-    df = df[[col for col in df.columns if str(col).strip() in {module_col, active_col or "", question_text_col, question_type_col or "", variation_col or "", correct_answer_col or "", *[f"Option {letter}" for letter in ["A", "B", "C", "D"]]}]]
+    df = df[[col for col in df.columns if str(col).strip() in {module_col, active_col or "", question_text_col, question_type_col or "", variation_col or "", correct_answer_col or "", category_col or "", *[f"Option {letter}" for letter in ["A", "B", "C", "D"]]}]]
     df = df[df[active_col].astype(str).str.strip().str.lower().isin({"yes", "y", "true", "1"})] if active_col else df
 
     rows: list[dict[str, Any]] = []
@@ -123,6 +124,7 @@ def parse_excel_rows(excel_df: pd.DataFrame) -> list[dict[str, Any]]:
                 "correct_answer": correct_answer,
                 "variant": variant,
                 "display_order": len(rows) + 1,
+                "category": str(row.get(category_col) or "").strip() or None,
             }
         )
 
@@ -165,6 +167,7 @@ async def seed_module_quiz_from_excel(db: AsyncSession) -> None:
                     display_order=display_order,
                     points=1,
                     variant=row["variant"],
+                    category=row.get("category"),
                 )
             )
 

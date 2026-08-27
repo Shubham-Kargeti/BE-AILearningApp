@@ -36,6 +36,7 @@ type QuestionForm = {
   correct_answer: string;
   variant: string;
   priority: number;
+  category: string;
   saving: boolean;
 };
 
@@ -59,6 +60,7 @@ const emptyQuestion = (variant: string): QuestionForm => ({
   correct_answer: "",
   variant,
   priority: 0,
+  category: "",
   saving: false,
 });
 
@@ -93,6 +95,7 @@ const AdminOnboardingQuizUpload = () => {
                 correct_answer: q.correct_answer || "",
                 variant: q.variant,
                 priority: q.priority ?? 0,
+                category: q.category || "",
                 saving: false,
               })),
             });
@@ -285,6 +288,7 @@ const AdminOnboardingQuizUpload = () => {
         correct_answer: question.correct_answer,
         variant: question.variant,
         priority: question.priority,
+        category: question.category || null,
       };
 
       let savedQuestion: any;
@@ -479,6 +483,14 @@ const AdminOnboardingQuizUpload = () => {
                                         value={question.priority}
                                         onChange={(e) => updateQuestion(moduleIndex, actualVariantIndex, questionIndex, { priority: parseInt(e.target.value) || 0 })}
                                         sx={{ width: 80 }}
+                                        disabled={question.saving}
+                                      />
+                                      <TextField
+                                        label="Category"
+                                        size="small"
+                                        value={question.category}
+                                        onChange={(e) => updateQuestion(moduleIndex, actualVariantIndex, questionIndex, { category: e.target.value })}
+                                        sx={{ width: 160 }}
                                         disabled={question.saving}
                                       />
                                       <Button
